@@ -7,6 +7,8 @@ import { Gender } from '../dto/get-confessions.dto';
  * Entity representing an anonymous confession in the system.
  * Each confession is stored with a unique identifier and timestamp.
  */
+
+
 @Entity('anonymous_confessions')
 export class AnonymousConfession {
   /**
@@ -42,11 +44,19 @@ export class AnonymousConfession {
   @OneToMany(() => Reaction, (reaction) => reaction.confession)
   reactions: Reaction[];
 
+
+  @Column({
+    default: 0,
+  })
+  @Index()
+  view_count: number;
+
   /**
    * Timestamp when the confession was created.
    * Automatically set when the confession is created.
    */
   @CreateDateColumn({ name: 'created_at' })
+  @Index()
   created_at: Date;
 
   /**

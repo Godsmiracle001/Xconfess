@@ -4,6 +4,7 @@ import { CreateConfessionDto } from './dto/create-confession.dto';
 import { UpdateConfessionDto } from './dto/update-confession.dto';
 import { SearchConfessionDto } from './dto/search-confession.dto';
 import { GetConfessionsDto } from './dto/get-confessions.dto';
+import { GetTrendingConfessionsDto } from './dto/get-trending-confessions.dto';
 
 @Controller('confessions')
 export class ConfessionController {
@@ -17,6 +18,11 @@ export class ConfessionController {
   @Get()
   getConfessions(@Query() getConfessionsDto: GetConfessionsDto) {
     return this.confessionService.getConfessions(getConfessionsDto);
+  }
+
+  @Get('trending')
+  getTrendingConfessions(@Query() getTrendingConfessionsDto: GetTrendingConfessionsDto) {
+    return this.confessionService.getTrendingConfessions(getTrendingConfessionsDto);
   }
 
   @Get('search')
