@@ -6,6 +6,7 @@ import { SearchConfessionDto } from "./dto/search-confession.dto";
 import { GetConfessionsDto, SortOrder } from "./dto/get-confessions.dto";
 import { ILike } from "typeorm";
 import sanitizeHtml from 'sanitize-html';
+import { GetTrendingConfessionsDto } from "./dto/get-trending-confessions.dto";
 
 @Injectable()
 export class ConfessionService {
@@ -88,6 +89,70 @@ export class ConfessionService {
       throw new InternalServerErrorException('Failed to fetch confessions');
     }
   }
+
+
+  async getTrendingConfessions(getTrendingConfessionsDto: GetTrendingConfessionsDto) {
+    try {
+      const { page = 1, limit = 10, sort = SortOrder.TRENDING, gender } = getTrendingConfessionsDto;
+      const skip = (page - 1) * limit;
+      const decayFactor = 1.5;
+
+      const queryBuilder = this.confessionRepo.createQueryBuilder('confession')
+        .leftJoinAndSelect('confession.reactions', 'reactions');
+
+      // Apply gender filter if provided
+      if (gender) {
+        queryBuilder.andWhere('confession.gender = :gender', { gender });
+      }
+
+      // Always sort by trending (number of reactions, then newest)
+      queryBuilder
+        .addSelect((subQuery) => {
+          return subQuery
+            .select('COUNT(*)', 'reaction_count')
+            .from('reaction', 'r')
+            .where('r.confession_id = confession.id');
+        }, 'reaction_count')
+            .addSelect('COALESCE(confession.view_count, 0)', 'view_count')
+      .addSelect(`
+        (
+          (
+            COALESCE(
+              (
+                SELECT COUNT(*) FROM reaction r WHERE r.confession_id = confession.id
+              ), 0
+            ) + COALESCE(confession.view_count, 0)
+          )
+          /
+          POW(EXTRACT(EPOCH FROM (NOW() - confession.created_at)) / 3600 + 2, ${decayFactor})
+        )
+      `, 'trending_score')
+        .orderBy('reaction_count', 'DESC')
+        .addOrderBy('confession.created_at', 'DESC');
+
+      // Get total count
+      const total = await queryBuilder.getCount();
+
+      // Apply pagination
+      queryBuilder.skip(skip).take(limit);
+
+      // Execute query
+      const confessions = await queryBuilder.getMany();
+
+      return {
+        data: confessions,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit)
+        }
+      };
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to fetch trending confessions');
+    }
+  }
+
 
   async update(id: string, updateConfessionDto: UpdateConfessionDto) {
     try {
