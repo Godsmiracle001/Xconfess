@@ -1,5 +1,3 @@
-// src/confession/entities/confession.entity.ts
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -18,6 +16,7 @@ import { Comment } from '../../comment/entities/comment.entity';
 /**
  * Entity representing an anonymous confession.
  */
+@Index(['view_count', 'created_at']) // THIS IS YOUR QUERY OPTIMIZATION
 @Entity('anonymous_confessions')
 export class AnonymousConfession {
   @PrimaryGeneratedColumn('uuid')

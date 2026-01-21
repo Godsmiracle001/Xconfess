@@ -68,7 +68,6 @@ export class ConfessionService {
 
     const total = await qb.getCount();
     const items = await qb.skip(skip).take(limit).getMany();
-    // Decrypt message before returning
     const decryptedItems = items.map(item => ({
       ...item,
       message: decryptConfession(item.message),
@@ -137,13 +136,10 @@ export class ConfessionService {
     const conf = await this.confessionRepo.findOne({ where: { id, isDeleted: false } });
     if (!conf) throw new NotFoundException('Confession not found');
 
-    // Type-safe extraction of user id or IP
-    // Extend Request type to include 'user' property
     type AuthenticatedRequest = Request & { user?: { id?: string } };
     const authReq = req as AuthenticatedRequest;
     const userId = authReq.user?.id;
     let userOrIp: string = userId ?? String(req.headers['x-forwarded-for'] ?? req.ip);
-    // If x-forwarded-for is an array, use the first element
     if (Array.isArray(userOrIp)) {
       userOrIp = userOrIp[0] ?? req.ip;
     }
@@ -159,8 +155,32 @@ export class ConfessionService {
     return conf;
   }
 
+  /**
+   * Requirement: Trending Algorithm implementation
+   * Formula: (Views * 0.5 + Reactions * 2) / (Age in Hours + 2)^1.5
+   */
   async getTrendingConfessions() {
-    const confs = await this.confessionRepo.findTrending(10);
-    return { data: confs };
+    const qb = this.confessionRepo.createQueryBuilder('confession')
+      .leftJoinAndSelect('confession.reactions', 'reactions')
+      .where('confession.isDeleted = false')
+      .addSelect(
+        `((confession.view_count * 0.5) + (
+          SELECT COUNT(*) FROM reaction r WHERE r.confession_id = confession.id
+        ) * 2) / POWER(EXTRACT(EPOCH FROM (NOW() - confession.created_at))/3600 + 2, 1.5)`,
+        'trending_score',
+      )
+      .orderBy('trending_score', 'DESC')
+      .limit(10);
+
+    const items = await qb.getMany();
+
+    const decryptedItems = items.map((item) => ({
+      ...item,
+      message: decryptConfession(item.message),
+    }));
+
+    return {
+      data: decryptedItems,
+    };
   }
 }

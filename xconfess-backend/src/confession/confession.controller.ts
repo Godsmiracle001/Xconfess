@@ -1,4 +1,3 @@
-
 import {
   Controller, Get, Post, Put, Delete,
   Body, Param, Query, Req, UsePipes, ValidationPipe,
@@ -12,10 +11,6 @@ import { Request } from 'express';
 
 @Controller('confessions')
 export class ConfessionController {
-  // For testing compatibility: expose getConfessionById
-  getConfessionById(id: string, req: Request) {
-    return this.getById(id, req);
-  }
   constructor(private readonly service: ConfessionService) {}
 
   @Post()
@@ -42,14 +37,18 @@ export class ConfessionController {
     return this.service.fullTextSearch(dto);
   }
 
+  /**
+   * GET /confessions/trending
+   * Moved above :id to avoid route collision
+   */
+  @Get('trending')
+  getTrending() {
+    return this.service.getTrendingConfessions();
+  }
+
   @Get(':id')
   getById(@Param('id') id: string, @Req() req: Request) {
     return this.service.getConfessionByIdWithViewCount(id, req);
-  }
-
-  @Get('trending/top')
-  getTrending() {
-    return this.service.getTrendingConfessions();
   }
 
   @Put(':id')
@@ -61,5 +60,10 @@ export class ConfessionController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  // Compatibility helper
+  getConfessionById(id: string, req: Request) {
+    return this.getById(id, req);
   }
 }
