@@ -206,11 +206,48 @@ export class UserService {
 
 
   async updateProfile(userId: number, updateDto: UpdateUserProfileDto): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
+    try {
+      this.logger.log(`Updating profile for masked user ID: ${maskUserId(userId)}`);
 
-    Object.assign(user, updateDto);
-    return this.userRepository.save(user);
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+
+      // Only update fields that are provided
+      if (updateDto.gender !== undefined) user.gender = updateDto.gender;
+      if (updateDto.age !== undefined) user.age = updateDto.age;
+      if (updateDto.canReceiveMessages !== undefined) user.canReceiveMessages = updateDto.canReceiveMessages;
+      if (updateDto.bio !== undefined) user.bio = updateDto.bio;
+      if (updateDto.avatarUrl !== undefined) user.avatarUrl = updateDto.avatarUrl;
+      if (updateDto.isProfilePublic !== undefined) user.isProfilePublic = updateDto.isProfilePublic;
+
+      const updatedUser = await this.userRepository.save(user);
+      this.logger.log(`Profile updated successfully for masked user ID: ${maskUserId(userId)}`);
+
+      return updatedUser;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to update profile: ${errorMessage}`);
+      throw error instanceof NotFoundException ? error : new InternalServerErrorException(`Failed to update profile: ${errorMessage}`);
+    }
+  }
+
+  async linkAnonymousUser(userId: number, anonymousUserId: string): Promise<User> {
+    try {
+      this.logger.log(`Linking anonymous user to masked user ID: ${maskUserId(userId)}`);
+
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+
+      user.anonymousUserId = anonymousUserId;
+      const updatedUser = await this.userRepository.save(user);
+
+      this.logger.log(`Anonymous user linked successfully for masked user ID: ${maskUserId(userId)}`);
+      return updatedUser;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to link anonymous user: ${errorMessage}`);
+      throw error instanceof NotFoundException ? error : new InternalServerErrorException(`Failed to link anonymous user: ${errorMessage}`);
+    }
   }
 
   async deactivateAccount(userId: number): Promise<User> {
