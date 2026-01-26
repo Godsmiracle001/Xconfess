@@ -8,11 +8,14 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { Reaction } from '../../reaction/entities/reaction.entity';
 import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { Gender } from '../dto/get-confessions.dto';
 import { Comment } from '../../comment/entities/comment.entity';
+import { Tag } from './tag.entity';
 
 @Entity('anonymous_confessions')
 export class AnonymousConfession {
@@ -36,10 +39,14 @@ export class AnonymousConfession {
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
-  @ManyToOne(() => AnonymousUser, (anonymousUser) => anonymousUser.confessions, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => AnonymousUser,
+    (anonymousUser) => anonymousUser.confessions,
+    {
+      nullable: false,
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'anonymous_user_id' })
   anonymousUser: AnonymousUser;
 
@@ -53,7 +60,12 @@ export class AnonymousConfession {
   comments: Comment[];
 
   // Moderation fields
-  @Column('decimal', { name: 'moderation_score', precision: 5, scale: 4, default: 0 })
+  @Column('decimal', {
+    name: 'moderation_score',
+    precision: 5,
+    scale: 4,
+    default: 0,
+  })
   moderationScore: number;
 
   @Column('simple-array', { name: 'moderation_flags', default: '' })
@@ -87,6 +99,15 @@ export class AnonymousConfession {
 
   @Column({ name: 'anchored_at', type: 'timestamp', nullable: true })
   anchoredAt: Date;
+
+  // Tags relationship
+  @ManyToMany(() => Tag, (tag) => tag.confessions)
+  @JoinTable({
+    name: 'confession_tags',
+    joinColumn: { name: 'confession_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'tag_id', referencedColumnName: 'id' },
+  })
+  tags: Tag[];
 
   get content(): string {
     return this.message;

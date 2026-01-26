@@ -1,10 +1,16 @@
 // src/confession/confession.module.ts
-import { Module, NestModule, MiddlewareConsumer, forwardRef } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  forwardRef,
+} from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConfessionController } from './confession.controller';
 import { ConfessionService } from './confession.service';
 import { AnonymousConfession } from './entities/confession.entity';
+import { Tag } from './entities/tag.entity';
 import { AnonymousConfessionRepository } from './repository/confession.repository';
 import { ConfessionViewCacheService } from './confession-view-cache.service';
 import { ReactionModule } from '../reaction/reaction.module';
@@ -12,6 +18,7 @@ import { AnonymousContextMiddleware } from '../middleware/anonymous-context.midd
 import { ModerationModule } from '../moderation/moderation.module';
 import { UserModule } from '../user/user.module';
 import { StellarModule } from '../stellar/stellar.module';
+import { TagService } from './tag.service';
 // In-memory mock Redis for development without Redis server
 const REDIS_TOKEN = 'default_IORedisModuleConnectionToken';
 class MockRedis {
@@ -27,7 +34,12 @@ class MockRedis {
     return 1;
   }
 
-  async set(key: string, value: string, _exFlag?: string, exSeconds?: number): Promise<string> {
+  async set(
+    key: string,
+    value: string,
+    _exFlag?: string,
+    exSeconds?: number,
+  ): Promise<string> {
     const expiry = exSeconds ? Date.now() + exSeconds * 1000 : undefined;
     this.store.set(key, { value, expiry });
     return 'OK';
@@ -46,7 +58,7 @@ class MockRedis {
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AnonymousConfession]),
+    TypeOrmModule.forFeature([AnonymousConfession, Tag]),
     EventEmitterModule.forRoot(),
     forwardRef(() => ReactionModule),
     ModerationModule,
@@ -56,6 +68,7 @@ class MockRedis {
   controllers: [ConfessionController],
   providers: [
     ConfessionService,
+    TagService,
     AnonymousConfessionRepository,
     ConfessionViewCacheService,
     { provide: 'VIEW_CACHE_EXPIRY', useValue: 60 * 60 },

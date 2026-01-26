@@ -32,6 +32,7 @@ import { EncryptionService } from 'src/encryption/encryption.service';
 import { ConfessionResponseDto } from './dto/confession-response.dto';
 import { StellarService } from '../stellar/stellar.service';
 import { AnchorConfessionDto } from '../stellar/dto/anchor-confession.dto';
+import { TagService } from './tag.service';
 
 @Injectable()
 export class ConfessionService {
@@ -45,6 +46,7 @@ export class ConfessionService {
     private readonly logger: AppLogger,
     private encryptionService: EncryptionService,
     private readonly stellarService: StellarService,
+    private readonly tagService: TagService,
   ) {}
 
   private sanitizeMessage(message: string): string {
@@ -60,6 +62,12 @@ export class ConfessionService {
     if (!msg) throw new BadRequestException('Invalid confession content');
 
     try {
+      // Step 0: Validate tags if provided
+      let validatedTags: any[] = [];
+      if (dto.tagIds && dto.tagIds.length > 0) {
+        validatedTags = await this.tagService.validateTagIds(dto.tagIds);
+      }
+
       // Step 1: Moderate the content BEFORE encryption
       const moderationResult =
         await this.aiModerationService.moderateContent(msg);
@@ -110,6 +118,7 @@ export class ConfessionService {
         requiresReview: moderationResult.requiresReview,
         isHidden: moderationResult.status === ModerationStatus.REJECTED,
         moderationDetails: moderationResult.details,
+        tags: validatedTags,
         ...stellarData,
       });
 
@@ -164,7 +173,8 @@ export class ConfessionService {
       .andWhere('confession.moderationStatus IN (:...statuses)', {
         statuses: [ModerationStatus.APPROVED, ModerationStatus.PENDING],
       })
-      .leftJoinAndSelect('confession.reactions', 'reactions');
+      .leftJoinAndSelect('confession.reactions', 'reactions')
+      .leftJoinAndSelect('confession.tags', 'tags');
 
     if (dto.gender) {
       qb.andWhere('confession.gender = :gender', { gender: dto.gender });
@@ -196,6 +206,60 @@ export class ConfessionService {
     return {
       data: decryptedItems,
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  /**
+   * Get confessions filtered by a specific tag
+   */
+  async getConfessionsByTag(
+    tagName: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    if (limit < 1 || limit > 100) {
+      throw new BadRequestException('limit must be 1–100');
+    }
+
+    // Find the tag by name
+    const tag = await this.tagService.getTagByName(tagName.toLowerCase());
+    if (!tag) {
+      throw new NotFoundException(`Tag '${tagName}' not found`);
+    }
+
+    const skip = (page - 1) * limit;
+    const qb = this.confessionRepo
+      .createQueryBuilder('confession')
+      .innerJoin('confession.tags', 'tag', 'tag.id = :tagId', { tagId: tag.id })
+      .andWhere('confession.isDeleted = false')
+      .andWhere('confession.isHidden = false')
+      .andWhere('confession.moderationStatus IN (:...statuses)', {
+        statuses: [ModerationStatus.APPROVED, ModerationStatus.PENDING],
+      })
+      .leftJoinAndSelect('confession.reactions', 'reactions')
+      .leftJoinAndSelect('confession.tags', 'tags')
+      .orderBy('confession.created_at', 'DESC');
+
+    const total = await qb.getCount();
+    const items = await qb.skip(skip).take(limit).getMany();
+
+    const decryptedItems = items.map((item) => ({
+      ...item,
+      message: decryptConfession(item.message),
+    }));
+
+    return {
+      data: decryptedItems,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        tag: {
+          name: tag.name,
+          displayName: tag.displayName,
+        },
+      },
     };
   }
 
@@ -483,7 +547,9 @@ export class ConfessionService {
     }
 
     if (confession.isAnchored) {
-      throw new BadRequestException('Confession is already anchored on Stellar');
+      throw new BadRequestException(
+        'Confession is already anchored on Stellar',
+      );
     }
 
     if (!this.stellarService.isValidTxHash(dto.stellarTxHash)) {

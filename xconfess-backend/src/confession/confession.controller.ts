@@ -1,7 +1,15 @@
-
 import {
-  Controller, Get, Post, Put, Delete,
-  Body, Param, Query, Req, UsePipes, ValidationPipe,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Req,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ConfessionService } from './confession.service';
 import { CreateConfessionDto } from './dto/create-confession.dto';
@@ -10,6 +18,8 @@ import { GetConfessionsDto } from './dto/get-confessions.dto';
 import { SearchConfessionDto } from './dto/search-confession.dto';
 import { AnchorConfessionDto } from '../stellar/dto/anchor-confession.dto';
 import { Request } from 'express';
+import { TagService } from './tag.service';
+import { GetConfessionsByTagDto } from './dto/get-confessions-by-tag.dto';
 
 @Controller('confessions')
 export class ConfessionController {
@@ -17,7 +27,10 @@ export class ConfessionController {
   getConfessionById(id: string, req: Request) {
     return this.getById(id, req);
   }
-  constructor(private readonly service: ConfessionService) {}
+  constructor(
+    private readonly service: ConfessionService,
+    private readonly tagService: TagService,
+  ) {}
 
   @Post()
   @UsePipes(new ValidationPipe({ whitelist: true }))
@@ -29,6 +42,22 @@ export class ConfessionController {
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   findAll(@Query() dto: GetConfessionsDto) {
     return this.service.getConfessions(dto);
+  }
+
+  @Get('tags')
+  getAllTags() {
+    return this.tagService.getAllTags();
+  }
+
+  @Get('tags/stats')
+  getTagsWithStats() {
+    return this.tagService.getTagsWithCount();
+  }
+
+  @Get('tags/:tag')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  getByTag(@Param('tag') tag: string, @Query() dto: GetConfessionsByTagDto) {
+    return this.service.getConfessionsByTag(tag, dto.page, dto.limit);
   }
 
   @Get('search')
@@ -60,10 +89,7 @@ export class ConfessionController {
 
   @Post(':id/anchor')
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  anchorConfession(
-    @Param('id') id: string,
-    @Body() dto: AnchorConfessionDto,
-  ) {
+  anchorConfession(@Param('id') id: string, @Body() dto: AnchorConfessionDto) {
     return this.service.anchorConfession(id, dto);
   }
 

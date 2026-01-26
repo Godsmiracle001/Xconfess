@@ -7,6 +7,7 @@ import {
   BadRequestException,
   Req,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -14,7 +15,6 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
-
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -25,9 +25,10 @@ export class AuthController {
     @Req() request: Request,
   ): Promise<{ message: string }> {
     try {
-      const ipAddress = request.ip || 
-                       (request.headers['x-forwarded-for'] as string)?.split(',')[0] || 
-                       request.connection.remoteAddress;
+      const ipAddress =
+        request.ip ||
+        (request.headers['x-forwarded-for'] as string)?.split(',')[0] ||
+        request.connection.remoteAddress;
       const userAgent = request.headers['user-agent'];
 
       return await this.authService.forgotPassword(
@@ -40,7 +41,9 @@ export class AuthController {
         throw error;
       }
       // Handle generic errors gracefully - don't expose internal details
-      return { message: 'If the user exists, a password reset email has been sent.' };
+      return {
+        message: 'If the user exists, a password reset email has been sent.',
+      };
     }
   }
 
@@ -61,7 +64,9 @@ export class AuthController {
       // Handle generic errors
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      throw new BadRequestException('Failed to reset password: ' + errorMessage);
+      throw new BadRequestException(
+        'Failed to reset password: ' + errorMessage,
+      );
     }
   }
-} 
+}
