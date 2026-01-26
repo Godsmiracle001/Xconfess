@@ -7,9 +7,6 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import "./globals.css";
 import { AuthProvider } from "./lib/providers/AuthProvider";
 
-import { OnboardingFlow } from "@/app/components/onboarding/OnboardingFlow";
-import { HelpButton } from "@/app/components/onboarding/HelpButton";
-
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -39,9 +36,6 @@ export default function RootLayout({
           <WalletProvider>
             <AppHeader />
             {children}
-            {/* Onboarding system */}
-            <OnboardingFlow />
-            <HelpButton />
           </WalletProvider>
         </AuthProvider>
       </body>
