@@ -60,7 +60,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       });
       // Only update if errors are cleared
       if (Object.keys(validationErrors).length < Object.keys(errors).length) {
-        setErrors(validationErrors);
+        setErrors(validationErrors as Record<string, string>);
       }
     }
   }, [title, body, gender, enableStellarAnchor, errors]);
@@ -101,7 +101,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     });
 
     if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
+      setErrors(validationErrors as Record<string, string>);
       return;
     }
 
@@ -272,7 +272,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
             ) : (
               <>
                 <FormattingToolbar
-                  textareaRef={textareaRef}
+                  textareaRef={textareaRef as React.RefObject<HTMLTextAreaElement>}
                   onTextChange={handleTextChange}
                 />
                 <textarea

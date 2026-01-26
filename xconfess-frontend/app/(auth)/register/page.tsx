@@ -1,4 +1,5 @@
 'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -23,8 +24,6 @@ export default function RegisterPage() {
   const router = useRouter();
   const { register: registerUser, error: authError, isLoading: authLoading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
@@ -44,11 +43,8 @@ export default function RegisterPage() {
         password: data.password,
       });
 
-      // Auto-login happens in the register function
-      // Redirect to dashboard after successful registration
-      router.push('/dashboard');
+      router.push('/login?registered=true');
     } catch (err) {
-      // Error is already handled in auth context
       console.error('Registration error:', err);
     } finally {
       setIsSubmitting(false);
@@ -89,59 +85,6 @@ export default function RegisterPage() {
             />
             {errors.email && (
               <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: data.username,
-            email: data.email,
-            password: data.password,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Registration failed");
-      }
-
-      // Redirect to login after successful registration
-      router.push("/login?registered=true");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8">
-        <h1 className="text-2xl font-bold text-center mb-6">Create Account</h1>
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Username</label>
-            <input
-              {...register("username")}
-              className="w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="Choose a username"
-            />
-            {errors.username && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.username.message}
-              </p>
             )}
           </div>
 
@@ -182,63 +125,6 @@ export default function RegisterPage() {
 
         <p className="text-center mt-4 text-sm text-gray-600">
           Already have an account?{' '}
-            <label className="block text-sm font-medium mb-1">Email</label>
-            <input
-              {...register("email")}
-              type="email"
-              className="w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="your@email.com"
-            />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.email.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Password</label>
-            <input
-              {...register("password")}
-              type="password"
-              className="w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="••••••••"
-            />
-            {errors.password && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">
-              Confirm Password
-            </label>
-            <input
-              {...register("confirmPassword")}
-              type="password"
-              className="w-full px-3 py-3 text-base border rounded-lg focus:ring-2 focus:ring-purple-500"
-              placeholder="••••••••"
-            />
-            {errors.confirmPassword && (
-              <p className="text-red-500 text-sm mt-1">
-                {errors.confirmPassword.message}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50"
-          >
-            {isLoading ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
-
-        <p className="text-center mt-4 text-sm text-gray-600">
-          Already have an account?{" "}
           <Link href="/login" className="text-purple-600 hover:underline">
             Login here
           </Link>
@@ -246,5 +132,4 @@ export default function RegisterPage() {
       </div>
     </div>
   );
-}
 }

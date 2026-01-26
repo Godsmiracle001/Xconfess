@@ -49,6 +49,6 @@ export default function Home() {
           Connect Wallet
         </button>
       </main>
-    </>
+    </ErrorBoundary>
   );
 }
