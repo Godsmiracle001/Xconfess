@@ -1,0 +1,73 @@
+/**
+ * Authentication-related TypeScript types
+ */
+
+/**
+ * User object returned from the backend
+ */
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  is_active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Response from login endpoint
+ */
+export interface LoginResponse {
+  access_token: string;
+  user: User;
+  anonymousUserId: string;
+}
+
+/**
+ * Response from register endpoint
+ */
+export interface RegisterResponse {
+  id: string;
+  email: string;
+  username: string;
+  is_active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Authentication state
+ */
+export interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
+
+/**
+ * Login credentials
+ */
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+/**
+ * Registration data
+ */
+export interface RegisterData {
+  email: string;
+  password: string;
+  username: string;
+}
+
+/**
+ * Auth context value
+ */
+export interface AuthContextValue extends AuthState {
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
+  logout: () => void;
+  checkAuth: () => Promise<void>;
+}

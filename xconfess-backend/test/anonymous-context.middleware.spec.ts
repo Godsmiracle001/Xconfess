@@ -3,7 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { AnonymousContextMiddleware } from '../src/middleware/anonymous-context.middleware';
 import { AnonymousContextModule } from '../src/middleware/anonymous-context.module';
-import { JwtAuthGuard } from '../src/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
 import { User } from '../src/user/entities/user.entity';
 
 describe('AnonymousContextMiddleware (e2e)', () => {
@@ -13,14 +13,17 @@ describe('AnonymousContextMiddleware (e2e)', () => {
   const mockUser: User = {
     id: 1,
     username: 'testuser',
-    email: 'test@example.com',
+    emailEncrypted: 'enc',
+    emailIv: 'iv',
+    emailTag: 'tag',
+    emailHash: 'hash',
     password: 'hashedpassword',
+    isAdmin: false,
     is_active: true,
     resetPasswordToken: null,
     resetPasswordExpires: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    confessions: [],
   };
 
   beforeEach(async () => {

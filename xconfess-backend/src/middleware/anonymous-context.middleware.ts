@@ -9,7 +9,7 @@ export class AnonymousContextMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     // Only add anonymous context for authenticated users
-    if (req.user) {
+    if ((req as any).user) {
       // Generate a unique anonymous context ID
       const anonymousContextId = this.generateAnonymousContextId();
       
@@ -27,4 +27,4 @@ export class AnonymousContextMiddleware implements NestMiddleware {
     // Generate a UUID and prefix it with 'anon_' to make it easily identifiable
     return `${this.ANONYMOUS_CONTEXT_PREFIX}${uuidv4()}`;
   }
-} 
+}

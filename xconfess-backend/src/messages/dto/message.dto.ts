@@ -1,8 +1,8 @@
-import { IsInt, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsUUID, IsString, MinLength, MaxLength, IsInt } from 'class-validator';
 
 export class CreateMessageDto {
-  @IsInt()
-  confession_id: number;
+  @IsUUID()
+  confession_id: string;
 
   @IsString()
   @MinLength(1)

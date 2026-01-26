@@ -5,6 +5,7 @@ import { PasswordResetService } from './password-reset.service';
 import { PasswordReset } from './entities/password-reset.entity';
 import { User } from '../user/entities/user.entity';
 import { BadRequestException } from '@nestjs/common';
+import { CryptoUtil } from '../common/crypto.util';
 
 describe('PasswordResetService', () => {
   let service: PasswordResetService;
@@ -14,14 +15,17 @@ describe('PasswordResetService', () => {
   const mockUser: User = {
     id: 1,
     username: 'testuser',
-    email: 'test@example.com',
+    emailEncrypted: CryptoUtil.encrypt('test@example.com').encrypted,
+    emailIv: CryptoUtil.encrypt('test@example.com').iv,
+    emailTag: CryptoUtil.encrypt('test@example.com').tag,
+    emailHash: CryptoUtil.hash('test@example.com'),
     password: 'hashedpassword',
+    isAdmin: false,
     is_active: true,
     resetPasswordToken: null,
     resetPasswordExpires: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    confessions: [],
   };
 
   const mockPasswordReset: PasswordReset = {

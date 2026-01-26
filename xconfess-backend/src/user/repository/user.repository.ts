@@ -1,5 +1,6 @@
 import { EntityRepository, Repository } from 'typeorm';
 import { User } from '../entities/user.entity';
+import { CryptoUtil } from '../../common/crypto.util';
 
 @EntityRepository(User)
 export class UserRepository extends Repository<User> {
@@ -8,6 +9,8 @@ export class UserRepository extends Repository<User> {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.findOne({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailHash = CryptoUtil.hash(normalizedEmail);
+    return this.findOne({ where: { emailHash } });
   }
 }

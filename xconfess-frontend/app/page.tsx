@@ -1,23 +1,32 @@
 "use client";
 
-import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
+import { ConfessionFeed } from "./components/confession/ConfessionFeed";
+import { ErrorBoundary } from "./components/confession/ErrorBoundary";
+import { EnhancedConfessionForm } from "./components/confession/EnhancedConfessionForm";
 
 export default function Home() {
   return (
-    <>
-      {/* Onboarding */}
-      <OnboardingFlow />
+    <ErrorBoundary>
+      <main className="min-h-screen bg-linear-to-b from-zinc-950 to-black">
+        <div className="container mx-auto py-8 px-4">
+          <header className="mb-12 text-center">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
+              Confessions
+            </h1>
+            <p className="text-gray-400 text-lg">
+              Share your secrets anonymously
+            </p>
+          </header>
+          
+          {/* Confession Form */}
+          <div className="mb-12 max-w-3xl mx-auto">
+            <EnhancedConfessionForm />
+          </div>
 
-      <main className="p-4 md:p-8 flex flex-col items-center space-y-6">
-        {/* Confession Feed */}
-        <div className="confession-feed w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-700 rounded-xl shadow-md p-6">
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
-            Confession Feed
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300 text-center">
-            Browse anonymous confessions from the community. React and show your
-            support!
-          </p>
+          {/* Confessions Feed */}
+          <div className="max-w-3xl mx-auto">
+            <ConfessionFeed />
+          </div>
         </div>
 
         {/* Post Confession Button */}

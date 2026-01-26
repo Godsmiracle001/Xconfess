@@ -1,6 +1,9 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
-dotenv.config();
+import * as path from 'path';
+
+// Load .env file from the backend directory
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 if (!process.env.DB_HOST || !process.env.DB_PORT || !process.env.DB_USERNAME || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
   throw new Error('Missing required database environment variables');
@@ -19,5 +22,5 @@ export default new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   entities: [__dirname + '/src/**/*.entity.{ts,js}'],
-  migrations: [__dirname + '/migrations/*.{ts,js}'],
+  migrations: [__dirname + '/migrations/!(*.spec).{ts,js}'],
 });

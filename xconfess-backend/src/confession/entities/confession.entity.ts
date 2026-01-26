@@ -1,5 +1,4 @@
 // src/confession/entities/confession.entity.ts
-
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -15,9 +14,6 @@ import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { Gender } from '../dto/get-confessions.dto';
 import { Comment } from '../../comment/entities/comment.entity';
 
-/**
- * Entity representing an anonymous confession.
- */
 @Entity('anonymous_confessions')
 export class AnonymousConfession {
   @PrimaryGeneratedColumn('uuid')
@@ -55,6 +51,42 @@ export class AnonymousConfession {
 
   @OneToMany(() => Comment, (comment) => comment.confession)
   comments: Comment[];
+
+  // Moderation fields
+  @Column('decimal', { name: 'moderation_score', precision: 5, scale: 4, default: 0 })
+  moderationScore: number;
+
+  @Column('simple-array', { name: 'moderation_flags', default: '' })
+  moderationFlags: string[];
+
+  @Column({
+    type: 'varchar',
+    name: 'moderation_status',
+    default: 'pending',
+  })
+  moderationStatus: string;
+
+  @Column({ name: 'requires_review', default: false })
+  requiresReview: boolean;
+
+  @Column({ name: 'is_hidden', default: false })
+  isHidden: boolean;
+
+  @Column('json', { name: 'moderation_details', nullable: true })
+  moderationDetails: Record<string, number>;
+
+  // Stellar blockchain anchoring fields
+  @Column({ name: 'stellar_tx_hash', nullable: true })
+  stellarTxHash: string;
+
+  @Column({ name: 'stellar_hash', nullable: true })
+  stellarHash: string;
+
+  @Column({ name: 'is_anchored', default: false })
+  isAnchored: boolean;
+
+  @Column({ name: 'anchored_at', type: 'timestamp', nullable: true })
+  anchoredAt: Date;
 
   get content(): string {
     return this.message;

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfessionService } from './confession.service';
 import { AnonymousConfessionRepository } from './repository/confession.repository';
 import { SearchConfessionDto } from './dto/search-confession.dto';
+import { AnonymousConfession } from './entities/confession.entity';
 
 describe('ConfessionService - Search Functionality', () => {
   let service: ConfessionService;
@@ -30,7 +31,7 @@ describe('ConfessionService - Search Functionality', () => {
       const searchDto: SearchConfessionDto = { q: 'love', page: 1, limit: 10 };
       const mockResult = {
         confessions: [
-          { id: '1', message: 'I love programming', created_at: new Date(), reactions: [] }
+          ({ id: '1', message: 'I love programming', created_at: new Date(), reactions: [] } as unknown as AnonymousConfession)
         ],
         total: 1
       };
@@ -67,7 +68,7 @@ describe('ConfessionService - Search Functionality', () => {
       const searchDto: SearchConfessionDto = { q: 'relationship advice', page: 1, limit: 10 };
       const mockResult = {
         confessions: [
-          { id: '1', message: 'Need relationship advice', created_at: new Date(), reactions: [] }
+          ({ id: '1', message: 'Need relationship advice', created_at: new Date(), reactions: [] } as unknown as AnonymousConfession)
         ],
         total: 1
       };

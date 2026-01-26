@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsEnum,
+  MaxLength,
+} from 'class-validator';
 import { Gender } from './get-confessions.dto';
 
 export class CreateConfessionDto {
@@ -10,4 +16,14 @@ export class CreateConfessionDto {
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(5000)
+  body: string;
 }

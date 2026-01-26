@@ -1,4 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, Unique, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  Unique,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
 
 @Entity()
 @Unique(['username'])
@@ -13,7 +25,6 @@ export class User {
   @Column()
   password: string;
 
-  // Encrypted email fields
   @Column({ name: 'email_encrypted', type: 'text' })
   emailEncrypted: string;
 
@@ -23,20 +34,19 @@ export class User {
   @Column({ name: 'email_tag', type: 'varchar', length: 32 })
   emailTag: string;
 
-  // Searchable hash
   @Column({ name: 'email_hash', type: 'varchar', length: 64, unique: true })
   emailHash: string;
 
-  @Column({ default: false })
-  isAdmin: boolean;
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
+  role: UserRole;
 
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   resetPasswordToken: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   resetPasswordExpires: Date | null;
 
   @CreateDateColumn()

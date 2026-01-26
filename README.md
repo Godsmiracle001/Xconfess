@@ -35,6 +35,90 @@ xConfess is an anonymous confession platform where users can share their thought
 
 Built for the **Stellar ecosystem** with first-class **Soroban** support:
 
+## 🔗 Stellar Smart Contracts
+
+### Quick Start
+
+```bash
+# 1. Install Stellar CLI
+cargo install --locked stellar-cli --features opt
+
+# 2. Add WebAssembly target
+rustup target add wasm32-unknown-unknown
+
+# 3. Build contracts
+./scripts/build-contracts.sh
+
+# 4. Run tests
+./scripts/test-contracts.sh
+
+# 5. Deploy to testnet
+./scripts/deploy-contracts.sh
+```
+
+📖 **For detailed setup instructions, see [docs/SOROBAN_SETUP.md](docs/SOROBAN_SETUP.md)**
+
+### Development Setup
+
+1. **Install Stellar CLI**
+   ```bash
+   cargo install --locked stellar-cli
+   ```
+
+2. **Navigate to contracts directory**
+   ```bash
+   cd contracts/soroban-xconfess/confession-anchor
+   ```
+
+3. **Build contracts**
+   ```bash
+   stellar contract build
+   ```
+
+4. **Run tests**
+   ```bash
+   cargo test
+   ```
+
+5. **Deploy to Testnet**
+   ```bash
+   stellar contract deploy \
+     --wasm target/wasm32-unknown-unknown/release/confession_anchor.wasm \
+     --source deployer \
+     --network testnet
+   ```
+
+### Contract Interaction Examples
+
+**Anchor a Confession (JavaScript)**
+```javascript
+import * as StellarSDK from '@stellar/stellar-sdk';
+
+const contract = new StellarSDK.Contract(CONFESSION_ANCHOR_CONTRACT_ID);
+
+// Create confession hash
+const confessionHash = hashConfession(confessionText);
+
+// Anchor on Stellar
+const tx = await contract.call(
+  'anchor_confession',
+  StellarSDK.nativeToScVal(confessionHash, { type: 'bytes' }),
+  StellarSDK.nativeToScVal(Date.now(), { type: 'u64' })
+);
+```
+
+**Verify a Confession (JavaScript)**
+```javascript
+// Check if confession exists on-chain
+const timestamp = await contract.call(
+  'verify_confession',
+  StellarSDK.nativeToScVal(confessionHash, { type: 'bytes' })
+);
+```
+
+For complete examples and integration guides, see [docs/SOROBAN_SETUP.md](docs/SOROBAN_SETUP.md).
+
+
 ### 🔷 Smart Contract Features
 
 - **Confession Anchoring** 

@@ -16,19 +16,19 @@ export class PasswordReset {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column()
+  @Column({ type: 'timestamp' })
   expiresAt: Date;
 
   @Column({ default: false })
   used: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   usedAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 45, nullable: true })
   ipAddress: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   userAgent: string | null;
 
   @CreateDateColumn()

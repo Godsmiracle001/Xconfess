@@ -12,7 +12,9 @@ import { AuthService } from './auth.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
+@ApiTags('Authentication')
 @Controller('auth')
+
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

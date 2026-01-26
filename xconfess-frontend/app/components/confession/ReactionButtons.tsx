@@ -17,7 +17,7 @@ export const ReactionButton = ({ type, count, confessionId }: Props) => {
   }, [count]);
 
   const react = async () => {
-    setLocalCount(c => c + 1); // optimistic update
+    setLocalCount((c) => c + 1); // optimistic update
 
     try {
       const res = await fetch(`/api/confessions/${confessionId}/react`, {
@@ -31,7 +31,7 @@ export const ReactionButton = ({ type, count, confessionId }: Props) => {
       }
     } catch (error) {
       // Rollback on failure
-      setLocalCount(c => c - 1);
+      setLocalCount((c) => c - 1);
       console.error("Failed to react:", error);
       // Optional: Add toast notification here
     }
@@ -40,10 +40,11 @@ export const ReactionButton = ({ type, count, confessionId }: Props) => {
   return (
     <button
       onClick={react}
-      className="flex items-center gap-1 px-3 py-1 rounded-full bg-zinc-800 hover:bg-zinc-700 transition-colors"
+      className="flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-800 hover:bg-zinc-700 transition-colors min-w-[44px] min-h-[44px] justify-center touch-manipulation"
+      aria-label={`React with ${type}`}
     >
-      <span>{type === "like" ? "👍" : "❤️"}</span>
-      <span className="text-sm">{localCount}</span>
+      <span className="text-lg">{type === "like" ? "👍" : "❤️"}</span>
+      <span className="text-sm font-medium">{localCount}</span>
     </button>
   );
 };

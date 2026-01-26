@@ -1,9 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { AnonymousConfession } from './entities/confession.entity';
 import { ConfessionService } from './confession.service';
 import { SelectQueryBuilder, Repository } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { AnonymousConfessionRepository } from './repository/confession.repository';
+import { ConfessionViewCacheService } from './confession-view-cache.service';
+import { SortOrder } from './dto/get-confessions.dto';
+import { AiModerationService } from '../moderation/ai-moderation.service';
+import { ModerationRepositoryService } from '../moderation/moderation-repository.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AnonymousUserService } from '../user/anonymous-user.service';
 
 describe('ConfessionService', () => {
   let service: ConfessionService;
@@ -34,6 +40,17 @@ describe('ConfessionService', () => {
         ConfessionService,
         { provide: AnonymousConfessionRepository, useValue: repo },
         { provide: ConfessionViewCacheService, useValue: { checkAndMarkView: jest.fn() } },
+        { provide: AiModerationService, useValue: { moderateContent: jest.fn() } },
+        {
+          provide: ModerationRepositoryService,
+          useValue: {
+            createLog: jest.fn(),
+            getLogsByConfession: jest.fn(),
+            updateReview: jest.fn(),
+          },
+        },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: AnonymousUserService, useValue: { create: jest.fn() } },
       ],
     }).compile();
 
@@ -41,7 +58,7 @@ describe('ConfessionService', () => {
   });
 
   it('remove() soft‑deletes existing', async () => {
-    repo.findOne.mockResolvedValue({ id: '1', isDeleted: false });
+    repo.findOne.mockResolvedValue({ id: '1', isDeleted: false } as any);
     await expect(service.remove('1')).resolves.toEqual({ message: 'Confession soft‑deleted' });
     expect(repo.update).toHaveBeenCalledWith('1', { isDeleted: true });
   });
