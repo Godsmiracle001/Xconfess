@@ -17,4 +17,3 @@ export async function POST() {
     { status: 501 },
   );
 }
-

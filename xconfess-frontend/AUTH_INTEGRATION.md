@@ -23,9 +23,9 @@ The real `useAuth` hook has been implemented with complete JWT token management.
 
 Create `.env.local` in the frontend root with:
 
-```env
+\`\`\`env
 NEXT_PUBLIC_API_URL=http://localhost:3000
-```
+\`\`\`
 
 **Note:** Update the port if your backend runs on a different port.
 
@@ -85,7 +85,7 @@ The implementation calls these backend endpoints:
 
 ### In a Component
 
-```typescript
+\`\`\`typescript
 import { useAuth } from '@/app/lib/hooks/useAuth';
 
 function MyComponent() {
@@ -104,11 +104,11 @@ function MyComponent() {
     </div>
   );
 }
-```
+\`\`\`
 
 ### Protecting a Route
 
-```typescript
+\`\`\`typescript
 import { AuthGuard } from '@/app/components/AuthGuard';
 
 export default function ProtectedPage() {
@@ -118,7 +118,7 @@ export default function ProtectedPage() {
     </AuthGuard>
   );
 }
-```
+\`\`\`
 
 ## Testing Checklist
 

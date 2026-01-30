@@ -79,4 +79,3 @@ export default async function ConfessionDetailPage({ params }: PageProps) {
     <ConfessionDetailClient initialConfession={confession} confessionId={id} />
   );
 }
-
