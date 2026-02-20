@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ConfessionFeed } from "./components/confession/ConfessionFeed";
 import { ErrorBoundary } from "./components/confession/ErrorBoundary";
-import { EnhancedConfessionForm } from "./components/confession/EnhancedConfessionForm";
+import { ConfessionForm } from "./components/confession/ConfessionForm";
 
 export default function Home() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -23,9 +23,7 @@ export default function Home() {
 
           {/* Confession Form */}
           <div className="mb-12 max-w-3xl mx-auto">
-            <EnhancedConfessionForm
-              onSubmit={() => setRefreshTrigger((n) => n + 1)}
-            />
+            <ConfessionForm onSubmit={() => setRefreshTrigger((n) => n + 1)} />
           </div>
 
           {/* Confessions Feed */}
