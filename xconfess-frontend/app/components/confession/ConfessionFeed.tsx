@@ -12,7 +12,12 @@ interface FetchResponse {
   page?: number;
 }
 
-export const ConfessionFeed = () => {
+interface ConfessionFeedProps {
+  /** Increment this value to trigger a full feed refresh from page 1. */
+  refreshTrigger?: number;
+}
+
+export const ConfessionFeed = ({ refreshTrigger = 0 }: ConfessionFeedProps) => {
   const [confessions, setConfessions] = useState<NormalizedConfession[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -80,6 +85,15 @@ export const ConfessionFeed = () => {
       }
     };
   }, [fetchConfessions]);
+
+  // Refetch from page 1 whenever refreshTrigger increments (e.g. after form submit)
+  useEffect(() => {
+    if (refreshTrigger === 0) return; // skip the initial mount value
+    setPage(1);
+    setConfessions([]);
+    setHasMore(true);
+    fetchConfessions(1);
+  }, [refreshTrigger, fetchConfessions]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
