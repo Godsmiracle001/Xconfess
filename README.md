@@ -113,7 +113,7 @@ contracts/soroban-xconfess/
 
 - **Node.js** (v18+)
 - **PostgreSQL** (v14+)
-- **pnpm** or **npm**
+- **npm**
 - **Rust** (for Soroban development)
 - **Stellar CLI** (optional, for contract deployment)
 
