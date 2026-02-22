@@ -8,9 +8,10 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfessionModule } from './confession/confession.module';
 import { ReactionModule } from './reaction/reaction.module';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
+import rateLimitConfig from './config/rate-limit.config';
 import { MessagesModule } from './messages/messages.module';
 import { AdminModule } from './admin/admin.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -22,6 +23,7 @@ import { CacheModule } from './cache/cache.module';
 import { TippingModule } from './tipping/tipping.module';
 import { LoggerModule } from './logger/logger.module';
 import { EncryptionModule } from './encryption/encryption.module';
+import { RateLimitGuard } from './auth/guard/rate-limit.guard';
 // TODO: NotificationModule requires Bull/Redis configuration - temporarily disabled
 // import { NotificationModule } from './notifications/notifications.module';
 
@@ -30,7 +32,7 @@ import { EncryptionModule } from './encryption/encryption.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [throttleConfig],
+      load: [throttleConfig, rateLimitConfig],
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
@@ -68,7 +70,7 @@ import { EncryptionModule } from './encryption/encryption.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: RateLimitGuard,
     },
     DataExportService,
   ],
