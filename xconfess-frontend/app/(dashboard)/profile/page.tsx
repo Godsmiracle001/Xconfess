@@ -1,5 +1,3 @@
-'use client';
-
 export default function ProfilePage() {
   return (
     <div className="w-full pb-24 md:pb-8">

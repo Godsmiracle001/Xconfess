@@ -1,4 +1,5 @@
 import Header from "@/app/components/layout/Header";
+
 import Footer from "@/components/layout/Footer";
 import Sidebar from "@/components/layout/Sidebar";
 
@@ -18,9 +19,11 @@ export default function DashboardLayout({
           <main className="flex-1 w-full max-w-3xl mx-auto px-4 py-8 sm:px-6">
             {children}
           </main>
-          <Footer />
         </div>
       </div>
+      
+      {/* Footer is now a direct child of the wrapper to span full width */}
+      <Footer />
     </div>
   );
 }
