@@ -2,12 +2,21 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import compression from 'compression';
-import { RequestIdMiddleware } from './middleware/request-id.middleware';
+import { getCorsConfig } from './config/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable CORS with environment configuration
+  app.enableCors(getCorsConfig());
+
+  // Enable validation pipes
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  );
 
   // Request-ID middleware — must be first so all downstream code sees it
   const requestIdMiddleware = new RequestIdMiddleware();
@@ -36,28 +45,8 @@ async function bootstrap() {
 
   app.useGlobalFilters(new ThrottlerExceptionFilter());
 
-  // Swagger / OpenAPI setup — available in non-production
-  if (process.env.NODE_ENV !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('xConfess API')
-      .setDescription(
-        'Anonymous confession platform API — confessions, reactions, messages, reports, admin, and Stellar integration.',
-      )
-      .setVersion('1.0')
-      .addBearerAuth()
-      .addTag('Auth', 'Authentication endpoints')
-      .addTag('Confessions', 'Confession CRUD, search, tags, and Stellar anchoring')
-      .addTag('Reactions', 'Emoji reactions on confessions')
-      .addTag('Messages', 'Anonymous messaging between users')
-      .addTag('Reports', 'Report creation and moderation')
-      .addTag('Admin', 'Admin dashboard and RBAC operations')
-      .addTag('Tipping', 'XLM micro-tipping on Stellar')
-      .build();
-
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/api-docs', app, document);
-  }
-
-  await app.listen(process.env.PORT ?? 3000);
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  console.log(`🚀 Server running on http://localhost:${port}`);
 }
 bootstrap();
