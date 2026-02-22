@@ -4,11 +4,16 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { getRateLimitConfig } from 'src/config/rate-limit.config';
+import {
+  getRateLimitConfig,
+  RateLimitConfig,
+} from 'src/config/rate-limit.config';
 
 interface RateLimitEntry {
   count: number;
@@ -16,20 +21,33 @@ interface RateLimitEntry {
 }
 
 @Injectable()
-export class RateLimitGuard implements CanActivate {
+export class RateLimitGuard
+  implements CanActivate, OnModuleInit, OnModuleDestroy
+{
   private rateLimitStore = new Map<string, RateLimitEntry>();
-  private config;
+  private config: RateLimitConfig;
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private reflector: Reflector,
     private configService: ConfigService,
   ) {
     this.config = getRateLimitConfig(configService);
-    // Clean up expired entries every minute
-    setInterval(() => this.cleanup(), 60000);
   }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+  onModuleInit() {
+    // Clean up expired entries every minute
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const method = request.method.toUpperCase();
 

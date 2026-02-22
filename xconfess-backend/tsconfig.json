@@ -12,7 +12,7 @@
     "esModuleInterop": true,
     "sourceMap": true,
     "baseUrl": "./",
-    "incremental": true,
+    "incremental": false,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
