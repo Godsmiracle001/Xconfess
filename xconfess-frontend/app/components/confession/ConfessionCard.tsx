@@ -133,4 +133,4 @@ export const ConfessionCard = memo(({ confession }: Props) => {
       </div>
     </div>
   );
-};
+});
