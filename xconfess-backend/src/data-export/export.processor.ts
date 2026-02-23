@@ -1,5 +1,5 @@
 import { Process, Processor } from '@nestjs/bull';
-import { Job } from 'bull';
+import type { Job } from 'bull';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as archiver from 'archiver';
@@ -20,7 +20,7 @@ export class ExportProcessor {
     private userRepository: Repository<User>,
     private dataExportService: DataExportService,
     private emailService: EmailService,
-  ) { }
+  ) {}
 
   @Process('process-export')
   async handleExport(job: Job<{ userId: string; requestId: string }>) {
@@ -38,18 +38,22 @@ export class ExportProcessor {
       // 3. Save to Postgres (byte column)
       await this.exportRepository.update(requestId, {
         fileData: buffer,
-        status: 'READY'
+        status: 'READY',
       });
 
       // 4. Fetch User Email & Notify
-      const user = await this.userRepository.findOneBy({ id: parseInt(userId) });
+      const user = await this.userRepository.findOneBy({
+        id: parseInt(userId),
+      });
       if (user && user.emailEncrypted) {
         const settingsUrl = `${process.env.FRONTEND_URL}/settings/data-export`;
-        await this.emailService.sendWelcomeEmail(user.emailEncrypted, user.username); // Using welcome email as placeholder for notification
+        await this.emailService.sendWelcomeEmail(
+          user.emailEncrypted,
+          user.username,
+        ); // Using welcome email as placeholder for notification
       }
 
       this.logger.log(`Export ${requestId} completed successfully.`);
-
     } catch (error) {
       this.logger.error(`Export ${requestId} failed: ${error.message}`);
       await this.exportRepository.update(requestId, { status: 'FAILED' });
@@ -66,12 +70,16 @@ export class ExportProcessor {
       archive.on('end', () => resolve(Buffer.concat(chunks)));
 
       // Add JSON file
-      archive.append(JSON.stringify(data, null, 2), { name: 'complete_data.json' });
+      archive.append(JSON.stringify(data, null, 2), {
+        name: 'complete_data.json',
+      });
 
       // Add CSV version of confessions for better readability
       if (data.confessions) {
         // You can use json2csv here if installed
-        const csvContent = this.dataExportService.convertToCsv(data.confessions);
+        const csvContent = this.dataExportService.convertToCsv(
+          data.confessions,
+        );
         archive.append(csvContent, { name: 'confessions.csv' });
       }
 

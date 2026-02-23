@@ -10,10 +10,11 @@ import { PasswordResetService } from './password-reset.service';
 import { UserModule } from '../user/user.module';
 import { EmailModule } from '../email/email.module';
 import { PasswordReset } from './entities/password-reset.entity';
+import { forwardRef } from '@nestjs/common';
 
 @Module({
   imports: [
-    UserModule,
+    forwardRef(() => UserModule),
     EmailModule,
     PassportModule,
     TypeOrmModule.forFeature([PasswordReset]),

@@ -5,7 +5,7 @@ import { Notification, NotificationType } from '../entities/notification.entity'
 import { NotificationPreference } from '../entities/notification-preference.entity';
 import { CreateNotificationDto, NotificationQueryDto } from '../dto/notification.dto';
 // removed: using Inject from @nestjs/common instead of @nestjs/bull
-import { Queue } from 'bull';
+import type { Queue } from 'bull';
 
 @Injectable()
 export class NotificationService {

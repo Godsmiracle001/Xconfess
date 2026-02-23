@@ -5,7 +5,7 @@ import * as crypto from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import type { Queue } from 'bull';
 import { ExportRequest } from './entities/export-request.entity';
 
 @Injectable()
@@ -14,7 +14,7 @@ export class DataExportService {
     @InjectRepository(ExportRequest)
     private exportRepository: Repository<ExportRequest>,
     @InjectQueue('export-queue') private exportQueue: Queue,
-  ) { }
+  ) {}
 
   async requestExport(userId: string) {
     // 1. Rate Limit Check: Find any request created in the last 7 days
@@ -24,7 +24,7 @@ export class DataExportService {
     const recentRequest = await this.exportRepository.findOne({
       where: {
         userId,
-        createdAt: MoreThan(sevenDaysAgo)
+        createdAt: MoreThan(sevenDaysAgo),
       },
     });
 
@@ -39,12 +39,11 @@ export class DataExportService {
     // 3. Kick off Bull queue
     await this.exportQueue.add('process-export', {
       userId,
-      requestId: request.id
+      requestId: request.id,
     });
 
     return { requestId: request.id, status: 'PENDING' };
   }
-
 
   generateSignedDownloadUrl(requestId: string, userId: string): string {
     const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
@@ -80,8 +79,7 @@ export class DataExportService {
   convertToCsv(data: any[]): string {
     if (!data || data.length === 0) return '';
     const headers = Object.keys(data[0]).join(',');
-    const rows = data.map(obj => Object.values(obj).join(',')).join('\n');
+    const rows = data.map((obj) => Object.values(obj).join(',')).join('\n');
     return `${headers}\n${rows}`;
   }
-
 }

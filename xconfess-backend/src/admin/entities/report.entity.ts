@@ -73,7 +73,7 @@ export class Report {
   @JoinColumn({ name: 'resolved_by' })
   resolver: User | null;
 
-  @Column({ name: 'resolved_at', nullable: true })
+  @Column({ name: 'resolved_at', type: 'timestamp', nullable: true })
   resolvedAt: Date | null;
 
   @Column({ type: 'text', nullable: true })

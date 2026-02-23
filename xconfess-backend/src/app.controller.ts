@@ -17,7 +17,7 @@ export class AppController {
     private health: HealthCheckService,
     private db: TypeOrmHealthIndicator,
     // private redis: RedisHealthIndicator,
-  ) { }
+  ) {}
 
   @Get()
   @Throttle({ default: { limit: 10, ttl: 60000 } })

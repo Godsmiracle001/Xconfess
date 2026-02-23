@@ -1,11 +1,19 @@
-import { Controller, Get, Param, Query, Res, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import { Response } from 'express';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Res,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import * as crypto from 'crypto';
 import { DataExportService } from './data-export.service';
 
 @Controller('data-export')
 export class DataExportController {
-  constructor(private readonly exportService: DataExportService) { }
+  constructor(private readonly exportService: DataExportService) {}
 
   @Get('download/:id')
   async download(

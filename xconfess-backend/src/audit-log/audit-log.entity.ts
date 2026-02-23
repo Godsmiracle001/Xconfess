@@ -19,7 +19,7 @@ export enum AuditActionType {
   COMMENT_UPDATE = 'comment_update',
   USER_BANNED = 'user_banned',
   USER_UNBANNED = 'user_unbanned',
-  
+
   // New report moderation actions
   REPORT_RESOLVED = 'report_resolved',
   REPORT_DISMISSED = 'report_dismissed',
@@ -57,14 +57,4 @@ export class AuditLog {
 
   @Column({ name: 'user_agent', type: 'text', nullable: true })
   userAgent: string | null;
-  
-  // Optional: Add helper methods or computed fields if needed
-  get entityId(): string | undefined {
-    return this.metadata?.entityId || this.metadata?.reportId;
-  }
-
-  get entityType(): string | undefined {
-    return this.metadata?.entityType;
-  }
 }
-

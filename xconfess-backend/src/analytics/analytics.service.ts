@@ -1,9 +1,9 @@
 // src/analytics/analytics.service.ts
 import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import type { Cache } from 'cache-manager';
 import { Reaction } from 'src/reaction/entities/reaction.entity';
 import { User } from 'src/user/entities/user.entity';
 import { AnonymousConfession } from 'src/confession/entities/confession.entity';
@@ -51,7 +51,7 @@ export class AnalyticsService {
     const result = trending.map((confession) => ({
       id: confession.id,
       content: confession.content.substring(0, 200), // Preview only
-      reactionCount: confession['reactionCount'] || 0,
+      reactionCount: Number(confession['reactionCount']) || 0,
       createdAt: confession.created_at,
       category: confession.comments,
     }));
@@ -73,18 +73,19 @@ export class AnalyticsService {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const distribution = await this.reactionRepository
-      .createQueryBuilder('reaction')
-      .select('reaction.type', 'type')
-      .addSelect('COUNT(*)', 'count')
-      .where('reaction.createdAt >= :startDate', { startDate })
-      .groupBy('reaction.type')
-      .getRawMany();
+    const distribution: Array<{ type: string; count: string }> =
+      await this.reactionRepository
+        .createQueryBuilder('reaction')
+        .select('reaction.type', 'type')
+        .addSelect('COUNT(*)', 'count')
+        .where('reaction.createdAt >= :startDate', { startDate })
+        .groupBy('reaction.type')
+        .getRawMany();
 
-    const total = distribution.reduce(
-      (sum, item) => sum + parseInt(item.count),
-      0,
-    );
+    const total = distribution.reduce((sum: number, item: { count: string }) => {
+      const parsed = parseInt(item.count ?? '0', 10);
+      return sum + (Number.isNaN(parsed) ? 0 : parsed);
+    }, 0);
 
     const result = {
       total,
@@ -136,7 +137,7 @@ export class AnalyticsService {
 
     [...dailyActivity, ...reactionActivity].forEach((item) => {
       const date = item.date;
-      const current = activityMap.get(date) || 0;
+      const current = Number(activityMap.get(date)) || 0;
       activityMap.set(date, Math.max(current, parseInt(item.activeUsers)));
     });
 
@@ -182,7 +183,7 @@ export class AnalyticsService {
       .groupBy('confession.category')
       .orderBy('count', 'DESC')
       .limit(1)
-      .getRawOne();
+      .getRawOne<{ category: string; count: string }>();
 
     const result = {
       totalUsers,

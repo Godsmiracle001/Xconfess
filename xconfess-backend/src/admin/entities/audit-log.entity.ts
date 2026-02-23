@@ -52,10 +52,10 @@ export class AuditLog {
   })
   action: AuditAction;
 
-  @Column({ name: 'entity_type', nullable: true })
+  @Column({ name: 'entity_type', type: 'varchar', nullable: true })
   entityType: string | null; // 'confession', 'user', 'report', etc.
 
-  @Column({ name: 'entity_id', nullable: true })
+  @Column({ name: 'entity_id', type: 'varchar', nullable: true })
   entityId: string | null;
 
   @Column({ type: 'json', nullable: true })
@@ -64,10 +64,10 @@ export class AuditLog {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
-  @Column({ name: 'ip_address', nullable: true })
+  @Column({ name: 'ip_address', type: 'varchar', nullable: true })
   ipAddress: string | null;
 
-  @Column({ name: 'user_agent', nullable: true })
+  @Column({ name: 'user_agent', type: 'text', nullable: true })
   userAgent: string | null;
 
   @CreateDateColumn()
