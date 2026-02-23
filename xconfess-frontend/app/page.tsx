@@ -24,6 +24,8 @@ const EnhancedConfessionForm = dynamic(
 import Header from "./components/layout/Header";
 
 export default function Home() {
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   return (
     <>
       <OnboardingFlow />
