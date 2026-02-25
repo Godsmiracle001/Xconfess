@@ -318,7 +318,7 @@ export const adminApi = {
       const offset = (page - 1) * limit;
 
       let filtered = [...mockJobs];
-      
+
       if (filter?.startDate) {
         filtered = filtered.filter(j => j.failedAt && new Date(j.failedAt) >= new Date(filter.startDate!));
       }
@@ -363,6 +363,64 @@ export const adminApi = {
     }
 
     const response = await apiClient.post(`/admin/notifications/dlq/${jobId}/replay`, {
+      reason,
+    });
+    return response.data;
+  },
+
+  // Templates
+  getTemplates: async () => {
+    if (isMockAdminEnabled()) {
+      return {
+        welcome: {
+          activeVersion: 'v1',
+          versions: {
+            v1: {
+              version: 'v1',
+              subject: 'Welcome to XConfess, {{ username }}!',
+              html: '<h1>Welcome {{ username }}</h1>',
+              text: 'Welcome {{ username }}',
+              requiredVars: ['username'],
+              lifecycleState: 'active',
+            },
+            v2: {
+              version: 'v2',
+              subject: 'Welcome to the New XConfess!',
+              html: '<h1>New Welcome {{ username }}</h1>',
+              text: 'New Welcome {{ username }}',
+              requiredVars: ['username'],
+              lifecycleState: 'canary',
+            },
+          },
+          rollout: {
+            canaryVersion: 'v2',
+            canaryWeight: 10,
+            killSwitchEnabled: false,
+          },
+        },
+      };
+    }
+    const response = await apiClient.get('/api/admin/templates');
+    return response.data;
+  },
+
+  updateTemplateState: async (key: string, version: string, state: string, reason?: string) => {
+    if (isMockAdminEnabled()) {
+      return { success: true, key, version, state };
+    }
+    const response = await apiClient.patch(`/api/admin/templates/${key}/versions/${version}/state`, {
+      state,
+      reason,
+    });
+    return response.data;
+  },
+
+  toggleTemplateKillSwitch: async (key: string, enabled: boolean, reason?: string) => {
+    if (isMockAdminEnabled()) {
+      return { success: true, key, enabled };
+    }
+    const response = await apiClient.patch(`/api/admin/templates/${key}/kill-switch`, {
+      enabled,
       reason,
     });
     return response.data;

@@ -1,4 +1,5 @@
 "use client";
+// Type-check trigger comment
 
 import { memo, useEffect, useState } from "react";
 import Link from "next/link";

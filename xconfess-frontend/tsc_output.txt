@@ -1,0 +1,26 @@
+app/components/confession/ConfessionCard.tsx(6,32): error TS6142: Module './ReactionButtons' was resolved to 'C:/Users/BuasFS/Downloads/Xconfess/xconfess-frontend/app/components/confession/ReactionButtons.tsx', but '--jsx' is not set.
+app/components/confession/ConfessionCard.tsx(7,30): error TS6142: Module './AnchorButton' was resolved to 'C:/Users/BuasFS/Downloads/Xconfess/xconfess-frontend/app/components/confession/AnchorButton.tsx', but '--jsx' is not set.
+app/components/confession/ConfessionCard.tsx(8,27): error TS6142: Module './TipButton' was resolved to 'C:/Users/BuasFS/Downloads/Xconfess/xconfess-frontend/app/components/confession/TipButton.tsx', but '--jsx' is not set.
+app/components/confession/ConfessionCard.tsx(10,44): error TS2307: Cannot find module '@/lib/services/tipping.service' or its corresponding type declarations.
+app/components/confession/ConfessionCard.tsx(58,5): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(60,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(61,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(63,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(72,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(76,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(82,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(83,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(89,7): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(90,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(92,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(93,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(94,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(98,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(102,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(103,15): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(108,9): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(109,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(114,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(121,11): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(122,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.
+app/components/confession/ConfessionCard.tsx(127,13): error TS17004: Cannot use JSX unless the '--jsx' flag is provided.

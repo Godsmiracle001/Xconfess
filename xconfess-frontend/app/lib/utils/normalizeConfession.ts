@@ -1,4 +1,4 @@
-
+import { type TipStats } from "../../../lib/services/tipping.service";
 
 //  The stable shape that all frontend components consume. 
 export interface NormalizedConfession {
@@ -13,14 +13,18 @@ export interface NormalizedConfession {
     id: string;
     username?: string;
     avatar?: string;
+    stellarAddress?: string;
   };
+  isAnchored: boolean;
+  stellarTxHash: string | null;
+  tipStats: TipStats | null;
   _demo?: boolean;
 }
 
 // Raw shape as it may arrive from the backend. 
 export interface RawConfession {
   id?: string;
- 
+
   message?: string;
   body?: string;
   content?: string;
@@ -40,7 +44,15 @@ export interface RawConfession {
     id: string;
     username?: string;
     avatar?: string;
+    stellar_address?: string;
+    stellarAddress?: string;
   };
+  is_anchored?: boolean;
+  isAnchored?: boolean;
+  stellar_tx_hash?: string;
+  stellarTxHash?: string;
+  tip_stats?: TipStats;
+  tipStats?: TipStats;
   _demo?: boolean;
 }
 
@@ -78,7 +90,13 @@ export function normalizeConfession(raw: RawConfession): NormalizedConfession {
       (Array.isArray(raw.comments) ? raw.comments.length : 0),
     reactions: normalizeReactions(raw.reactions),
     gender: raw.gender ?? null,
-    author: raw.author,
+    author: raw.author ? {
+      ...raw.author,
+      stellarAddress: raw.author.stellar_address ?? raw.author.stellarAddress,
+    } : undefined,
+    isAnchored: raw.is_anchored ?? raw.isAnchored ?? false,
+    stellarTxHash: raw.stellar_tx_hash ?? raw.stellarTxHash ?? null,
+    tipStats: raw.tip_stats ?? raw.tipStats ?? null,
     ...(raw._demo !== undefined ? { _demo: raw._demo } : {}),
   };
 }
