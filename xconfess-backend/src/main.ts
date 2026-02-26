@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
@@ -36,7 +37,10 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalFilters(new ThrottlerExceptionFilter());
+  app.useGlobalFilters(
+    new HttpExceptionFilter(),
+    new ThrottlerExceptionFilter(),
+  );
 
   // Swagger / OpenAPI setup — available in non-production
   if (process.env.NODE_ENV !== 'production') {
