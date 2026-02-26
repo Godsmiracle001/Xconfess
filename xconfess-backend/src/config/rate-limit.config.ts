@@ -1,3 +1,4 @@
+import { registerAs } from '@nestjs/config';
 import { ConfigService } from '@nestjs/config';
 
 export interface RateLimitConfig {
@@ -16,11 +17,11 @@ export const getRateLimitConfig = (
   getWindow: configService.get<number>('RATE_LIMIT_GET_WINDOW', 60), // seconds
 });
 
-export const rateLimitConfig = {
+export default registerAs('rateLimit', () => ({
   notification: {
     dedupeTtlSeconds: parseInt(
       process.env.NOTIFICATION_DEDUPE_TTL_SECONDS ?? '60',
       10,
     ),
   },
-};
+}));

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
@@ -8,6 +9,7 @@ import { RequestIdMiddleware } from './middleware/request-id.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
 
   // Request-ID middleware — must be first so all downstream code sees it
   const requestIdMiddleware = new RequestIdMiddleware();
@@ -85,6 +87,7 @@ async function bootstrap() {
     }
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  const port = configService.get<number>('app.port', 3000);
+  await app.listen(port);
 }
 bootstrap();

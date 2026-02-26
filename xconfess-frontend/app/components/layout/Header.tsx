@@ -55,6 +55,11 @@ export default function Header() {
               <Link href="/profile" className={navLinkClass}>
                 Profile
               </Link>
+              {user?.role === "admin" && (
+                <Link href="/admin" className={navLinkClass + " font-bold"}>
+                  Admin
+                </Link>
+              )}
               <Link href="/messages" className={navLinkClass}>
                 Messages
               </Link>

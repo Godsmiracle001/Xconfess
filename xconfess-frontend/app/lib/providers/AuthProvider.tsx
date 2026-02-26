@@ -40,26 +40,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     error: null,
   });
 
- 
- 
 
-   /**
-   * Check if user is authenticated by validating token with backend
-   */
+
+
+  /**
+  * Check if user is authenticated by validating token with backend
+  */
   const checkAuth = async (): Promise<void> => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-
-    if (!token) {
-      setStoreUser(null);
-      setState({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      });
-      return;
-    }
-
     try {
       const user = await authApi.getCurrentUser();
       setStoreUser(user);
@@ -70,21 +57,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error: null,
       });
     } catch (error) {
-      // Token is invalid or expired
+      // Not authenticated or session expired
       setStoreUser(null);
-      setStoreError(error instanceof Error ? error.message : 'Authentication failed');
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(USER_DATA_KEY);
       setState({
         user: null,
         isAuthenticated: false,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Authentication failed',
+        error: null, // Don't show error for initial check
       });
     }
   };
 
-   //   Check authentication status on mount
+  //   Check authentication status on mount
 
   useEffect(() => {
     // Wrap async call in IIFE to avoid synchronous setState in effect
@@ -92,18 +76,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await checkAuth();
     })();
   }, []);
- 
+
   //  Login user with credentials
-  
+
   const login = async (credentials: LoginCredentials): Promise<void> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const response = await authApi.login(credentials);
-      
-      // Store token and user data
-      localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
-      localStorage.setItem(USER_DATA_KEY, JSON.stringify(response.user));
+
+      // User data is now managed in the store and state
+      // Token is in the HttpOnly cookie
       setStoreUser(response.user);
 
       setState({
@@ -123,16 +106,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
- 
+
   //  * Register new user and auto-login
 
-  
+
   const register = async (data: RegisterData): Promise<void> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
       await authApi.register(data);
-      
+
       // Auto-login after successful registration
       await login({ email: data.email, password: data.password });
     } catch (error) {
@@ -147,7 +130,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
 
-    // Logout user and clear auth data
+  // Logout user and clear auth data
 
   const logout = (): void => {
     authApi.logout();

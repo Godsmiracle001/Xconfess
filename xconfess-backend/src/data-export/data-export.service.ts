@@ -1,5 +1,6 @@
 // src/data-export/data-export.service.ts
 import { Injectable, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
 import { InjectRepository } from '@nestjs/typeorm';
@@ -14,6 +15,7 @@ export class DataExportService {
     @InjectRepository(ExportRequest)
     private exportRepository: Repository<ExportRequest>,
     @InjectQueue('export-queue') private exportQueue: Queue,
+    private readonly configService: ConfigService,
   ) { }
 
   async requestExport(userId: string) {
@@ -48,7 +50,7 @@ export class DataExportService {
 
   generateSignedDownloadUrl(requestId: string, userId: string): string {
     const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
-    const secret = process.env.APP_SECRET;
+    const secret = this.configService.get<string>('app.appSecret', '');
 
     // Create a hash of the payload
     const dataToSign = `${requestId}:${userId}:${expires}`;
@@ -57,7 +59,7 @@ export class DataExportService {
       .update(dataToSign)
       .digest('hex');
 
-    const baseUrl = process.env.BACKEND_URL;
+    const baseUrl = this.configService.get<string>('app.backendUrl', '');
     return `${baseUrl}/api/data-export/download/${requestId}?userId=${userId}&expires=${expires}&signature=${signature}`;
   }
 

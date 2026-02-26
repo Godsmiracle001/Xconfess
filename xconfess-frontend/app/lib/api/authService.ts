@@ -21,14 +21,17 @@ const apiClient: AxiosInstance = axios.create({
 });
 
 /**
- * Request interceptor to add JWT token to headers
+ * Request interceptor to add JWT token to headers if available (for backend calls)
+ * Note: In session mode, cookies are handled by the browser, but we might still
+ * need to proxy tokens if the backend requires explicitly. 
+ * However, the new strategy is to let the /api proxy handle this.
  */
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
+    // We no longer read from localStorage. 
+    // If we're calling the backend directly from the client, we rely on cookies being sent
+    // or we'll need a different mechanism. For now, we prefer proxying through /api.
+    config.withCredentials = true;
     return config;
   },
   (error) => Promise.reject(error)
@@ -41,11 +44,10 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid - clear auth data
-      localStorage.removeItem(AUTH_TOKEN_KEY);
-      localStorage.removeItem(USER_DATA_KEY);
-      localStorage.removeItem(ANONYMOUS_USER_ID_KEY);
-      
+      // Session expired or invalid
+      // We'll trigger a logout on the session API to be sure
+      await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => { });
+
       // Redirect to login if not already there
       if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
         window.location.href = '/login';
@@ -60,19 +62,26 @@ apiClient.interceptors.response.use(
  */
 export const authApi = {
   /**
-   * Login user and get JWT token
+   * Login user and establish session
    * @param credentials - Email and password
-   * @returns Login response with token and user data
+   * @returns Login response with user data
    */
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     try {
-      const response = await apiClient.post<LoginResponse>('/users/login', credentials);
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.message || 'Login failed');
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Login failed');
       }
-      throw new Error('Network error. Please check your connection.');
+
+      return await response.json();
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Login failed');
     }
   },
 
@@ -94,29 +103,27 @@ export const authApi = {
   },
 
   /**
-   * Get current authenticated user
-   * Calls /users/profile to verify token validity
+   * Get current authenticated user from session
    * @returns Current user data
    */
   async getCurrentUser(): Promise<User> {
     try {
-      const response = await apiClient.get<User>('/users/profile');
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        throw new Error(error.response?.data?.message || 'Failed to get user data');
+      const response = await fetch('/api/auth/session');
+      if (!response.ok) {
+        throw new Error('Not authenticated');
       }
-      throw new Error('Network error. Please check your connection.');
+      const data = await response.json();
+      return data.user;
+    } catch (error) {
+      throw error instanceof Error ? error : new Error('Failed to get user data');
     }
   },
 
   /**
-   * Logout user (client-side only, clears token)
+   * Logout user (clears session cookie)
    */
-  logout(): void {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(USER_DATA_KEY);
-    localStorage.removeItem(ANONYMOUS_USER_ID_KEY);
+  async logout(): Promise<void> {
+    await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => { });
   },
 };
 

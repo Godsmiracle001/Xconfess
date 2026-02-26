@@ -6,12 +6,14 @@ import { Comment } from './entities/comment.entity';
 import { AnonymousContextMiddleware } from '../middleware/anonymous-context.middleware';
 import { ModerationComment } from './entities/moderation-comment.entity';
 import { NotificationModule } from '../notification/notification.module';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       Comment,
       ModerationComment,
+      OutboxEvent,
     ]),
     NotificationModule,
   ],

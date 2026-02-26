@@ -41,11 +41,6 @@ export const useAuthStore = create<AuthStoreState>()(
       setError: (error) => set({ error }),
 
       logout: () => {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem(AUTH_TOKEN_KEY);
-          localStorage.removeItem(USER_DATA_KEY);
-          localStorage.removeItem(ANONYMOUS_USER_ID_KEY);
-        }
         set({
           user: null,
           isAuthenticated: false,
@@ -55,19 +50,9 @@ export const useAuthStore = create<AuthStoreState>()(
       },
 
       hydrateFromStorage: () => {
+        // Hydration from localStorage is disabled for security
+        // State will be populated by AuthProvider from session cookie
         if (typeof window === "undefined") return;
-        const token = localStorage.getItem(AUTH_TOKEN_KEY);
-        const userJson = localStorage.getItem(USER_DATA_KEY);
-        if (!token) {
-          set({ user: null, isAuthenticated: false });
-          return;
-        }
-        try {
-          const user = userJson ? (JSON.parse(userJson) as User) : null;
-          set({ user, isAuthenticated: !!user });
-        } catch {
-          set({ user: null, isAuthenticated: false });
-        }
       },
     }),
     {

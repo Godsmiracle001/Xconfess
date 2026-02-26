@@ -1,20 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
 
+/**
+ * Payload for POST /auth/login.
+ *
+ * Validation is intentionally minimal here: we do not re-enforce password
+ * complexity rules because the error message "invalid credentials" is safer
+ * than "password must contain uppercase" (which leaks policy information to
+ * an attacker enumerating accounts).
+ */
 export class LoginDto {
-  @ApiProperty({
-    example: 'user@example.com',
-    description: 'Registered email address',
-  })
-  @IsEmail()
+  @IsEmail({}, { message: 'email must be a valid e-mail address' })
   email: string;
 
-  @ApiProperty({
-    example: 'Password123!',
-    minLength: 8,
-    description: 'User password',
-  })
   @IsString()
-  @MinLength(8)
+  @IsNotEmpty({ message: 'password must not be empty' })
   password: string;
 }

@@ -245,7 +245,7 @@ export class EmailService implements OnModuleInit {
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogService?: AuditLogService,
     @Optional() private readonly appLogger?: AppLogger,
-  ) {}
+  ) { }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -893,9 +893,9 @@ export class EmailService implements OnModuleInit {
 
       this.logger.log(
         `Email sent via ${provider.label} to ${maskedTo} | channel=${channel}` +
-          (templateMeta
-            ? ` | template=${templateMeta.templateKey}@${templateMeta.templateVersion}${templateMeta.isCanary ? '[canary]' : ''}`
-            : ''),
+        (templateMeta
+          ? ` | template=${templateMeta.templateKey}@${templateMeta.templateVersion}${templateMeta.isCanary ? '[canary]' : ''}`
+          : ''),
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1081,7 +1081,7 @@ export class EmailService implements OnModuleInit {
   ): Promise<void> {
     const templateKey = 'password_reset';
     const resolved = this.resolveActiveTemplate(templateKey);
-    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+    const resetUrl = `${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}/reset-password?token=${token}`;
 
     if (resolved) {
       const { template, isCanary } = resolved;
@@ -1122,7 +1122,7 @@ export class EmailService implements OnModuleInit {
       const rendered = renderTemplate(templateKey, template, {
         confessionId,
         commentPreview,
-        frontendUrl: this.configService.get('FRONTEND_URL') || 'http://localhost:3000',
+        frontendUrl: this.configService.get<string>('app.frontendUrl', 'http://localhost:3000'),
       });
       await this.sendEmail(
         to,
@@ -1133,7 +1133,7 @@ export class EmailService implements OnModuleInit {
         templateMeta ?? { templateKey, templateVersion: template.version, isCanary },
       );
     } else {
-      const frontendUrl = this.configService.get('FRONTEND_URL');
+      const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3000');
       await this.sendEmail(
         to,
         'New Comment on Your Confession',
@@ -1176,7 +1176,7 @@ export class EmailService implements OnModuleInit {
     <p>Hello ${username},</p>
     <p><strong>${reactorName}</strong> reacted with ${emoji} to your confession:</p>
     <div class="confession">"${truncated}"</div>
-    <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}" class="button">View on XConfess</a>
+    <a href="${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}" class="button">View on XConfess</a>
     <p style="font-size:12px;color:#777;">© ${new Date().getFullYear()} XConfess. All rights reserved.</p>
   </body>
 </html>`;
@@ -1192,7 +1192,7 @@ export class EmailService implements OnModuleInit {
       confessionContent.length > 100
         ? `${confessionContent.substring(0, 100)}...`
         : confessionContent;
-    return `New Reaction! ${emoji}\n\nHello ${username},\n\n${reactorName} reacted with ${emoji} to your confession:\n\n"${truncated}"\n\nView on XConfess: ${process.env.FRONTEND_URL || 'http://localhost:3000'}\n\n© ${new Date().getFullYear()} XConfess.`;
+    return `New Reaction! ${emoji}\n\nHello ${username},\n\n${reactorName} reacted with ${emoji} to your confession:\n\n"${truncated}"\n\nView on XConfess: ${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}\n\n© ${new Date().getFullYear()} XConfess.`;
   }
 
   private generateResetEmailTemplate(
