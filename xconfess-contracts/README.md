@@ -17,6 +17,7 @@ on-chain anchoring of anonymous confession hashes on the Stellar network.
 - [Deployment](#deployment)
 - [Contract API](#contract-api)
 - [Architecture notes](#architecture-notes)
+- [Threat model](#threat-model)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -354,6 +355,12 @@ without a separate package.
 functions encode the `AccessError` discriminant as a string (e.g. `"2"` for
 `NotAuthorized`). This lets the NestJS backend and tests match on stable
 codes without parsing message text.
+
+---
+
+## Threat model
+
+For a detailed analysis of our security assumptions, privileged roles, trust boundaries, and specific threat mitigations, please read the [Threat Model and Security Assumptions](../docs/contract-threat-model.md) document.
 
 ---
 
