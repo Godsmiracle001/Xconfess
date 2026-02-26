@@ -5,7 +5,6 @@ use soroban_sdk::{
 /// ===========================================
 /// GLOBAL EVENT VERSIONING
 /// ===========================================
-
 pub const EVENT_VERSION_V1: u32 = 1;
 
 /// Stable discriminators (NEVER CHANGE)
@@ -15,9 +14,8 @@ pub const REPORT_EVENT: Symbol = symbol_short!("report");
 pub const ROLE_EVENT: Symbol = symbol_short!("role");
 
 /// ===========================================
-/// CONFESSION EVENT (V1)
+/// CONFESSION EVENT (V1) WITH OPTIONAL CORRELATION ID
 /// ===========================================
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfessionEvent {
@@ -26,6 +24,7 @@ pub struct ConfessionEvent {
     pub author: Address,
     pub content_hash: Symbol,
     pub timestamp: u64,
+    pub correlation_id: Option<Symbol>, // new optional field
 }
 
 pub fn emit_confession(
@@ -33,6 +32,7 @@ pub fn emit_confession(
     confession_id: u64,
     author: Address,
     content_hash: Symbol,
+    correlation_id: Option<Symbol>, // optional parameter
 ) {
     let payload = ConfessionEvent {
         event_version: EVENT_VERSION_V1,
@@ -40,15 +40,15 @@ pub fn emit_confession(
         author,
         content_hash,
         timestamp: env.ledger().timestamp(),
+        correlation_id,
     };
 
     env.events().publish((CONFESSION_EVENT,), payload);
 }
 
 /// ===========================================
-/// REACTION EVENT (V1)
+/// REACTION EVENT (V1) WITH OPTIONAL CORRELATION ID
 /// ===========================================
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReactionEvent {
@@ -57,6 +57,7 @@ pub struct ReactionEvent {
     pub reactor: Address,
     pub reaction_type: Symbol,
     pub timestamp: u64,
+    pub correlation_id: Option<Symbol>,
 }
 
 pub fn emit_reaction(
@@ -64,6 +65,7 @@ pub fn emit_reaction(
     confession_id: u64,
     reactor: Address,
     reaction_type: Symbol,
+    correlation_id: Option<Symbol>,
 ) {
     let payload = ReactionEvent {
         event_version: EVENT_VERSION_V1,
@@ -71,15 +73,15 @@ pub fn emit_reaction(
         reactor,
         reaction_type,
         timestamp: env.ledger().timestamp(),
+        correlation_id,
     };
 
     env.events().publish((REACTION_EVENT,), payload);
 }
 
 /// ===========================================
-/// REPORT EVENT (V1)
+/// REPORT EVENT (V1) WITH OPTIONAL CORRELATION ID
 /// ===========================================
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReportEvent {
@@ -88,6 +90,7 @@ pub struct ReportEvent {
     pub reporter: Address,
     pub reason: Symbol,
     pub timestamp: u64,
+    pub correlation_id: Option<Symbol>,
 }
 
 pub fn emit_report(
@@ -95,6 +98,7 @@ pub fn emit_report(
     confession_id: u64,
     reporter: Address,
     reason: Symbol,
+    correlation_id: Option<Symbol>,
 ) {
     let payload = ReportEvent {
         event_version: EVENT_VERSION_V1,
@@ -102,15 +106,15 @@ pub fn emit_report(
         reporter,
         reason,
         timestamp: env.ledger().timestamp(),
+        correlation_id,
     };
 
     env.events().publish((REPORT_EVENT,), payload);
 }
 
 /// ===========================================
-/// ROLE EVENT (V1)
+/// ROLE EVENT (V1) WITH OPTIONAL CORRELATION ID
 /// ===========================================
-
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RoleEvent {
@@ -119,6 +123,7 @@ pub struct RoleEvent {
     pub role: Symbol,
     pub granted: bool,
     pub timestamp: u64,
+    pub correlation_id: Option<Symbol>,
 }
 
 pub fn emit_role(
@@ -126,6 +131,7 @@ pub fn emit_role(
     user: Address,
     role: Symbol,
     granted: bool,
+    correlation_id: Option<Symbol>,
 ) {
     let payload = RoleEvent {
         event_version: EVENT_VERSION_V1,
@@ -133,20 +139,18 @@ pub fn emit_role(
         role,
         granted,
         timestamp: env.ledger().timestamp(),
+        correlation_id,
     };
 
     env.events().publish((ROLE_EVENT,), payload);
 }
 
 /// ===========================================
-/// BACKWARD COMPATIBLE DECODER
+/// BACKWARD COMPATIBLE DECODERS
 /// ===========================================
-
 pub fn decode_confession_event(event: &ConfessionEvent) {
     match event.event_version {
-        1 => {
-            // Safe decode logic for V1
-        }
+        1 => {} // V1 decode
         _ => panic!("Unsupported confession event version"),
     }
 }
