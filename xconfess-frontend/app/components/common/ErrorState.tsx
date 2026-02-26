@@ -11,6 +11,7 @@ interface ErrorStateProps {
   showIcon?: boolean;
   showRetry?: boolean;
   fullHeight?: boolean;
+  correlationId?: string;
 }
 
 const ErrorState: React.FC<ErrorStateProps> = ({
@@ -21,6 +22,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
   showIcon = true,
   showRetry = true,
   fullHeight = false,
+  correlationId,
 }) => {
   const containerClass = fullHeight
     ? 'min-h-screen flex items-center justify-center'
@@ -54,6 +56,13 @@ const ErrorState: React.FC<ErrorStateProps> = ({
         )}
 
         <p className="text-gray-300 text-sm mb-6">{error}</p>
+
+        {correlationId && (
+          <div className="mb-6 p-2 bg-zinc-900 rounded border border-zinc-800">
+            <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mb-1">Correlation ID</p>
+            <p className="text-xs font-mono text-zinc-300 break-all">{correlationId}</p>
+          </div>
+        )}
 
         {showRetry && onRetry && (
           <div className="flex justify-center">
