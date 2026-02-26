@@ -9,13 +9,27 @@ const apiClient = axios.create({
 	timeout: 30000,
 });
 
-// Request interceptor for adding auth token
+// Extend AxiosRequestConfig to support per-request retry tracking and correlation
+declare module "axios" {
+	interface InternalAxiosRequestConfig {
+		__retryCount?: number;
+		correlationId?: string;
+	}
+}
+
+// Request interceptor for adding auth token and correlation ID
 apiClient.interceptors.request.use(
 	(config) => {
 		const token = localStorage.getItem(AUTH_TOKEN_KEY);
 		if (token) {
 			config.headers.Authorization = `Bearer ${token}`;
 		}
+
+		// Generate correlation ID for tracing
+		const correlationId = crypto.randomUUID();
+		config.headers["X-Correlation-ID"] = correlationId;
+		config.correlationId = correlationId;
+
 		return config;
 	},
 	(error) => {
@@ -23,13 +37,6 @@ apiClient.interceptors.request.use(
 		return Promise.reject(error);
 	},
 );
-
-// Extend AxiosRequestConfig to support per-request retry tracking
-declare module "axios" {
-	interface InternalAxiosRequestConfig {
-		__retryCount?: number;
-	}
-}
 
 const MAX_RETRIES = 3;
 
@@ -91,6 +98,7 @@ apiClient.interceptors.response.use(
 				url: config.url,
 				status: error.response?.status,
 				retries: config.__retryCount,
+				correlationId: config.correlationId,
 			},
 		);
 

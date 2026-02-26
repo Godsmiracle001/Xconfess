@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
             }
 
             // Use atob for Edge Runtime compatibility
-            const decoded = atob(payloadBase664.replace(/-/g, "+").replace(/_/g, "/"));
+            const decoded = atob(payloadBase64.replace(/-/g, "+").replace(/_/g, "/"));
             const payload = JSON.parse(decoded);
 
             // Backend JwtStrategy returns 'role'
