@@ -3,7 +3,7 @@
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import dynamic from "next/dynamic";
 import { ConfessionFeed } from "./components/confession/ConfessionFeed";
-import { ErrorBoundary } from "./components/confession/ErrorBoundary";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 
 const EnhancedConfessionForm = dynamic(
   () =>

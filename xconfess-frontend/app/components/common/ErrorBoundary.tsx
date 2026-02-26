@@ -12,8 +12,9 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  error: Error | null;
+  error: any | null; // Changed to any to allow accessing custom properties
   errorCount: number;
+  correlationId?: string;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -29,15 +30,19 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: any, errorInfo: React.ErrorInfo) {
     const errorCount = this.state.errorCount + 1;
+
+    // Extract correlationId if available (from AxiosError or AppError)
+    const correlationId = error.config?.correlationId || error.details?.correlationId || error.correlationId;
 
     logError(error, 'ErrorBoundary', {
       componentStack: errorInfo.componentStack,
       errorCount,
+      correlationId,
     });
 
-    this.setState({ errorCount });
+    this.setState({ errorCount, correlationId });
 
     if (errorCount > 3) {
       console.error('Critical: Too many consecutive errors detected');
@@ -53,7 +58,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   handleReset = () => {
     this.props.onReset?.();
-    this.setState({ hasError: false, error: null, errorCount: 0 });
+    this.setState({ hasError: false, error: null, errorCount: 0, correlationId: undefined });
   };
 
   render() {
@@ -84,6 +89,13 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
               {this.state.error.message || 'An unexpected runtime error occurred during template sync.'}
             </p>
+
+            {this.state.correlationId && (
+              <div className="mb-6 p-2 bg-zinc-900 rounded border border-zinc-800">
+                <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest mb-1">Correlation ID</p>
+                <p className="text-xs font-mono text-zinc-300 break-all">{this.state.correlationId}</p>
+              </div>
+            )}
 
             {process.env.NODE_ENV === 'development' && (
               <details className="mb-6 text-[10px] text-zinc-500 bg-zinc-900 p-3 rounded border border-zinc-800">
