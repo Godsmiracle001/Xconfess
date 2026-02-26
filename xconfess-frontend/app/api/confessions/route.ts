@@ -43,22 +43,27 @@ export async function POST(request: Request) {
     if (gender) backendBody.gender = gender;
     if (stellarTxHash) backendBody.stellarTxHash = stellarTxHash;
 
+    const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
+
     try {
       const response = await fetch(backendUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "X-Correlation-ID": correlationId,
         },
         body: JSON.stringify(backendBody),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error(`[POST /confessions] Backend error: ${response.status} (CID: ${correlationId})`, errorData);
         return new Response(
           JSON.stringify({
             message:
               errorData.message ||
               `Failed to create confession: ${response.statusText}`,
+            correlationId,
           }),
           {
             status: response.status,
@@ -75,10 +80,11 @@ export async function POST(request: Request) {
         headers: { "Content-Type": "application/json" },
       });
     } catch (fetchError: any) {
-      console.error("Failed to reach backend:", fetchError);
+      console.error(`[POST /confessions] Failed to reach backend (CID: ${correlationId}):`, fetchError);
       return new Response(
         JSON.stringify({
           message: "Backend service unavailable. Please try again later.",
+          correlationId,
         }),
         {
           status: 503,
@@ -87,12 +93,14 @@ export async function POST(request: Request) {
       );
     }
   } catch (error) {
-    console.error("Error creating confession:", error);
+    const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
+    console.error(`[POST /confessions] Internal error (CID: ${correlationId}):`, error);
     const errorMessage =
       error instanceof Error ? error.message : "Internal server error";
     return new Response(
       JSON.stringify({
         message: errorMessage,
+        correlationId,
       }),
       {
         status: 500,
@@ -133,6 +141,8 @@ export async function GET(request: Request) {
     backendParams.append("gender", gender);
   }
 
+  const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
+
   try {
     const backendUrl = `${BASE_API_URL}/confessions?${backendParams}`;
 
@@ -140,7 +150,9 @@ export async function GET(request: Request) {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        "X-Correlation-ID": correlationId,
       },
+      // @ts-ignore - Next.js fetch extension
       next: {
         revalidate: 30, // Cache for 30 seconds
       },
@@ -148,11 +160,12 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       console.error(
-        `Backend returned ${response.status}: ${response.statusText}`,
+        `[GET /confessions] Backend error: ${response.status} (CID: ${correlationId})`,
       );
       return new Response(
         JSON.stringify({
           message: `Failed to fetch confessions: ${response.statusText}`,
+          correlationId,
         }),
         {
           status: response.status,
@@ -189,10 +202,12 @@ export async function GET(request: Request) {
       },
     );
   } catch (error) {
-    console.error("Error fetching confessions:", error);
+    const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
+    console.error(`[GET /confessions] Internal error (CID: ${correlationId}):`, error);
     return new Response(
       JSON.stringify({
         message: "Backend service unavailable. Please try again later.",
+        correlationId,
       }),
       {
         status: 502,

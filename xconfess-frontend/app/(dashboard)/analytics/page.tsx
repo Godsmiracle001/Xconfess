@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
+import ErrorState from '@/app/components/common/ErrorState';
 import { MetricsCard } from '@/app/components/analytics/MetricsCard';
 import { TimePeriodSelector } from '@/app/components/analytics/TimePeriodSelector';
 import { AUTH_TOKEN_KEY } from '@/app/lib/api/constants';
@@ -15,18 +16,18 @@ import {
 } from 'lucide-react';
 
 const ActivityChart = dynamic(
-  () => import('@/app/components/analytics/ActivityChart').then(mod => ({ default: mod.ActivityChart })),
-  { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
+    () => import('@/app/components/analytics/ActivityChart').then(mod => ({ default: mod.ActivityChart })),
+    { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
 );
 
 const ReactionDistribution = dynamic(
-  () => import('@/app/components/analytics/ReactionDistribution').then(mod => ({ default: mod.ReactionDistribution })),
-  { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
+    () => import('@/app/components/analytics/ReactionDistribution').then(mod => ({ default: mod.ReactionDistribution })),
+    { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
 );
 
 const TrendingConfessions = dynamic(
-  () => import('@/app/components/analytics/TrendingConfessions').then(mod => ({ default: mod.TrendingConfessions })),
-  { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-96"></div> }
+    () => import('@/app/components/analytics/TrendingConfessions').then(mod => ({ default: mod.TrendingConfessions })),
+    { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-96"></div> }
 );
 
 interface AnalyticsData {
@@ -66,6 +67,7 @@ export default function AnalyticsPage() {
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         const fetchAnalytics = async () => {
@@ -92,7 +94,7 @@ export default function AnalyticsPage() {
         };
 
         fetchAnalytics();
-    }, [period]);
+    }, [period, refreshKey]);
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black">
@@ -114,18 +116,13 @@ export default function AnalyticsPage() {
 
                 {/* Error State */}
                 {error && (
-                    <div className="bg-red-900/20 border border-red-700 rounded-2xl p-4 mb-6 flex items-center gap-3">
-                        <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
-                        <div className="flex-1">
-                            <p className="text-red-300 font-medium">Error loading analytics</p>
-                            <p className="text-red-400 text-sm">{error}</p>
-                        </div>
-                        <button
-                            onClick={() => window.location.reload()}
-                            className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium cursor-pointer "
-                        >
-                            Retry
-                        </button>
+                    <div className="mb-6">
+                        <ErrorState
+                            title="Error loading analytics"
+                            error={error}
+                            onRetry={async () => { setRefreshKey(prev => prev + 1); }}
+                            fullHeight={false}
+                        />
                     </div>
                 )}
 
