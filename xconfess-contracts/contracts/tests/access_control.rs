@@ -674,3 +674,109 @@ fn no_spurious_events_on_view_calls() {
         "view methods must not emit any events"
     );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite 11 – Minimum-Admin Invariant Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[test]
+fn revoke_last_admin_fails_with_invariant_error() {
+    let (env, client, owner) = setup_with_owner();
+    let admin = Address::random(&env);
+    client.assign_admin(&owner, &admin);
+
+    // Attempt to revoke the only admin should fail
+    let result = std::panic::catch_unwind(|| {
+        client.revoke_admin(&owner, &admin);
+    });
+
+    assert!(result.is_err());
+    assert!(client.is_admin(&admin)); // Admin should still be in place
+
+    // Verify governance invariant violation event was emitted
+    let events = env.events().all();
+    let gov_inv_events: Vec<_> = events
+        .iter()
+        .filter(|e| {
+            e.topics.len() > 0 && 
+            format!("{:?}", e.topics[0]).contains("gov_inv")
+        })
+        .collect();
+    
+    assert_eq!(gov_inv_events.len(), 1);
+}
+
+#[test]
+fn revoke_admin_when_multiple_admins_succeeds() {
+    let (env, client, owner) = setup_with_owner();
+    let admin1 = Address::random(&env);
+    let admin2 = Address::random(&env);
+    client.assign_admin(&owner, &admin1);
+    client.assign_admin(&owner, &admin2);
+
+    // Revoke one admin when multiple exist should succeed
+    client.revoke_admin(&owner, &admin1);
+    
+    assert!(!client.is_admin(&admin1));
+    assert!(client.is_admin(&admin2));
+    assert!(client.is_owner(&owner));
+}
+
+#[test]
+fn transfer_ownership_to_same_address_fails() {
+    let (env, client, owner) = setup_with_owner();
+
+    // Attempt to transfer to same address should fail
+    let result = std::panic::catch_unwind(|| {
+        client.transfer_ownership(&owner, &owner);
+    });
+
+    assert!(result.is_err());
+    assert_eq!(client.get_owner(), owner); // Owner unchanged
+}
+
+#[test]
+fn count_admins_returns_correct_count() {
+    let (env, client, owner) = setup_with_owner();
+    
+    // Initially no admins
+    assert_eq!(client.count_admins(), 0);
+    
+    // Add admins
+    let admin1 = Address::random(&env);
+    let admin2 = Address::random(&env);
+    client.assign_admin(&owner, &admin1);
+    assert_eq!(client.count_admins(), 1);
+    
+    client.assign_admin(&owner, &admin2);
+    assert_eq!(client.count_admins(), 2);
+    
+    // Revoke admin
+    client.revoke_admin(&owner, &admin1);
+    assert_eq!(client.count_admins(), 1);
+    
+    // Owner is never counted
+    assert!(!client.is_admin(&owner));
+}
+
+#[test]
+fn count_authorized_includes_owner() {
+    let (env, client, owner) = setup_with_owner();
+    
+    // Initially only owner is authorized
+    assert_eq!(client.count_authorized(), 1);
+    
+    // Add admin
+    let admin1 = Address::random(&env);
+    client.assign_admin(&owner, &admin1);
+    assert_eq!(client.count_authorized(), 2);
+    
+    // Add another admin
+    let admin2 = Address::random(&env);
+    client.assign_admin(&owner, &admin2);
+    assert_eq!(client.count_authorized(), 3);
+    
+    // Revoke admin
+    client.revoke_admin(&owner, &admin1);
+    assert_eq!(client.count_authorized(), 2);
+}
