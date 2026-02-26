@@ -2,7 +2,10 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ConfessionDetailClient } from "./ConfessionDetailClient";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const APP_URL =
+  process.env.APP_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  "http://localhost:3000";
 
 type PageProps = {
   params: Promise<{ id: string }>;
