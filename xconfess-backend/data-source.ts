@@ -22,7 +22,7 @@ export default new DataSource({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   entities: [__dirname + '/src/**/*.entity.{ts,js}'],
-  migrations: [__dirname + '/migrations/!(*.spec).{ts,js}'],
+  migrations: [__dirname + '/migrations/*{.ts,js}'],
   extra: {
     max: 20,
     min: 5,

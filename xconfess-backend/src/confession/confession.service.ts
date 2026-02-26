@@ -4,6 +4,7 @@ import {
   NotFoundException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AnonymousConfessionRepository } from './repository/confession.repository';
 import { CreateConfessionDto } from './dto/create-confession.dto';
 import { UpdateConfessionDto } from './dto/update-confession.dto';
@@ -50,7 +51,12 @@ export class ConfessionService {
     private readonly stellarService: StellarService,
     private readonly cacheService: CacheService,
     private readonly tagService: TagService,
+    private readonly configService: ConfigService,
   ) { }
+
+  private get aesKey(): string {
+    return this.configService.get<string>('app.confessionAesKey', '');
+  }
 
   private sanitizeMessage(message: string): string {
     return sanitizeHtml(message, {
@@ -84,7 +90,7 @@ export class ConfessionService {
         : await this.anonymousUserService.create();
 
       // Step 2: Encrypt and save the confession
-      const encryptedMsg = encryptConfession(msg);
+      const encryptedMsg = encryptConfession(msg, this.aesKey);
       const confessionRepo: Repository<AnonymousConfession> = manager
         ? manager.getRepository(AnonymousConfession)
         : (this.confessionRepo as unknown as Repository<AnonymousConfession>);
@@ -246,7 +252,7 @@ export class ConfessionService {
 
     const decryptedItems = items.map((item) => ({
       ...item,
-      message: decryptConfession(item.message),
+      message: decryptConfession(item.message, this.aesKey),
     }));
 
     const result = {
@@ -273,7 +279,7 @@ export class ConfessionService {
       const moderationResult =
         await this.aiModerationService.moderateContent(sanitized);
 
-      dto.message = encryptConfession(sanitized);
+      dto.message = encryptConfession(sanitized, this.aesKey);
       await this.confessionRepo.update(id, {
         ...dto,
         moderationScore: moderationResult.score,
@@ -297,7 +303,7 @@ export class ConfessionService {
     }
 
     const updated = await this.confessionRepo.findOne({ where: { id } });
-    if (updated) updated.message = decryptConfession(updated.message);
+    if (updated) updated.message = decryptConfession(updated.message, this.aesKey);
     return updated;
   }
 
@@ -348,7 +354,7 @@ export class ConfessionService {
     return {
       data: data.map((c) => ({
         ...c,
-        message: decryptConfession(c.message),
+        message: decryptConfession(c.message, this.aesKey),
       })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
@@ -439,11 +445,11 @@ export class ConfessionService {
         where: { id },
         relations: ['reactions', 'reactions.anonymousUser'],
       });
-      if (updated) updated.message = decryptConfession(updated.message);
+      if (updated) updated.message = decryptConfession(updated.message, this.aesKey);
       return updated;
     }
 
-    conf.message = decryptConfession(conf.message);
+    conf.message = decryptConfession(conf.message, this.aesKey);
     return conf;
   }
 
@@ -618,7 +624,7 @@ export class ConfessionService {
     }
 
     // Decrypt confession to generate hash
-    const decryptedMessage = decryptConfession(confession.message);
+    const decryptedMessage = decryptConfession(confession.message, this.aesKey);
     const anchorData = this.stellarService.processAnchorData(
       decryptedMessage,
       dto.stellarTxHash,
@@ -638,7 +644,7 @@ export class ConfessionService {
 
     const updated = await this.confessionRepo.findOne({ where: { id } });
     if (updated) {
-      updated.message = decryptConfession(updated.message);
+      updated.message = decryptConfession(updated.message, this.aesKey);
     }
 
     return {
@@ -685,7 +691,7 @@ export class ConfessionService {
   private toResponseDto(
     confession: AnonymousConfession,
   ): ConfessionResponseDto {
-    const decryptedMessage = decryptConfession(confession.message);
+    const decryptedMessage = decryptConfession(confession.message, this.aesKey);
 
     return new ConfessionResponseDto({
       id: String(confession.id),
@@ -738,7 +744,7 @@ export class ConfessionService {
 
     const decryptedItems = confessions.map((item) => ({
       ...item,
-      message: decryptConfession(item.message),
+      message: decryptConfession(item.message, this.aesKey),
     }));
 
     const result = {

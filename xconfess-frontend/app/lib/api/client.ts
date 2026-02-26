@@ -20,12 +20,10 @@ declare module "axios" {
 // Request interceptor for adding auth token and correlation ID
 apiClient.interceptors.request.use(
 	(config) => {
-		const token = localStorage.getItem(AUTH_TOKEN_KEY);
-		if (token) {
-			config.headers.Authorization = `Bearer ${token}`;
-		}
+		// Tokens are now handled via secure session cookies (upstream)
+		config.withCredentials = true;
 
-		// Generate correlation ID for tracing
+		// Generate correlation ID for tracing (HEAD)
 		const correlationId = crypto.randomUUID();
 		config.headers["X-Correlation-ID"] = correlationId;
 		config.correlationId = correlationId;

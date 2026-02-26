@@ -13,7 +13,6 @@ import {
   EmailProviderConfig,
   MailConfig,
   EmailTemplateVersion,
-  EmailTemplateRegistry,
   EmailTemplateSloConfig,
   TemplateVariablePrimitiveType,
   TemplateRegistry,
@@ -21,10 +20,7 @@ import {
   resolveTemplate,
 } from '../config/email.config';
 
-
-// ─────────────────────────────────────────────────────────────
-// STRICT TEMPLATE VALIDATION (Your Feature Branch)
-// ─────────────────────────────────────────────────────────────
+// ── Template variable validation ──────────────────────────────────────────────
 
 export type TemplateVariableValidationViolationCode =
   | 'missing'
@@ -89,18 +85,14 @@ export function renderTemplate(
   vars: Record<string, unknown>,
 ): { subject: string; html: string; text: string } {
   const schema = normalizeSchema(template);
-
   const allowedKeys = new Set([
     ...Object.keys(schema.required),
     ...Object.keys(schema.optional),
   ]);
-
   const violations: TemplateVariableValidationViolation[] = [];
 
-  // Required validation
   for (const [key, expectedType] of Object.entries(schema.required)) {
     const value = vars[key];
-
     if (value === undefined || value === null) {
       violations.push({
         code: 'missing',
@@ -110,7 +102,6 @@ export function renderTemplate(
       });
       continue;
     }
-
     if (typeof value !== expectedType) {
       violations.push({
         code: 'type_mismatch',
@@ -121,7 +112,6 @@ export function renderTemplate(
     }
   }
 
-  // Unknown + optional validation
   for (const [key, value] of Object.entries(vars)) {
     if (!allowedKeys.has(key)) {
       violations.push({
@@ -132,7 +122,6 @@ export function renderTemplate(
       });
       continue;
     }
-
     const expectedType = schema.optional[key];
     if (expectedType && value !== undefined && value !== null) {
       if (typeof value !== expectedType) {
@@ -166,18 +155,88 @@ export function renderTemplate(
   };
 }
 
+// ── Circuit breaker types ─────────────────────────────────────────────────────
 
-// ─────────────────────────────────────────────────────────────
-// EMAIL SERVICE (Main Architecture + Your Feature)
-// ─────────────────────────────────────────────────────────────
+export type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
+interface CircuitBreakerState {
+  state: CircuitState;
+  consecutiveFailures: number;
+  consecutiveProbeSuccesses: number;
+  openedAt: number | null;
+  lastTransitionReason: string;
+}
+
+// ── Provider abstraction ──────────────────────────────────────────────────────
+
+interface TransporterEntry {
+  transporter: nodemailer.Transporter;
+  from: string;
+  label: 'primary' | 'fallback';
+}
+
+// ── Template meta attached to each send ──────────────────────────────────────
+
+export interface TemplateMeta {
+  templateKey: string;
+  templateVersion: string;
+  isCanary?: boolean;
+}
+
+// ── SLO tracking ─────────────────────────────────────────────────────────────
+
+interface TemplateSloSeriesEntry {
+  timestamp: number;
+  success: boolean;
+  durationMs: number;
+}
+
+interface TemplateSloSeries {
+  entries: TemplateSloSeriesEntry[];
+  breachCount: number;
+  inBreach: boolean;
+}
+
+// ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable()
 export class EmailService implements OnModuleInit {
-
   private readonly logger = new Logger(EmailService.name);
 
-  private primary: any = null;
-  private fallback: any = null;
+  private primary: TransporterEntry | null = null;
+  private fallback: TransporterEntry | null = null;
+
+  private readonly cb: CircuitBreakerState = {
+    state: 'CLOSED',
+    consecutiveFailures: 0,
+    consecutiveProbeSuccesses: 0,
+    openedAt: null,
+    lastTransitionReason: 'initial',
+  };
+
+  private cbConfig: CircuitBreakerConfig = {
+    failureThreshold: 3,
+    cooldownSeconds: 60,
+    probeSuccessThreshold: 2,
+  };
+
+  private templateSloConfig: EmailTemplateSloConfig = {
+    evaluationWindowMinutes: 15,
+    active: {
+      maxErrorRatePercent: 5,
+      maxP95LatencyMs: 1200,
+      minSampleSize: 20,
+      alertAfterConsecutiveBreaches: 2,
+    },
+    canary: {
+      maxErrorRatePercent: 2,
+      maxP95LatencyMs: 900,
+      minSampleSize: 10,
+      alertAfterConsecutiveBreaches: 1,
+    },
+  };
+
+  private readonly templateSloSeries = new Map<string, TemplateSloSeries>();
 
   private templateRegistry: TemplateRegistry = {};
   private rolloutMap: TemplateRolloutMap = {};
@@ -186,123 +245,975 @@ export class EmailService implements OnModuleInit {
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogService?: AuditLogService,
     @Optional() private readonly appLogger?: AppLogger,
-  ) {}
+  ) { }
 
-  // ─────────────────────────────────────────────────────────────
-  // Lifecycle
-  // ─────────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   onModuleInit() {
+    const mailConfig = this.configService.get<EmailProviderConfig>('mail');
+    const cbConfig =
+      this.configService.get<CircuitBreakerConfig>('circuitBreaker');
+
+    if (cbConfig) this.cbConfig = cbConfig;
+
     const registry =
       this.configService.get<TemplateRegistry>('templateRegistry');
     const rollout =
       this.configService.get<TemplateRolloutMap>('templateRolloutMap');
-
     if (registry) this.templateRegistry = registry;
     if (rollout) this.rolloutMap = rollout;
-  }
 
-  // ─────────────────────────────────────────────────────────────
-  // TEMPLATE PREVIEW (Your Feature)
-  // ─────────────────────────────────────────────────────────────
-
-  previewTemplate(
-    templateKey: string,
-    vars: Record<string, unknown>,
-    version?: string,
-  ) {
-    const reg = this.templateRegistry[templateKey];
-
-    if (!reg) {
-      return {
-        templateKey,
-        version: version ?? 'unknown',
-        lifecycleState: 'unknown',
-        rendered: null,
-        validationErrors: [
-          `Template key "${templateKey}" is not registered.`,
-        ],
-        missingVars: [],
-        requiredVars: [],
-      };
+    if (mailConfig?.slo) {
+      this.templateSloConfig = mailConfig.slo;
     }
 
-    const resolvedVersion = version ?? reg.activeVersion;
-    const template = reg.versions[resolvedVersion];
+    if (!mailConfig?.primary?.host) {
+      this.logger.warn(
+        'No primary mail config found — using Ethereal test account.',
+      );
+      this.initEtherealFallback();
+      return;
+    }
+
+    this.primary = this.buildTransporter(mailConfig.primary, 'primary');
+
+    if (mailConfig.fallback?.host) {
+      this.fallback = this.buildTransporter(mailConfig.fallback, 'fallback');
+      this.logger.log('Fallback email provider configured.');
+    } else {
+      this.logger.warn(
+        'No fallback email provider configured. Circuit breaker will have no fallback.',
+      );
+    }
+  }
+
+  // ── Template lifecycle management ─────────────────────────────────────────
+
+  private readonly validTransitions: Record<string, string[]> = {
+    draft: ['canary', 'active', 'archived'],
+    canary: ['active', 'deprecated', 'archived'],
+    active: ['deprecated', 'archived'],
+    deprecated: ['active', 'archived'],
+    archived: ['draft'],
+  };
+
+  async transitionTemplateState(
+    templateKey: string,
+    version: string,
+    nextState: 'draft' | 'canary' | 'active' | 'deprecated' | 'archived',
+    adminId: string,
+    reason?: string,
+    source?: TemplateRolloutSourceMetadata,
+  ): Promise<void> {
+    const reg = this.templateRegistry?.[templateKey];
+    const template = reg?.versions[version];
 
     if (!template) {
-      return {
-        templateKey,
-        version: resolvedVersion,
-        lifecycleState: 'unknown',
-        rendered: null,
-        validationErrors: [
-          `Version "${resolvedVersion}" not found.`,
-        ],
-        missingVars: [],
-        requiredVars: [],
-      };
+      throw new Error(`Template version not found: ${templateKey} v${version}`);
     }
 
-    try {
-      const rendered = renderTemplate(templateKey, template, vars);
+    const currentState = template.lifecycleState;
+    const allowed = this.validTransitions[currentState] || [];
 
-      return {
-        templateKey,
-        version: resolvedVersion,
-        lifecycleState: template.lifecycleState,
-        rendered,
-        validationErrors: [],
-        missingVars: [],
-        requiredVars: template.requiredVars,
-      };
-    } catch (err) {
-      return {
-        templateKey,
-        version: resolvedVersion,
-        lifecycleState: template.lifecycleState,
-        rendered: null,
-        validationErrors: [
-          err instanceof Error ? err.message : 'Unknown error',
-        ],
-        missingVars: [],
-        requiredVars: template.requiredVars,
-      };
+    if (!allowed.includes(nextState)) {
+      throw new Error(
+        `Invalid transition: ${currentState} -> ${nextState} for ${templateKey} v${version}`,
+      );
     }
-  }
 
-  // ─────────────────────────────────────────────────────────────
-  // TEMPLATE RESOLUTION (Main Branch Style)
-  // ─────────────────────────────────────────────────────────────
+    template.lifecycleState = nextState;
 
-  private resolveActiveTemplate(key: string) {
-    return resolveTemplate(
-      this.templateRegistry,
-      this.rolloutMap,
-      key,
-      'internal',
+    await this.auditLogService?.logTemplateStateTransition(
+      templateKey,
+      version,
+      currentState,
+      nextState,
+      adminId,
+      reason,
+      source,
+    );
+
+    this.logger.log(
+      `Template ${templateKey} v${version} transitioned: ${currentState} -> ${nextState} (by admin ${adminId})`,
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // PUBLIC EMAIL METHODS
-  // ─────────────────────────────────────────────────────────────
+  async setActiveTemplateVersion(
+    templateKey: string,
+    version: string,
+    actorId = 'system',
+    reason?: string,
+    source?: TemplateRolloutSourceMetadata,
+  ): Promise<void> {
+    const reg = this.templateRegistry?.[templateKey];
+    if (!reg?.versions[version]) {
+      throw new Error(`Template or version not found: ${templateKey} v${version}`);
+    }
 
-  async sendWelcomeEmail(email: string, username: string) {
+    const before = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+    reg.activeVersion = version;
+    const after = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+
+    await this.auditLogService?.logTemplateRolloutDiff({
+      templateKey,
+      templateVersion: version,
+      changeType: 'active_version_switch',
+      actorId,
+      before,
+      after,
+      source: { reason, ...source },
+    });
+
+    this.logger.log(`Switched ${templateKey} template to version ${version}`);
+  }
+
+  async updateTemplateCanaryRollout(
+    templateKey: string,
+    actorId: string,
+    options: {
+      canaryVersion?: string;
+      canaryWeight?: number;
+      reason?: string;
+      source?: TemplateRolloutSourceMetadata;
+    },
+  ): Promise<void> {
+    const reg = this.templateRegistry?.[templateKey];
+    if (!reg) throw new Error(`Template not found: ${templateKey}`);
+
+    const before = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+
+    reg.rollout = {
+      ...(reg.rollout || {}),
+      ...(options.canaryVersion !== undefined ? { canaryVersion: options.canaryVersion } : {}),
+      ...(options.canaryWeight !== undefined ? { canaryWeight: options.canaryWeight } : {}),
+    };
+
+    const after = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+
+    await this.auditLogService?.logTemplateRolloutDiff({
+      templateKey,
+      templateVersion: options.canaryVersion || reg.activeVersion,
+      changeType: 'canary_update',
+      actorId,
+      before,
+      after,
+      source: { reason: options.reason, ...options.source },
+    });
+  }
+
+  async setTemplateKillSwitch(
+    actorId: string,
+    enabled: boolean,
+    templateKey?: string,
+    reason?: string,
+    source?: TemplateRolloutSourceMetadata,
+  ): Promise<void> {
+    if (templateKey) {
+      const reg = this.templateRegistry?.[templateKey];
+      if (!reg) throw new Error(`Template not found: ${templateKey}`);
+
+      const before = { rollout: reg.rollout || {} };
+      reg.rollout = { ...(reg.rollout || {}), killSwitchEnabled: enabled };
+      const after = { rollout: reg.rollout || {} };
+
+      await this.auditLogService?.logTemplateRolloutDiff({
+        templateKey,
+        templateVersion: reg.activeVersion,
+        changeType: 'kill_switch_toggle',
+        actorId,
+        before,
+        after,
+        source: { reason, ...source },
+      });
+    }
+
+    await this.auditLogService?.logTemplateKillswitchToggle(
+      actorId,
+      enabled,
+      templateKey,
+      reason,
+      source,
+    );
+  }
+
+  async getTemplateRolloutHistory(options: {
+    templateKey?: string;
+    templateVersion?: string;
+    actorId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.auditLogService?.getTemplateRolloutHistory(options);
+  }
+
+  // ── Rollout policy management ─────────────────────────────────────────────
+
+  updateRolloutMap(updates: TemplateRolloutMap): void {
+    this.rolloutMap = { ...this.rolloutMap, ...updates };
+    this.logger.log(
+      `Template rollout map updated: ${JSON.stringify(
+        Object.entries(updates).map(([k, v]) => ({
+          key: k,
+          active: v.activeVersion,
+          canary: v.canaryVersion,
+          pct: v.canaryPercent ?? 0,
+        })),
+      )}`,
+    );
+  }
+
+  promoteCanary(templateKey: string): void {
+    const policy = this.rolloutMap[templateKey];
+
+    if (!policy?.canaryVersion) {
+      this.logger.warn(`No canary configured for ${templateKey}`);
+      return;
+    }
+
+    this.rolloutMap[templateKey] = { activeVersion: policy.canaryVersion };
+
+    this.auditLogService?.log({
+      actionType: AuditActionType.EMAIL_TEMPLATE_PROMOTED,
+      metadata: {
+        templateKey,
+        newActiveVersion: policy.canaryVersion,
+        promotedAt: new Date().toISOString(),
+      },
+    });
+
+    this.logger.log(`Template '${templateKey}' promoted to ${policy.canaryVersion}`);
+  }
+
+  rollbackCanary(templateKey: string): void {
+    const policy = this.rolloutMap[templateKey];
+    if (!policy) return;
+
+    this.rolloutMap[templateKey] = { activeVersion: policy.activeVersion };
+
+    this.auditLogService?.log({
+      actionType: AuditActionType.EMAIL_TEMPLATE_ROLLED_BACK,
+      metadata: {
+        templateKey,
+        activeVersion: policy.activeVersion,
+        rolledBackAt: new Date().toISOString(),
+      },
+    });
+
+    this.logger.warn(`Canary rolled back for ${templateKey}`);
+  }
+
+  getRolloutMap(): Readonly<TemplateRolloutMap> {
+    return this.rolloutMap;
+  }
+
+  // ── Template resolution ───────────────────────────────────────────────────
+
+  private resolveActiveTemplate(
+    key: string,
+  ): { template: EmailTemplateVersion; isCanary: boolean } | undefined {
+    const reg = this.templateRegistry?.[key];
+    if (!reg) return undefined;
+
+    const globalKillSwitch = this.configService.get<boolean>('mail.globalKillSwitch');
+    const localKillSwitch = reg.rollout?.killSwitchEnabled === true;
+    const isKillSwitchActive = globalKillSwitch || localKillSwitch;
+
+    const activeVersion = reg.versions[reg.activeVersion];
+    const canaryVersionKey = reg.rollout?.canaryVersion;
+    const canaryVersion = canaryVersionKey ? reg.versions[canaryVersionKey] : undefined;
+
+    if (isKillSwitchActive) {
+      if (canaryVersion) {
+        this.logger.warn(
+          `Kill-switch active for ${key}: forcing fallback from canary ${canaryVersionKey} to active ${reg.activeVersion}`,
+        );
+        this.auditLogService
+          ?.logTemplateFallbackActivated(
+            key,
+            canaryVersionKey || 'unknown',
+            reg.activeVersion,
+            globalKillSwitch ? 'global_killswitch' : 'local_killswitch',
+          )
+          .catch(() => undefined);
+      }
+      return activeVersion ? { template: activeVersion, isCanary: false } : undefined;
+    }
+
+    if (canaryVersion && canaryVersion.lifecycleState === 'canary') {
+      const weight = reg.rollout?.canaryWeight ?? 0;
+      if (Math.random() * 100 < weight) {
+        return { template: canaryVersion, isCanary: true };
+      }
+    }
+
+    if (activeVersion && activeVersion.lifecycleState === 'active') {
+      return { template: activeVersion, isCanary: false };
+    }
+
+    if (activeVersion) {
+      this.logger.warn(
+        `Template ${key} active version ${reg.activeVersion} is in state ${activeVersion.lifecycleState}`,
+      );
+      return { template: activeVersion, isCanary: false };
+    }
+
+    return undefined;
+  }
+
+  resolveAndRender(
+    templateKey: string,
+    recipientEmail: string,
+    vars: Record<string, unknown>,
+  ): { subject: string; html: string; text: string; meta: TemplateMeta } {
+    const { template, isCanary } = resolveTemplate(
+      this.templateRegistry,
+      this.rolloutMap,
+      templateKey,
+      recipientEmail,
+    );
+    const rendered = renderTemplate(templateKey, template, vars);
+    return {
+      ...rendered,
+      meta: { templateKey, templateVersion: template.version, isCanary },
+    };
+  }
+
+  // ── SLO evaluation ────────────────────────────────────────────────────────
+
+  private buildTemplateMetricLabels(
+    base: Record<string, string>,
+    templateMeta?: TemplateMeta,
+  ): Record<string, string> {
+    if (!templateMeta) return base;
+    return {
+      ...base,
+      template_key: templateMeta.templateKey,
+      template_version: templateMeta.templateVersion,
+      template_track: templateMeta.isCanary ? 'canary' : 'active',
+    };
+  }
+
+  private computeP95(entries: TemplateSloSeriesEntry[]): number {
+    if (entries.length === 0) return 0;
+    const sorted = [...entries].map((e) => e.durationMs).sort((a, b) => a - b);
+    const index = Math.ceil(sorted.length * 0.95) - 1;
+    return sorted[Math.max(0, index)];
+  }
+
+  private evaluateTemplateSlo(
+    templateMeta: TemplateMeta | undefined,
+    success: boolean,
+    durationMs: number,
+  ): void {
+    if (!templateMeta) return;
+
+    const key = `${templateMeta.templateKey}@${templateMeta.templateVersion}`;
+    const now = Date.now();
+    const windowMs = this.templateSloConfig.evaluationWindowMinutes * 60 * 1000;
+    const existing = this.templateSloSeries.get(key) || {
+      entries: [],
+      breachCount: 0,
+      inBreach: false,
+    };
+
+    existing.entries.push({ timestamp: now, success, durationMs });
+    existing.entries = existing.entries.filter(
+      (e) => now - e.timestamp <= windowMs,
+    );
+
+    const threshold = templateMeta.isCanary
+      ? this.templateSloConfig.canary
+      : this.templateSloConfig.active;
+    const total = existing.entries.length;
+    const failures = existing.entries.filter((e) => !e.success).length;
+    const errorRatePercent = total > 0 ? (failures / total) * 100 : 0;
+    const p95LatencyMs = this.computeP95(existing.entries);
+    const shouldEvaluate = total >= threshold.minSampleSize;
+    const breached =
+      shouldEvaluate &&
+      (errorRatePercent > threshold.maxErrorRatePercent ||
+        p95LatencyMs > threshold.maxP95LatencyMs);
+
+    if (breached) {
+      existing.breachCount += 1;
+      const payload = {
+        templateKey: templateMeta.templateKey,
+        templateVersion: templateMeta.templateVersion,
+        track: templateMeta.isCanary ? 'canary' : 'active',
+        sampleSize: total,
+        failures,
+        errorRatePercent: Number(errorRatePercent.toFixed(2)),
+        p95LatencyMs: Number(p95LatencyMs.toFixed(2)),
+        thresholds: {
+          maxErrorRatePercent: threshold.maxErrorRatePercent,
+          maxP95LatencyMs: threshold.maxP95LatencyMs,
+          minSampleSize: threshold.minSampleSize,
+          alertAfterConsecutiveBreaches: threshold.alertAfterConsecutiveBreaches,
+        },
+      };
+
+      this.appLogger?.emitWarningEvent(
+        'template_version_slo_threshold_breached',
+        payload,
+        'EmailService',
+      );
+
+      if (existing.breachCount >= threshold.alertAfterConsecutiveBreaches) {
+        this.appLogger?.emitAlertEvent(
+          'template_version_slo_alert',
+          { ...payload, breachCount: existing.breachCount },
+          'EmailService',
+        );
+      }
+
+      existing.inBreach = true;
+    } else if (existing.inBreach) {
+      this.appLogger?.emitEvent(
+        'info',
+        'template_version_slo_recovered',
+        {
+          templateKey: templateMeta.templateKey,
+          templateVersion: templateMeta.templateVersion,
+          track: templateMeta.isCanary ? 'canary' : 'active',
+          sampleSize: total,
+          failures,
+          errorRatePercent: Number(errorRatePercent.toFixed(2)),
+          p95LatencyMs: Number(p95LatencyMs.toFixed(2)),
+        },
+        'EmailService',
+      );
+      existing.inBreach = false;
+      existing.breachCount = 0;
+    } else {
+      existing.breachCount = 0;
+    }
+
+    this.templateSloSeries.set(key, existing);
+  }
+
+  // ── Provider helpers ──────────────────────────────────────────────────────
+
+  private buildTransporter(
+    config: MailConfig,
+    label: 'primary' | 'fallback',
+  ): TransporterEntry {
+    return {
+      label,
+      from: `"XConfess" <${config.from}>`,
+      transporter: nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: { user: config.auth.user, pass: config.auth.pass },
+      }),
+    };
+  }
+
+  private initEtherealFallback(): void {
+    nodemailer.createTestAccount().then((account) => {
+      this.primary = {
+        label: 'primary',
+        from: `"XConfess" <${account.user}>`,
+        transporter: nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: { user: account.user, pass: account.pass },
+        }),
+      };
+      this.logger.log('Ethereal test account ready. Preview at https://ethereal.email');
+    });
+  }
+
+  // ── Circuit breaker ───────────────────────────────────────────────────────
+
+  private resolveProvider(): TransporterEntry | null {
+    const { state, openedAt } = this.cb;
+    const { cooldownSeconds } = this.cbConfig;
+
+    if (state === 'CLOSED') return this.primary;
+
+    if (state === 'OPEN') {
+      const elapsed = Date.now() - (openedAt ?? 0);
+      if (elapsed >= cooldownSeconds * 1000) {
+        this.transitionTo('HALF_OPEN', 'cooldown_elapsed');
+        return this.primary;
+      }
+      return this.fallback ?? null;
+    }
+
+    if (state === 'HALF_OPEN') return this.primary;
+
+    return this.primary;
+  }
+
+  private onSendSuccess(provider: TransporterEntry): void {
+    if (this.cb.state === 'HALF_OPEN') {
+      this.cb.consecutiveProbeSuccesses += 1;
+      if (this.cb.consecutiveProbeSuccesses >= this.cbConfig.probeSuccessThreshold) {
+        this.transitionTo(
+          'CLOSED',
+          `probe_success_threshold_reached provider=${provider.label}`,
+        );
+        this.cb.consecutiveFailures = 0;
+        this.cb.consecutiveProbeSuccesses = 0;
+      }
+    } else if (this.cb.state === 'CLOSED') {
+      this.cb.consecutiveFailures = 0;
+    }
+  }
+
+  private onSendFailure(provider: TransporterEntry, error: Error): void {
+    if (provider.label === 'fallback') {
+      this.logger.error(`Fallback provider failed: ${error.message}`);
+      return;
+    }
+
+    if (this.cb.state === 'HALF_OPEN') {
+      this.cb.consecutiveProbeSuccesses = 0;
+      this.transitionTo('OPEN', `probe_failed error=${error.message}`);
+      this.cb.openedAt = Date.now();
+      return;
+    }
+
+    if (this.cb.state === 'CLOSED') {
+      this.cb.consecutiveFailures += 1;
+      if (this.cb.consecutiveFailures >= this.cbConfig.failureThreshold) {
+        this.cb.openedAt = Date.now();
+        this.transitionTo(
+          'OPEN',
+          `failure_threshold_reached count=${this.cb.consecutiveFailures}`,
+        );
+      }
+    }
+  }
+
+  private transitionTo(next: CircuitState, reason: string): void {
+    const prev = this.cb.state;
+    this.cb.state = next;
+    this.cb.lastTransitionReason = reason;
+    const msg = `Circuit breaker transition: ${prev} → ${next} | reason=${reason}`;
+    if (next === 'OPEN') {
+      this.logger.error(msg);
+      this.appLogger?.incrementCounter('email_circuit_breaker_opened_total', 1);
+    } else if (next === 'HALF_OPEN') {
+      this.logger.warn(msg);
+    } else {
+      this.logger.log(msg);
+      this.appLogger?.incrementCounter('email_circuit_breaker_closed_total', 1);
+    }
+  }
+
+  // ── Core send ─────────────────────────────────────────────────────────────
+
+  private async sendEmail(
+    to: string,
+    subject: string,
+    html: string,
+    text: string,
+    channel = 'email_generic',
+    templateMeta?: TemplateMeta,
+  ): Promise<void> {
+    const startedAt = Date.now();
+    const provider = this.resolveProvider();
+
+    if (!provider) {
+      const reason = 'circuit_open_no_fallback';
+      const maskedTo = UserIdMasker.maskObject({ email: to }).email;
+      this.logger.error(
+        `Email blocked — circuit OPEN, no fallback. to=${maskedTo} channel=${channel}`,
+      );
+      this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
+        ...this.buildTemplateMetricLabels({ channel, outcome: 'terminal', reason }, templateMeta),
+      });
+      const err = new Error(`Email service unavailable: ${reason}`) as any;
+      err.templateMeta = templateMeta;
+      err.errorCode = 'email_service_unavailable';
+      throw err;
+    }
+
+    if (!provider.transporter) {
+      this.logger.warn('Email transporter not initialized yet. Email not sent.');
+      this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
+        ...this.buildTemplateMetricLabels(
+          { channel, outcome: 'terminal', reason: 'transporter_not_initialized' },
+          templateMeta,
+        ),
+      });
+      return;
+    }
+
+    const usingFallback = provider.label === 'fallback';
+    if (usingFallback) {
+      this.logger.warn(
+        `Routing email via fallback provider | channel=${channel} circuit_state=${this.cb.state}`,
+      );
+      this.appLogger?.incrementCounter('email_fallback_send_total', 1, {
+        ...this.buildTemplateMetricLabels({ channel }, templateMeta),
+      });
+    }
+
+    try {
+      const maskedTo = UserIdMasker.maskObject({ email: to }).email;
+      const info = await provider.transporter.sendMail({
+        from: provider.from,
+        to,
+        subject,
+        html,
+        text,
+      });
+
+      this.onSendSuccess(provider);
+
+      this.appLogger?.incrementCounter('notification_send_success_total', 1, {
+        ...this.buildTemplateMetricLabels({ channel, provider: provider.label }, templateMeta),
+      });
+      this.appLogger?.observeTimer(
+        'notification_send_duration_ms',
+        Date.now() - startedAt,
+        this.buildTemplateMetricLabels({ channel, provider: provider.label }, templateMeta),
+      );
+      this.evaluateTemplateSlo(templateMeta, true, Date.now() - startedAt);
+
+      if (templateMeta) {
+        await this.auditLogService?.log({
+          actionType: AuditActionType.EMAIL_TEMPLATE_DELIVERED,
+          metadata: {
+            templateKey: templateMeta.templateKey,
+            templateVersion: templateMeta.templateVersion,
+            isCanary: templateMeta.isCanary,
+            provider: provider.label,
+            channel,
+            deliveredAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      this.logger.log(
+        `Email sent via ${provider.label} to ${maskedTo} | channel=${channel}` +
+        (templateMeta
+          ? ` | template=${templateMeta.templateKey}@${templateMeta.templateVersion}${templateMeta.isCanary ? '[canary]' : ''}`
+          : ''),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      this.onSendFailure(
+        provider,
+        error instanceof Error ? error : new Error(errorMessage),
+      );
+
+      this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
+        ...this.buildTemplateMetricLabels(
+          { channel, outcome: 'transient', provider: provider.label },
+          templateMeta,
+        ),
+      });
+      this.appLogger?.observeTimer(
+        'notification_send_duration_ms',
+        Date.now() - startedAt,
+        this.buildTemplateMetricLabels({ channel, provider: provider.label }, templateMeta),
+      );
+      this.evaluateTemplateSlo(templateMeta, false, Date.now() - startedAt);
+
+      if (templateMeta) {
+        await this.auditLogService?.log({
+          actionType: AuditActionType.EMAIL_TEMPLATE_FAILED,
+          metadata: {
+            templateKey: templateMeta.templateKey,
+            templateVersion: templateMeta.templateVersion,
+            isCanary: templateMeta.isCanary,
+            provider: provider.label,
+            channel,
+            error: errorMessage,
+            failedAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      // Retry on fallback if primary failed and fallback is available
+      if (!usingFallback && this.fallback) {
+        this.logger.warn(
+          `Primary send failed — retrying on fallback | channel=${channel} error=${errorMessage}`,
+        );
+        this.appLogger?.incrementCounter('notification_retry_attempt_total', 1, {
+          ...this.buildTemplateMetricLabels(
+            { channel, provider: provider.label, retry_mode: 'fallback' },
+            templateMeta,
+          ),
+        });
+        return this.sendViaFallback(to, subject, html, text, channel, startedAt, templateMeta);
+      }
+
+      const wrappedError = new Error(`Failed to send email: ${errorMessage}`) as any;
+      wrappedError.templateMeta = templateMeta;
+      wrappedError.errorCode = 'email_send_failed';
+      throw wrappedError;
+    }
+  }
+
+  private async sendViaFallback(
+    to: string,
+    subject: string,
+    html: string,
+    text: string,
+    channel: string,
+    startedAt: number,
+    templateMeta?: TemplateMeta,
+  ): Promise<void> {
+    if (!this.fallback) return;
+
+    try {
+      const info = await this.fallback.transporter.sendMail({
+        from: this.fallback.from,
+        to,
+        subject,
+        html,
+        text,
+      });
+
+      this.logger.log(
+        `Email delivered via fallback (after primary failure) to ${to}: ${info.messageId} | channel=${channel}`,
+      );
+      this.appLogger?.incrementCounter('email_fallback_send_total', 1, {
+        ...this.buildTemplateMetricLabels({ channel }, templateMeta),
+      });
+      this.appLogger?.incrementCounter('notification_send_success_total', 1, {
+        ...this.buildTemplateMetricLabels({ channel, provider: 'fallback' }, templateMeta),
+      });
+      this.appLogger?.observeTimer(
+        'notification_send_duration_ms',
+        Date.now() - startedAt,
+        this.buildTemplateMetricLabels({ channel, provider: 'fallback' }, templateMeta),
+      );
+      this.evaluateTemplateSlo(templateMeta, true, Date.now() - startedAt);
+    } catch (fallbackError) {
+      const msg =
+        fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
+      this.logger.error(`Fallback also failed for ${to}: ${msg} | channel=${channel}`);
+      this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
+        ...this.buildTemplateMetricLabels(
+          { channel, outcome: 'terminal', provider: 'fallback' },
+          templateMeta,
+        ),
+      });
+      this.evaluateTemplateSlo(templateMeta, false, Date.now() - startedAt);
+
+      const wrappedError = new Error(`Both primary and fallback failed: ${msg}`) as any;
+      wrappedError.templateMeta = templateMeta;
+      wrappedError.errorCode = 'email_send_failed_all_providers';
+      throw wrappedError;
+    }
+  }
+
+  // ── Circuit breaker diagnostics ───────────────────────────────────────────
+
+  getCircuitState(): { state: CircuitState; reason: string; openedAt: string | null } {
+    return {
+      state: this.cb.state,
+      reason: this.cb.lastTransitionReason,
+      openedAt: this.cb.openedAt ? new Date(this.cb.openedAt).toISOString() : null,
+    };
+  }
+
+  // ── Public email methods ──────────────────────────────────────────────────
+
+  async sendWelcomeEmail(email: string, username: string): Promise<void> {
     const templateKey = 'welcome';
     const resolved = this.resolveActiveTemplate(templateKey);
 
-    if (!resolved) {
+    if (resolved) {
+      const { template, isCanary } = resolved;
+      const rendered = renderTemplate(templateKey, template, { username });
+      await this.sendEmail(email, rendered.subject, rendered.html, rendered.text, 'email_welcome', {
+        templateKey,
+        templateVersion: template.version,
+        isCanary,
+      });
+    } else {
       throw new Error('No valid template for welcome');
     }
-
-    const { template, isCanary } = resolved;
-
-    const rendered = renderTemplate(templateKey, template, {
-      username,
-    });
-
-    // sendEmail logic preserved from main branch
   }
 
+  async sendReactionNotification(
+    toEmail: string,
+    username: string,
+    reactorName: string,
+    confessionContent: string,
+    emoji: string,
+  ): Promise<void> {
+    const templateKey = 'reaction_notification';
+    const resolved = this.resolveActiveTemplate(templateKey);
+
+    if (resolved) {
+      const { template, isCanary } = resolved;
+      const rendered = renderTemplate(templateKey, template, {
+        username,
+        reactorName,
+        emoji,
+        confessionContent,
+      });
+      await this.sendEmail(
+        toEmail,
+        rendered.subject,
+        rendered.html,
+        rendered.text,
+        'email_reaction',
+        { templateKey, templateVersion: template.version, isCanary },
+      );
+    } else {
+      await this.sendEmail(
+        toEmail,
+        `Someone reacted with ${emoji} to your confession!`,
+        this.generateReactionEmailTemplate(username, reactorName, confessionContent, emoji),
+        this.generateReactionEmailText(username, reactorName, confessionContent, emoji),
+        'email_reaction',
+      );
+    }
+  }
+
+  async sendPasswordResetEmail(
+    email: string,
+    token: string,
+    username?: string,
+  ): Promise<void> {
+    const templateKey = 'password_reset';
+    const resolved = this.resolveActiveTemplate(templateKey);
+    const resetUrl = `${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}/reset-password?token=${token}`;
+
+    if (resolved) {
+      const { template, isCanary } = resolved;
+      const rendered = renderTemplate(templateKey, template, {
+        username: username || 'User',
+        resetUrl,
+        token,
+      });
+      await this.sendEmail(
+        email,
+        rendered.subject,
+        rendered.html,
+        rendered.text,
+        'email_password_reset',
+        { templateKey, templateVersion: template.version, isCanary },
+      );
+    } else {
+      await this.sendEmail(
+        email,
+        'Reset Your XConfess Password',
+        this.generateResetEmailTemplate(username || 'User', resetUrl, token),
+        this.generateResetEmailText(username || 'User', resetUrl),
+        'email_password_reset',
+      );
+    }
+  }
+
+  async sendCommentNotification(
+    data: { to: string; confessionId: string; commentPreview: string },
+    templateMeta?: TemplateMeta,
+  ): Promise<void> {
+    const { to, confessionId, commentPreview } = data;
+    const templateKey = 'comment_notification';
+    const resolved = this.resolveActiveTemplate(templateKey);
+
+    if (resolved) {
+      const { template, isCanary } = resolved;
+      const rendered = renderTemplate(templateKey, template, {
+        confessionId,
+        commentPreview,
+        frontendUrl: this.configService.get<string>('app.frontendUrl', 'http://localhost:3000'),
+      });
+      await this.sendEmail(
+        to,
+        rendered.subject,
+        rendered.html,
+        rendered.text,
+        'email_comment_notification',
+        templateMeta ?? { templateKey, templateVersion: template.version, isCanary },
+      );
+    } else {
+      const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3000');
+      await this.sendEmail(
+        to,
+        'New Comment on Your Confession',
+        `<h2>Someone commented on your confession!</h2>
+         <p>Here's a preview of the comment:</p>
+         <blockquote>${commentPreview}</blockquote>
+         <a href="${frontendUrl}/confessions/${confessionId}">View Confession</a>`,
+        '',
+        'email_comment_notification',
+        templateMeta,
+      );
+    }
+  }
+
+  // ── Legacy template generators ────────────────────────────────────────────
+
+  private generateReactionEmailTemplate(
+    username: string,
+    reactorName: string,
+    confessionContent: string,
+    emoji: string,
+  ): string {
+    const truncated =
+      confessionContent.length > 100
+        ? `${confessionContent.substring(0, 100)}...`
+        : confessionContent;
+
+    return `<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .emoji { font-size: 24px; margin: 0 5px; }
+      .confession { background-color: #fff; border-left: 4px solid #4CAF50; padding: 10px 15px; margin: 15px 0; font-style: italic; }
+      .button { display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>New Reaction! <span class="emoji">${emoji}</span></h1>
+    <p>Hello ${username},</p>
+    <p><strong>${reactorName}</strong> reacted with ${emoji} to your confession:</p>
+    <div class="confession">"${truncated}"</div>
+    <a href="${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}" class="button">View on XConfess</a>
+    <p style="font-size:12px;color:#777;">© ${new Date().getFullYear()} XConfess. All rights reserved.</p>
+  </body>
+</html>`;
+  }
+
+  private generateReactionEmailText(
+    username: string,
+    reactorName: string,
+    confessionContent: string,
+    emoji: string,
+  ): string {
+    const truncated =
+      confessionContent.length > 100
+        ? `${confessionContent.substring(0, 100)}...`
+        : confessionContent;
+    return `New Reaction! ${emoji}\n\nHello ${username},\n\n${reactorName} reacted with ${emoji} to your confession:\n\n"${truncated}"\n\nView on XConfess: ${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}\n\n© ${new Date().getFullYear()} XConfess.`;
+  }
+
+  private generateResetEmailTemplate(
+    username: string,
+    resetUrl: string,
+    token: string,
+  ): string {
+    return `<!DOCTYPE html>
+<html>
+  <body>
+    <h2>Hello ${username},</h2>
+    <p>We received a request to reset your password.</p>
+    <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;">Reset My Password</a>
+    <p>Or copy: <a href="${resetUrl}">${resetUrl}</a></p>
+    <p><strong>This link expires in 15 minutes.</strong></p>
+    <p>Reset token: <code>${token}</code></p>
+  </body>
+</html>`;
+  }
+
+  private generateResetEmailText(username: string, resetUrl: string): string {
+    return `Hello ${username},\n\nReset your password: ${resetUrl}\n\nThis link expires in 15 minutes.`;
+  }
 }

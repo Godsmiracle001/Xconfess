@@ -16,16 +16,12 @@ import { ConfigService } from '@nestjs/config';
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
 @WebSocketGateway({
-  cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-    credentials: true,
-  },
+  cors: true,
   namespace: '/reactions',
   transports: ['websocket', 'polling'],
 })
 export class ReactionsGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-{
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -35,15 +31,22 @@ export class ReactionsGateway
     maxRequests: 30, // Max requests per window
     windowMs: 60000, // 1 minute window
   };
-  
+
   // Track connections per IP for basic DDoS prevention
   private connectionsPerIP = new Map<string, number>();
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   afterInit(server: Server) {
+    // Configure CORS dynamically from ConfigService
+    const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3000');
+    server.engine.opts.cors = {
+      origin: frontendUrl,
+      credentials: true,
+    };
+
     this.logger.log('WebSocket Gateway initialized');
-    
+
     // Clean up rate limit map every 5 minutes
     setInterval(() => {
       const now = Date.now();
@@ -71,7 +74,7 @@ export class ReactionsGateway
 
     this.connectionsPerIP.set(clientIP, currentConnections + 1);
     this.logger.log(`Client connected: ${client.id} from IP: ${clientIP}`);
-    
+
     // Initialize rate limiting for this client
     rateLimitMap.set(client.id, {
       count: 0,
@@ -87,14 +90,14 @@ export class ReactionsGateway
   handleDisconnect(client: Socket) {
     const clientIP = this.getClientIP(client);
     const currentConnections = this.connectionsPerIP.get(clientIP) || 0;
-    
+
     if (currentConnections > 0) {
       this.connectionsPerIP.set(clientIP, currentConnections - 1);
     }
-    
+
     // Clean up rate limit data
     rateLimitMap.delete(client.id);
-    
+
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
@@ -108,7 +111,7 @@ export class ReactionsGateway
     }
 
     const { confessionId } = data;
-    
+
     if (!confessionId) {
       client.emit('error', { message: 'Confession ID is required' });
       return;
@@ -116,9 +119,9 @@ export class ReactionsGateway
 
     const room = `confession:${confessionId}`;
     client.join(room);
-    
+
     this.logger.log(`Client ${client.id} subscribed to ${room}`);
-    
+
     client.emit('subscribed', {
       confessionId,
       message: `Subscribed to confession ${confessionId}`,
@@ -135,7 +138,7 @@ export class ReactionsGateway
     }
 
     const { confessionId } = data;
-    
+
     if (!confessionId) {
       client.emit('error', { message: 'Confession ID is required' });
       return;
@@ -143,9 +146,9 @@ export class ReactionsGateway
 
     const room = `confession:${confessionId}`;
     client.leave(room);
-    
+
     this.logger.log(`Client ${client.id} unsubscribed from ${room}`);
-    
+
     client.emit('unsubscribed', {
       confessionId,
       message: `Unsubscribed from confession ${confessionId}`,
@@ -166,12 +169,12 @@ export class ReactionsGateway
     },
   ) {
     const room = `confession:${confessionId}`;
-    
+
     this.server.to(room).emit('reaction:added', {
       confessionId,
       ...payload,
     });
-    
+
     this.logger.debug(`Broadcasted reaction:added to ${room}`);
   }
 
@@ -189,12 +192,12 @@ export class ReactionsGateway
     },
   ) {
     const room = `confession:${confessionId}`;
-    
+
     this.server.to(room).emit('reaction:removed', {
       confessionId,
       ...payload,
     });
-    
+
     this.logger.debug(`Broadcasted reaction:removed to ${room}`);
   }
 
@@ -210,12 +213,12 @@ export class ReactionsGateway
     },
   ) {
     const room = `confession:${confessionId}`;
-    
+
     this.server.to(room).emit('confession:updated', {
       confessionId,
       ...payload,
     });
-    
+
     this.logger.debug(`Broadcasted confession:updated to ${room}`);
   }
 
@@ -224,11 +227,11 @@ export class ReactionsGateway
    */
   private getClientIP(client: Socket): string {
     const forwarded = client.handshake.headers['x-forwarded-for'];
-    
+
     if (forwarded) {
       return Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
     }
-    
+
     return client.handshake.address || 'unknown';
   }
 

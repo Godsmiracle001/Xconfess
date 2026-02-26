@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, LessThan, LessThanOrEqual, Not, Repository } from 'typeorm';
 import { ConfessionDraft, ConfessionDraftStatus } from './entities/confession-draft.entity';
@@ -21,7 +22,12 @@ export class ConfessionDraftService {
     private readonly draftRepo: Repository<ConfessionDraft>,
     private readonly confessionService: ConfessionService,
     private readonly dataSource: DataSource,
-  ) {}
+    private readonly configService: ConfigService,
+  ) { }
+
+  private get aesKey(): string {
+    return this.configService.get<string>('app.confessionAesKey', '');
+  }
 
   private toUtcDate(scheduledFor: string, timezone?: string): Date {
     const trimmed = scheduledFor.trim();
@@ -41,7 +47,7 @@ export class ConfessionDraftService {
   private sanitizeForResponse(draft: ConfessionDraft) {
     return {
       ...draft,
-      content: decryptConfession(draft.content),
+      content: decryptConfession(draft.content, this.aesKey),
     };
   }
 
@@ -51,7 +57,7 @@ export class ConfessionDraftService {
       throw new BadRequestException(`Draft limit reached (max ${MAX_DRAFTS_PER_USER})`);
     }
 
-    const encrypted = encryptConfession(content);
+    const encrypted = encryptConfession(content, this.aesKey);
 
     let scheduledForUtc: Date | null = null;
     let status = ConfessionDraftStatus.DRAFT;
@@ -100,7 +106,7 @@ export class ConfessionDraftService {
     }
 
     if (typeof content === 'string') {
-      draft.content = encryptConfession(content);
+      draft.content = encryptConfession(content, this.aesKey);
     }
 
     const saved = await this.draftRepo.save(draft);
@@ -164,7 +170,7 @@ export class ConfessionDraftService {
         throw new BadRequestException('Draft already posted');
       }
 
-      const message = decryptConfession(draft.content);
+      const message = decryptConfession(draft.content, this.aesKey);
       const confession = await this.confessionService.create({ message } as any, manager);
 
       draft.status = ConfessionDraftStatus.POSTED;
@@ -233,7 +239,7 @@ export class ConfessionDraftService {
       if (draft.publishAttempts >= MAX_PUBLISH_ATTEMPTS) return;
 
       try {
-        const message = decryptConfession(draft.content);
+        const message = decryptConfession(draft.content, this.aesKey);
         await this.confessionService.create({ message } as any, manager);
 
         draft.status = ConfessionDraftStatus.POSTED;

@@ -8,6 +8,7 @@ import { User } from '../user/entities/user.entity';
 import { DataExportService } from './data-export.service';
 import { EmailService } from '../email/email.service';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 @Processor('export-queue')
 export class ExportProcessor {
@@ -20,6 +21,7 @@ export class ExportProcessor {
     private userRepository: Repository<User>,
     private dataExportService: DataExportService,
     private emailService: EmailService,
+    private configService: ConfigService,
   ) { }
 
   @Process('process-export')
@@ -44,7 +46,7 @@ export class ExportProcessor {
       // 4. Fetch User Email & Notify
       const user = await this.userRepository.findOneBy({ id: parseInt(userId) });
       if (user && user.emailEncrypted) {
-        const settingsUrl = `${process.env.FRONTEND_URL}/settings/data-export`;
+        const settingsUrl = `${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}/settings/data-export`;
         await this.emailService.sendWelcomeEmail(user.emailEncrypted, user.username); // Using welcome email as placeholder for notification
       }
 

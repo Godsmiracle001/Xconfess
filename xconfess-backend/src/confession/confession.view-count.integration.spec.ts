@@ -12,6 +12,9 @@ import { StellarService } from '../stellar/stellar.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { encryptConfession } from '../utils/confession-encryption';
+import { ConfigService } from '@nestjs/config';
+
+const TEST_AES_KEY = '12345678901234567890123456789012';
 
 describe('ConfessionService - View Counting (Integration-like)', () => {
     let service: ConfessionService;
@@ -19,7 +22,6 @@ describe('ConfessionService - View Counting (Integration-like)', () => {
     let viewCache: ConfessionViewCacheService;
 
     beforeEach(async () => {
-        process.env.CONFESSION_AES_KEY = '12345678901234567890123456789012';
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -46,6 +48,10 @@ describe('ConfessionService - View Counting (Integration-like)', () => {
                 { provide: StellarService, useValue: {} },
                 { provide: CacheService, useValue: {} },
                 { provide: TagService, useValue: {} },
+                {
+                    provide: ConfigService,
+                    useValue: { get: jest.fn().mockReturnValue(TEST_AES_KEY) },
+                },
             ],
         }).compile();
 
@@ -56,7 +62,7 @@ describe('ConfessionService - View Counting (Integration-like)', () => {
 
     it('should increment view count exactly once for same user/IP in 1 hour', async () => {
         const confessionId = 'test-uuid';
-        const encrypted = encryptConfession('test message');
+        const encrypted = encryptConfession('test message', TEST_AES_KEY);
         const mockConfession = { id: confessionId, message: encrypted, view_count: 5 };
 
         // First call: new view
@@ -84,7 +90,7 @@ describe('ConfessionService - View Counting (Integration-like)', () => {
 
     it('should increment view count for different IPs', async () => {
         const confessionId = 'test-uuid';
-        const encrypted = encryptConfession('test message');
+        const encrypted = encryptConfession('test message', TEST_AES_KEY);
 
         // IP 1
         (repo.findOne as jest.Mock).mockResolvedValueOnce({ id: confessionId, message: encrypted, view_count: 10 });

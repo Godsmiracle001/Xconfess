@@ -12,6 +12,9 @@ import { StellarService } from '../stellar/stellar.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { encryptConfession } from '../utils/confession-encryption';
+import { ConfigService } from '@nestjs/config';
+
+const TEST_AES_KEY = '12345678901234567890123456789012';
 
 
 describe('ConfessionService - View Count Logic', () => {
@@ -20,7 +23,6 @@ describe('ConfessionService - View Count Logic', () => {
   let cache: ConfessionViewCacheService;
 
   beforeEach(async () => {
-    process.env.CONFESSION_AES_KEY = '12345678901234567890123456789012';
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -47,6 +49,10 @@ describe('ConfessionService - View Count Logic', () => {
         { provide: StellarService, useValue: {} },
         { provide: CacheService, useValue: {} },
         { provide: TagService, useValue: {} },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(TEST_AES_KEY) },
+        },
       ],
     }).compile();
 
@@ -56,7 +62,7 @@ describe('ConfessionService - View Count Logic', () => {
   });
 
   it('should increment view count if not viewed recently', async () => {
-    const encrypted = encryptConfession('hello');
+    const encrypted = encryptConfession('hello', TEST_AES_KEY);
     (repo.findOne as jest.Mock).mockResolvedValue({ id: '1', message: encrypted, view_count: 0 });
     (cache.checkAndMarkView as jest.Mock).mockResolvedValue(true);
     (repo.incrementViewCountAtomically as jest.Mock).mockResolvedValue(undefined);
@@ -72,7 +78,7 @@ describe('ConfessionService - View Count Logic', () => {
   });
 
   it('should not increment view count if viewed recently', async () => {
-    const encrypted = encryptConfession('hello');
+    const encrypted = encryptConfession('hello', TEST_AES_KEY);
     (repo.findOne as jest.Mock).mockResolvedValue({ id: '1', message: encrypted, view_count: 5 });
     (cache.checkAndMarkView as jest.Mock).mockResolvedValue(false);
 
@@ -84,7 +90,7 @@ describe('ConfessionService - View Count Logic', () => {
   });
 
   it('should handle anonymous users using IP address', async () => {
-    const encrypted = encryptConfession('hello');
+    const encrypted = encryptConfession('hello', TEST_AES_KEY);
     (repo.findOne as jest.Mock).mockResolvedValue({ id: '1', message: encrypted, view_count: 0 });
     (cache.checkAndMarkView as jest.Mock).mockResolvedValue(true);
     (repo.incrementViewCountAtomically as jest.Mock).mockResolvedValue(undefined);

@@ -26,3 +26,15 @@ debug-assertions = true
 proptest = "1.4.0"
 rand = "0.8"
 rand_chacha = "0.3"
+
+[[test]]
+name = "confession_moderation"
+path = "test/integration/confession_moderation.rs"
+
+[[test]]
+name = "minimum_admin_invariant"
+path = "contracts/tests/minimum_admin_invariant.rs"
+
+[[test]]
+name = "minimum_admin_integration"
+path = "contracts/tests/integration/minimum_admin_integration.rs"

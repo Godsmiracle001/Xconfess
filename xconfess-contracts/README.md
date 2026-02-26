@@ -1,278 +1,403 @@
-# xConfess Soroban Smart Contracts
+# xconfess-contract
 
-This directory contains the Soroban smart contracts for the xConfess platform, built on the Stellar blockchain.
+Soroban smart contract for the XConfess platform. Provides tamper-proof
+on-chain anchoring of anonymous confession hashes on the Stellar network.
 
-## 📁 Project Structure
+---
 
-```
-contracts/
-├── confession-anchor/      # Manages confession anchoring and verification
-├── reputation-badges/      # Handles user reputation and badge system
-└── anonymous-tipping/      # Enables anonymous tipping functionality
-```
+## Table of contents
 
-## 🚀 Quick Start
+- [What the contract does](#what-the-contract-does)
+- [Prerequisites](#prerequisites)
+- [Toolchain setup](#toolchain-setup)
+- [Project structure](#project-structure)
+- [Building](#building)
+- [Testing](#testing)
+- [Linting and formatting](#linting-and-formatting)
+- [Deployment](#deployment)
+- [Contract API](#contract-api)
+- [Architecture notes](#architecture-notes)
+- [Troubleshooting](#troubleshooting)
 
-### Prerequisites
+---
 
-- **Rust** 1.74.0 or later ([Install Rust](https://rustup.rs/))
-- **Stellar CLI** 21.x or later
-- **Soroban SDK** 21.x or later
-- **Node.js** 18.0.0 or later (for integration testing)
+## What the contract does
 
-### Installation
+`ConfessionAnchor` stores a 32-byte hash of each confession alongside the
+client-supplied timestamp and the Stellar ledger sequence number at the time
+of anchoring. It enforces uniqueness: the same hash can only be anchored
+once. Off-chain content is never stored on-chain — only the hash.
 
-1. **Install Rust (if not already installed)**
+---
+
+## Prerequisites
+
+| Tool | Minimum version | Install |
+|------|----------------|---------|
+| Rust (stable) | 1.81 | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
+| `wasm32-unknown-unknown` target | — | `rustup target add wasm32-unknown-unknown` |
+| `stellar` CLI (Stellar CLI) | 22.0.0 | See [Stellar CLI docs](https://developers.stellar.org/docs/smart-contracts/getting-started/setup) |
+| Node.js | 18.0.0 | [nodejs.org](https://nodejs.org) |
+| npm | 9.0.0 | Bundled with Node 18+ |
+
+> **Note:** The `stellar` CLI was previously called `soroban`. All commands
+> below use the current `stellar contract ...` form. If you have an older
+> install run `stellar --version` and upgrade if it reports < 22.0.0.
+
+---
+
+## Toolchain setup
+
+Run this once on a fresh machine. All commands are idempotent.
 
 ```bash
+# 1. Install Rust (skip if already installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
+source "$HOME/.cargo/env"
 
-2. **Install Stellar CLI**
-
-```bash
-cargo install --locked stellar-cli --features opt
-stellar --version  # Should be 21.x or later
-```
-
-3. **Add WebAssembly Target**
-
-```bash
+# 2. Add the Soroban WASM compilation target
 rustup target add wasm32-unknown-unknown
+
+# 3. Install the Stellar CLI
+cargo install --locked stellar-cli --version 22.0.0 --features opt
+
+# 4. Verify the toolchain
+rustc --version          # expect: rustc 1.81.x or later
+stellar --version        # expect: stellar 22.0.0
 ```
 
-4. **Verify Installation**
+After installing, return to the **monorepo root** and run:
 
 ```bash
-# From the xconfess-contracts directory
-cargo --version
-stellar --version
+npm install
 ```
 
-## 🔨 Building Contracts
+npm workspaces will resolve `@xconfess/backend` and `@xconfess/contract`
+together. The contract workspace has no npm dependencies of its own —
+`npm install` is a no-op for it, but the presence of `package.json` lets
+npm scripts at the root delegate to it uniformly.
 
-### Build All Contracts
+---
+
+## Project structure
+
+```
+xconfess-contract/
+├── Cargo.toml                          # Rust package manifest and build profile
+├── package.json                        # npm shim — delegates all scripts to cargo
+├── README.md                           # This file
+├── rust-toolchain.toml                 # Pins Rust stable channel for CI reproducibility
+├── src/
+│   ├── lib.rs                          # ConfessionAnchor contract entry point
+│   └── access_control.rs              # Role management module (owner / admin)
+└── test/
+    ├── access_control.rs               # Role guard and event tests
+    └── integration/
+        └── confession_moderation.rs    # Full lifecycle integration tests
+```
+
+---
+
+## Building
+
+### Development build (fast, unoptimised)
 
 ```bash
-# Build all contracts in release mode
-stellar contract build
+# From monorepo root
+npm run contract:build
 
-# Or use cargo directly
+# From xconfess-contract/ directly
+cargo build --target wasm32-unknown-unknown
+```
+
+### Release build (optimised WASM for deployment)
+
+```bash
+# From monorepo root
+npm run contract:build:release
+
+# From xconfess-contract/ directly
 cargo build --release --target wasm32-unknown-unknown
 ```
 
-### Build Individual Contract
+The release WASM is written to:
 
-```bash
-# Build a specific contract
-cd contracts/confession-anchor
-stellar contract build
-
-# Or from root
-cargo build --release --target wasm32-unknown-unknown -p confession-anchor
+```
+xconfess-contract/target/wasm32-unknown-unknown/release/xconfess_contract.wasm
 ```
 
-### Build with Logs (Debug)
+### Optimise WASM binary (optional — reduces upload fees)
+
+After a release build, run the Stellar CLI optimiser to strip unused sections:
 
 ```bash
-# Build with debug information
-cargo build --profile release-with-logs --target wasm32-unknown-unknown
+npm run optimize --workspace=xconfess-contract
+# or:
+stellar contract optimize \
+  --wasm target/wasm32-unknown-unknown/release/xconfess_contract.wasm
 ```
 
-## 🧪 Testing
+The optimised file is written next to the original with an `.optimized.wasm`
+suffix.
 
-### Run Unit Tests
+---
+
+## Testing
+
+### All tests (unit + integration)
 
 ```bash
-# Run all tests
+# From monorepo root
+npm run contract:test
+
+# From xconfess-contract/ directly
 cargo test
+```
 
-# Run tests for a specific contract
-cargo test -p confession-anchor
+**Expected output (clean run):**
 
-# Run tests with output
+```
+running 23 tests in src/lib.rs
+test anchor_and_verify_confession ... ok
+test anchor_height_is_recorded_from_ledger_sequence ... ok
+...
+test result: ok. 23 passed; 0 failed; 0 ignored
+```
+
+### Integration tests only
+
+```bash
+# From monorepo root
+npm run contract:test:integration
+
+# From xconfess-contract/ directly
+cargo test --test confession_moderation
+cargo test --test access_control
+```
+
+### Tests with output (useful for gas figures)
+
+```bash
+npm run test:verbose --workspace=xconfess-contract
+# or:
 cargo test -- --nocapture
 ```
 
-### Test Contract Locally
+### Code coverage (optional — requires cargo-tarpaulin)
 
 ```bash
-# Test contract invocation
-stellar contract invoke \
-  --id 1 \
-  --source-account account-id \
-  --network testnet \
-  -- init
+# Install once
+cargo install cargo-tarpaulin
 
-# Or use the helper scripts
-bash ../scripts/test-contracts.sh
+# Run
+npm run test:coverage --workspace=xconfess-contract
+# Coverage report written to xconfess-contract/coverage/lcov.info
 ```
 
-## 📦 Contract Details
+---
 
-### 1. Confession Anchor (`confession-anchor`)
-
-Manages confession anchoring and verification on the Stellar blockchain.
-
-**Key Features:**
-- Anchor confessions with timestamp verification
-- Proof-of-existence for confessions
-- Tamper-proof record storage
-
-**Version:** 0.1.0
-
-### 2. Reputation Badges (`reputation-badges`)
-
-Implements a reputation and badge system for users.
-
-**Key Features:**
-- Award badges based on community engagement
-- Track user reputation scores
-- Implement tiered badge system
-
-**Version:** 0.1.0
-
-### 3. Anonymous Tipping (`anonymous-tipping`)
-
-Enables anonymous tipping functionality for confessions.
-
-**Key Features:**
-- Send anonymous tips
-- Track tip history
-- Support multiple token types
-
-**Version:** 0.1.0
-
-## 🌐 Network Configuration
-
-### Testnet Deployment
-
-1. **Configure Network**
+## Linting and formatting
 
 ```bash
-stellar network add-remote testnet https://horizon-testnet.stellar.org
-stellar network use testnet
+# Lint (all warnings treated as errors — mirrors CI)
+npm run contract:lint
+
+# Format code in-place
+npm run contract:fmt
+
+# Check formatting without modifying files (used in CI)
+npm run contract:fmt:check
 ```
 
-2. **Create Test Account**
+Clippy rules are inherited from the workspace default. No `#[allow(...)]`
+attributes are used in contract code; all lints must be resolved.
+
+---
+
+## Deployment
+
+### Prerequisites for deployment
+
+1. Generate or import a Stellar keypair:
 
 ```bash
-stellar account create --signer <your-public-key>
+stellar keys generate --global my-deployer-key --network testnet
+stellar keys address my-deployer-key
 ```
 
-3. **Deploy Contract**
+2. Fund the account on testnet via Friendbot:
+
+```bash
+stellar network fund my-deployer-key --network testnet
+```
+
+### Deploy to testnet
+
+```bash
+# Build a release WASM first
+npm run contract:build:release
+
+# Deploy
+STELLAR_SOURCE_ACCOUNT=my-deployer-key npm run contract:deploy:testnet
+```
+
+Or directly:
 
 ```bash
 stellar contract deploy \
-  --wasm contracts/confession-anchor/target/wasm32-unknown-unknown/release/confession_anchor.wasm \
-  --source-account <account-id> \
-  --network testnet
+  --wasm target/wasm32-unknown-unknown/release/xconfess_contract.wasm \
+  --network testnet \
+  --source my-deployer-key
 ```
 
-See [deployments/testnet.json](../deployments/testnet.json) for deployment configurations.
+The command prints the deployed contract ID. Save it in `xconfess-backend/.env`:
 
-## 📚 Documentation
+```env
+CONTRACT_ID=CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+STELLAR_NETWORK=testnet
+STELLAR_RPC_URL=https://soroban-testnet.stellar.org
+```
 
-- [Soroban Documentation](https://soroban.stellar.org/)
-- [Stellar CLI Reference](https://developers.stellar.org/docs/tools/stellar-cli)
-- [Soroban Setup Guide](../docs/SOROBAN_SETUP.md)
+### Initialize the contract
 
-## 🔧 Development Workflow
-
-### 1. Create a New Contract
+After deployment, call `initialize` once to set the owner address:
 
 ```bash
-# Create contract structure
-mkdir contracts/new-contract/src
-touch contracts/new-contract/Cargo.toml
-touch contracts/new-contract/src/lib.rs
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --network testnet \
+  --source my-deployer-key \
+  -- \
+  initialize \
+  --owner $(stellar keys address my-deployer-key)
 ```
 
-### 2. Update Workspace Cargo.toml
-
-Add your contract to the workspace in the root `Cargo.toml`:
-
-```toml
-[workspace]
-members = [
-  "contracts/new-contract",
-]
-```
-
-### 3. Implement Contract
-
-Edit `contracts/new-contract/src/lib.rs` with your contract logic.
-
-### 4. Test & Build
+### Deploy to mainnet
 
 ```bash
-cargo test -p new-contract
-stellar contract build -p new-contract
+STELLAR_SOURCE_ACCOUNT=my-mainnet-key npm run contract:deploy:mainnet
 ```
 
-## 🐛 Troubleshooting
+> **Warning:** Mainnet deployments are permanent and incur real XLM fees.
+> Always test on testnet first.
 
-### Build Failures
+---
 
-**Error: `failed to parse manifest`**
-- Ensure `Cargo.toml` is properly formatted
-- Check that all dependencies are listed in workspace
+## Contract API
 
-**Error: `wasm32-unknown-unknown target not found`**
+### `initialize(owner: Address)`
+
+Deploys role state. Must be called once immediately after deployment.
+Panics if called a second time.
+
+### `anchor_confession(hash: BytesN<32>, timestamp: u64) → Symbol`
+
+| Return value | Meaning |
+|---|---|
+| `"anchored"` | Hash stored for the first time |
+| `"exists"` | Hash was already anchored; no state changed |
+
+Emits event: `topics = ("confession_anchor", hash)`, `data = (timestamp, anchor_height)`.
+
+### `verify_confession(hash: BytesN<32>) → Option<u64>`
+
+Returns `Some(timestamp)` if the hash is anchored, `None` otherwise.
+
+### `get_confession_count() → u64`
+
+Returns the total number of unique hashes ever anchored.
+
+### `assign_admin(caller: Address, target: Address)`
+
+Grants `target` the admin role. Caller must be the owner.
+
+### `revoke_admin(caller: Address, target: Address)`
+
+Revokes `target`'s admin role. Caller must be the owner.
+
+### `transfer_ownership(caller: Address, new_owner: Address)`
+
+Transfers contract ownership. Caller must be the current owner.
+Emits `own_xfer` event.
+
+### `resolve(caller: Address, confession_id: u32)`
+
+Marks a reported confession as resolved. Caller must be admin or owner.
+
+### `is_owner(addr: Address) → bool`
+### `is_admin(addr: Address) → bool`
+### `can_moderate(addr: Address) → bool`
+### `get_owner() → Address`
+
+View functions — no auth required, no events emitted.
+
+---
+
+## Architecture notes
+
+**No content on-chain.** Only a SHA-256 (or equivalent 32-byte) hash is
+stored. The full confession text lives in the Postgres database managed by
+`xconfess-backend`. The hash provides a tamper-evident anchor: if the
+backend content is altered the hash will no longer match the chain record.
+
+**Instance storage for all data.** All keys (`count`, confession hashes,
+owner, admin set) use `env.storage().instance()`. Instance storage is
+renewed automatically as long as the contract is active, avoiding manual
+TTL extension in the current protocol version.
+
+**`cdylib` + `rlib` dual crate type.** `cdylib` produces the WASM binary
+for deployment. `rlib` allows integration tests (which live under `test/`
+and are compiled as separate crates by cargo) to `use xconfess_contract::*`
+without a separate package.
+
+**Error codes are numeric `u32` constants.** Panic messages in privileged
+functions encode the `AccessError` discriminant as a string (e.g. `"2"` for
+`NotAuthorized`). This lets the NestJS backend and tests match on stable
+codes without parsing message text.
+
+---
+
+## Troubleshooting
+
+### `error[E0463]: can't find crate for 'std'`
+
+The contract uses `#![no_std]`. You are likely compiling for the host
+target instead of WASM. Always pass `--target wasm32-unknown-unknown`:
+
 ```bash
-rustup target add wasm32-unknown-unknown
-```
-
-### Runtime Issues
-
-**Contract not found after deployment**
-- Verify the contract ID in your configuration
-- Check network connectivity to testnet
-- Ensure account has sufficient balance
-
-### Build Performance
-
-For faster builds during development:
-
-```bash
-# Use debug mode
 cargo build --target wasm32-unknown-unknown
-
-# Or build with fewer optimizations
-cargo build --release --target wasm32-unknown-unknown -C opt-level=1
 ```
 
-## 📝 Additional Resources
+### `stellar: command not found`
 
-- [Soroban Examples](https://github.com/stellar/rs-soroban-sdk/tree/main/soroban-sdk/examples)
-- [Stellar CLI Commands](https://developers.stellar.org/docs/tools/stellar-cli)
-- [Soroban SDK API Reference](https://docs.rs/soroban-sdk)
+Install or update the Stellar CLI:
 
-## 📋 Build Checklist
+```bash
+cargo install --locked stellar-cli --version 22.0.0 --features opt
+```
 
-Before deploying to production:
+Ensure `~/.cargo/bin` is on your `PATH`.
 
-- [ ] All contracts build successfully (`stellar contract build`)
-- [ ] All tests pass (`cargo test`)
-- [ ] Code reviewed for security issues
-- [ ] Contract deployed to testnet and tested
-- [ ] Deployment configuration documented in `deployments/`
-- [ ] Contract ABIs exported and documented
-- [ ] Integration tests pass
-- [ ] Documentation updated
+### `error: linker 'cc' not found` (Linux)
 
-## 🤝 Contributing
+Install the C linker:
 
-When adding new contracts or features:
+```bash
+sudo apt-get install build-essential   # Debian/Ubuntu
+sudo dnf install gcc                   # Fedora/RHEL
+```
 
-1. Create contract in `contracts/new-contract/`
-2. Add comprehensive tests
-3. Update workspace `Cargo.toml`
-4. Document in this README
-5. Test build and deployment
-6. Submit pull request with changes
+### Tests fail with `attempt to subtract with overflow`
 
-## 📄 License
+Dev and release profiles both have `overflow-checks = true`. This is
+intentional — fix the overflow rather than disabling the check.
 
-This project is licensed under the same license as the main xConfess project. See [LICENSE](../LICENSE) for details.
+### `npm run contract:test` exits with `cargo not found`
+
+npm delegates to cargo via shell. Ensure `~/.cargo/bin` is in the `PATH`
+for the shell session that runs npm scripts. Add to `~/.bashrc` or
+`~/.zshrc`:
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+```

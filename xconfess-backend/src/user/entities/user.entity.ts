@@ -76,4 +76,10 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  getEmail(): string {
+    if (!this.emailEncrypted || !this.emailIv || !this.emailTag) return '';
+    const { CryptoUtil } = require('../../common/crypto.util');
+    return CryptoUtil.decrypt(this.emailEncrypted, this.emailIv, this.emailTag);
+  }
 }

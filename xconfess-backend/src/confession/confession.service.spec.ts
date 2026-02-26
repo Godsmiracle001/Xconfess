@@ -10,6 +10,7 @@ import { AiModerationService } from '../moderation/ai-moderation.service';
 import { ModerationRepositoryService } from '../moderation/moderation-repository.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AnonymousUserService } from '../user/anonymous-user.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('ConfessionService', () => {
   let service: ConfessionService;
@@ -51,6 +52,10 @@ describe('ConfessionService', () => {
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: AnonymousUserService, useValue: { create: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('12345678901234567890123456789012') },
+        },
       ],
     }).compile();
 

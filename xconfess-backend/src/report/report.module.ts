@@ -7,10 +7,11 @@ import { AdminReportsController } from './admin-reports.controller';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AuthModule } from '../auth/auth.module';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Report, AnonymousConfession]),
+    TypeOrmModule.forFeature([Report, AnonymousConfession, OutboxEvent]),
     AuditLogModule,
     AuthModule,
   ],

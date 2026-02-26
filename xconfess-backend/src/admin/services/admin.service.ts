@@ -14,6 +14,7 @@ import { AuditAction } from '../entities/audit-log.entity';
 import { Request } from 'express';
 import { decryptConfession } from '../../utils/confession-encryption';
 import { UserAnonymousUser } from '../../user/entities/user-anonymous-link.entity';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AdminService {
@@ -21,7 +22,7 @@ export class AdminService {
 
   private safeDecryptConfessionMessage(message: string): string {
     try {
-      return decryptConfession(message);
+      return decryptConfession(message, this.aesKey);
     } catch (e) {
       this.logger.warn(
         `Failed to decrypt confession message (returning raw). Reason: ${e instanceof Error ? e.message : 'unknown'
@@ -41,7 +42,12 @@ export class AdminService {
     @InjectRepository(UserAnonymousUser)
     private readonly userAnonRepository: Repository<UserAnonymousUser>,
     private readonly moderationService: ModerationService,
+    private readonly configService: ConfigService,
   ) { }
+
+  private get aesKey(): string {
+    return this.configService.get<string>('app.confessionAesKey', '');
+  }
 
   // Reports
   async getReports(

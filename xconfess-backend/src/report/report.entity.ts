@@ -62,5 +62,14 @@ export class Report {
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
+  @Column({ type: 'varchar', length: 255, nullable: true, default: null })
+idempotencyKey: string | null;
+
+/**
+ * Serialised response payload captured at first creation.
+ * Replayed requests with the same key return this instead of re-inserting.
+ */
+@Column({ type: 'jsonb', nullable: true, default: null })
+idempotencyResponse: Record<string, unknown> | null;
 }
 

@@ -10,9 +10,7 @@ import { Comment } from '../comment/entities/comment.entity';
 import { AppLogger } from '../logger/logger.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
-import { rateLimitConfig } from '../config/rate-limit.config';
 import {
-  dlqRetentionConfig,
   DlqRetentionConfig,
 } from '../config/dlq-retention.config';
 import { NotificationCategory, User } from '../user/entities/user.entity';
@@ -97,9 +95,9 @@ export class NotificationQueue implements OnModuleDestroy {
     private readonly userService: UserService,
     private readonly userRepository: Repository<User>,
     @Inject('DLQ_RETENTION_CONFIG')
-    dlqConfig: DlqRetentionConfig = dlqRetentionConfig,
+    dlqConfig: DlqRetentionConfig,
   ) {
-    this.dedupeTtl = rateLimitConfig.notification.dedupeTtlSeconds;
+    this.dedupeTtl = this.configService.get<number>('rateLimit.notification.dedupeTtlSeconds', 60);
     this.dlqConfig = dlqConfig;
     this.initializeWorkers();
     // Schedule periodic cleanup (every 6 hours)
@@ -205,20 +203,12 @@ export class NotificationQueue implements OnModuleDestroy {
 
     this.worker = new Worker(
       this.queueName,
-      async (job: Job<CommentNotificationPayload>) => {
-        const channel = this.getChannel(job.data);
-        const templateMeta = this.extractTemplateMeta(job.data, job);
+      async (job: Job) => {
         const startedAt = Date.now();
-        await this.processCommentNotification(job.data, job);
+        await this.processNotification(job.name, job.data, job);
 
-        this.appLogger.observeTimer(
-          'notification_job_processing_duration_ms',
-          Date.now() - startedAt,
-          this.withTemplateMetricLabels(
-            { channel, queue: this.queueName },
-            templateMeta,
-          ),
-        );
+        // Optional: metrics if templateMeta is available from the payload
+        // this.appLogger.observeTimer(...)
       },
       { connection: redisConfig },
     );
@@ -315,51 +305,57 @@ export class NotificationQueue implements OnModuleDestroy {
   async enqueueCommentNotification(
     payload: CommentNotificationPayload,
   ): Promise<void> {
-    const channel = this.getChannel(payload);
+    await this.enqueue('comment-notification', payload);
+  }
+
+  async enqueueMessageNotification(payload: any): Promise<void> {
+    await this.enqueue('message-notification', payload);
+  }
+
+  async enqueueReplyNotification(payload: any): Promise<void> {
+    await this.enqueue('reply-notification', payload);
+  }
+
+  async enqueueReactionNotification(payload: any): Promise<void> {
+    await this.enqueue('reaction-notification', payload);
+  }
+
+  async enqueueReportNotification(payload: any): Promise<void> {
+    await this.enqueue('report-notification', payload);
+  }
+
+  private async enqueue(type: string, payload: any): Promise<void> {
+    const channel = payload.channel || `email_${type.replace('-', '_')}`;
     const templateMeta = this.extractTemplateMeta(payload);
 
-    const idempotencyFields: IdempotencyFields = {
-      eventType: 'comment-notification',
-      recipientEmail: payload.recipientEmail,
-      entityId: String(payload.confession?.id ?? ''),
-    };
+    // Skip Redis idempotency if we are coming from the Outbox (which handles its own dedupe via DB)
+    // However, for backward compatibility or direct calls, we might still want it.
+    // For now, let's keep it if recipientEmail and entityId (if any) are present.
+    if (payload.recipientEmail) {
+      const idempotencyFields: IdempotencyFields = {
+        eventType: type,
+        recipientEmail: payload.recipientEmail,
+        entityId: String(payload.commentId || payload.messageId || payload.reactionId || payload.reportId || ''),
+      };
 
-    const idempotencyKey = this.buildIdempotencyKey(idempotencyFields);
-    const claimed = await this.claimIdempotencySlot(idempotencyKey);
+      const idempotencyKey = this.buildIdempotencyKey(idempotencyFields);
+      const claimed = await this.claimIdempotencySlot(idempotencyKey);
 
-    if (!claimed) {
-      this.appLogger.warn(
-        'Duplicate notification enqueue suppressed (idempotency)',
-        'NotificationQueue',
-      );
-      this.appLogger.incrementCounter(
-        'notification_dedupe_suppressed_total',
-        1,
-        { channel, queue: this.queueName },
-      );
-      return;
+      if (!claimed) {
+        this.appLogger.warn(
+          `Duplicate ${type} enqueue suppressed (idempotency)`,
+          'NotificationQueue',
+        );
+        return;
+      }
     }
-
-    this.appLogger.incrementCounter('notification_enqueued_total', 1, {
-      ...this.withTemplateMetricLabels(
-        { channel, queue: this.queueName },
-        templateMeta,
-      ),
-    });
 
     const jobOpts: any = {
       attempts: 3,
       backoff: { type: 'exponential', delay: 1000 },
     };
-    if (payload.templateKey && payload.templateVersion) {
-      jobOpts.templateKey = payload.templateKey;
-      jobOpts.templateVersion = payload.templateVersion;
-      if (payload.templateTrack) {
-        jobOpts.templateTrack = payload.templateTrack;
-      }
-    }
 
-    await this.queue.add('comment-notification', payload, jobOpts);
+    await this.queue.add(type, payload, jobOpts);
     await this.updateQueueDepthMetrics();
   }
 
@@ -367,89 +363,76 @@ export class NotificationQueue implements OnModuleDestroy {
   // Private processing
   // ---------------------------------------------------------------------------
 
-  private async processCommentNotification(
-    payload: CommentNotificationPayload,
-    job?: Job<CommentNotificationPayload>,
+  private async processNotification(
+    type: string,
+    payload: any,
+    job?: Job,
   ): Promise<void> {
-    const { confession, comment, recipientEmail } = payload;
-    const templateMeta = this.extractTemplateMeta(payload, job);
-    const logContext = `confessionId=${confession?.id}`;
-
+    const { recipientEmail } = payload;
     if (!recipientEmail) return;
 
-    const commentPreview =
-      comment.content.length > 100
-        ? `${comment.content.substring(0, 100)}...`
-        : comment.content;
-
     try {
-      // Resolve template version via registry + rollout policy, then send.
-      const { subject, html, text, meta } = this.emailService.resolveAndRender(
-        'comment_notification',
-        recipientEmail,
-        { confessionId: confession.id, commentPreview },
-      );
+      let subject: string;
+      let templateKey: string;
+      let templateData: any;
 
-      // sendEmail is private on EmailService; call via the public
-      // sendCommentNotification wrapper so encapsulation is preserved,
-      // passing the resolved meta for audit/metrics attribution.
-      await this.emailService.sendCommentNotification(
-        { to: recipientEmail, confessionId: confession.id, commentPreview },
-        meta,
+      switch (type) {
+        case 'comment-notification':
+          templateKey = 'comment_notification';
+          templateData = {
+            confessionId: payload.confessionId,
+            commentPreview: payload.comment?.content || payload.commentPreview || 'New comment',
+          };
+          break;
+        case 'message-notification':
+          templateKey = 'message_notification';
+          templateData = {
+            confessionId: payload.confessionId,
+            messageId: payload.messageId,
+          };
+          break;
+        case 'reply-notification':
+          templateKey = 'reply_notification';
+          templateData = {
+            confessionId: payload.confessionId,
+            messageId: payload.messageId,
+          };
+          break;
+        case 'reaction-notification':
+          templateKey = 'reaction_notification';
+          templateData = {
+            confessionId: payload.confessionId,
+            emoji: payload.emoji,
+          };
+          break;
+        case 'report-notification':
+          templateKey = 'report_notification';
+          templateData = {
+            reportId: payload.reportId,
+            confessionId: payload.confessionId,
+          };
+          break;
+        default:
+          throw new Error(`Unknown notification type: ${type}`);
+      }
+
+      await this.emailService.sendGenericNotification(
+        recipientEmail,
+        templateKey,
+        templateData,
       );
 
       this.appLogger.log(
-        UserIdMasker.maskObject({
-          msg: `Comment notification sent [${logContext}]`,
-        }).msg,
+        `Notification ${type} sent to ${recipientEmail}`,
         'NotificationQueue',
       );
-      this.appLogger.incrementCounter('notification_send_success_total', 1, {
-        ...this.withTemplateMetricLabels(
-          { channel: this.getChannel(payload), queue: this.queueName },
-          templateMeta,
-        ),
-      });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      const templateErrorMeta = this.extractTemplateMeta(payload, job, error);
-      const failureContext = {
-        code:
-          error instanceof TemplateVariableValidationError
-            ? error.code
-            : ((error as any)?.errorCode as string | undefined) ||
-              'notification_send_failed',
-        templateKey: templateErrorMeta.templateKey || null,
-        templateVersion: templateErrorMeta.templateVersion || null,
-        templateTrack: templateErrorMeta.templateTrack || null,
-        violations:
-          error instanceof TemplateVariableValidationError
-            ? error.violations
-            : ((error as any)?.violations as any[] | undefined) || [],
-      };
-
       this.appLogger.error(
-        {
-          msg: UserIdMasker.maskObject({
-            msg: `Failed to send comment notification: ${errorMessage} [${logContext}]`,
-          }).msg,
-          failureContext,
-        },
+        `Failed to process ${type} notification: ${error.message}`,
         undefined,
         'NotificationQueue',
       );
-
-      if (error instanceof Error) {
-        (error as any).notificationErrorContext = failureContext;
-        (error as any).templateMeta = {
-          templateKey: templateErrorMeta.templateKey,
-          templateVersion: templateErrorMeta.templateVersion,
-          isCanary: templateErrorMeta.templateTrack === 'canary',
-        };
-      }
-
-      throw error; // re-throw to trigger BullMQ retry
+      throw error;
     }
   }
 

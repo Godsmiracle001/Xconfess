@@ -2,10 +2,14 @@ import { Controller, Get, Param, Query, Res, UnauthorizedException, BadRequestEx
 import { Response } from 'express';
 import * as crypto from 'crypto';
 import { DataExportService } from './data-export.service';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('data-export')
 export class DataExportController {
-  constructor(private readonly exportService: DataExportService) { }
+  constructor(
+    private readonly exportService: DataExportService,
+    private readonly configService: ConfigService,
+  ) { }
 
   @Get('download/:id')
   async download(
@@ -21,7 +25,7 @@ export class DataExportController {
     }
 
     // 2. Verify Signature
-    const secret = process.env.APP_SECRET;
+    const secret = this.configService.get<string>('app.appSecret', '');
     const dataToVerify = `${id}:${userId}:${expires}`;
     const expectedSignature = crypto
       .createHmac('sha256', secret || 'APP_SECRET_NOT_SET')
