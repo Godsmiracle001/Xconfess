@@ -20,3 +20,10 @@ pub fn cancelled(e: &Env, admin: Address) {
         admin,
     );
 }
+
+pub fn invariant_violation(e: &Env, operation: &str, reason: &str, attempted_by: Address) {
+    e.events().publish(
+        (symbol_short!("gov_inv"),),
+        (operation, reason, attempted_by),
+    );
+}

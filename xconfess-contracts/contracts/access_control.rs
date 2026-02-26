@@ -73,6 +73,10 @@ pub enum AccessError {
     NotInitialized = 5,
     /// Owner cannot remove their own admin rights (code 6).
     CannotDemoteOwner = 6,
+    /// Cannot revoke last admin - would leave contract without authorized admin (code 7).
+    CannotRevokeLastAdmin = 7,
+    /// Cannot transfer ownership to same address (code 8).
+    InvalidOwnershipTransfer = 8,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -133,6 +137,24 @@ pub fn is_admin(env: &Env, addr: &Address) -> bool {
 /// Use this as the guard predicate for moderation-level actions (e.g. `resolve`).
 pub fn is_authorized(env: &Env, addr: &Address) -> bool {
     is_owner(env, addr) || is_admin(env, addr)
+}
+
+/// Returns the total number of active admins (excluding the owner).
+/// The owner is implicitly authorized but not counted in the admin set.
+pub fn count_admins(env: &Env) -> u32 {
+    let admins: Map<Address, ()> = env
+        .storage()
+        .instance()
+        .get(&AccessKey::Admins)
+        .unwrap_or_else(|| Map::new(env));
+    admins.len() as u32
+}
+
+/// Returns the total number of authorized addresses (owner + admins).
+/// This is used to ensure we never have zero authorized addresses.
+pub fn count_authorized(env: &Env) -> u32 {
+    // Owner is always authorized (1) + number of explicit admins
+    1 + count_admins(env)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -198,6 +220,8 @@ pub fn grant_admin(env: &Env, caller: &Address, target: &Address) {
 /// * Panics with `AccessError::CannotDemoteOwner` if `target` is the owner
 ///   (the owner is always implicitly authorized; removing them from the admin
 ///   map would create misleading authorization state).
+/// * Panics with `AccessError::CannotRevokeLastAdmin` if revoking would leave 
+///   the contract with zero authorized addresses.
 /// * Emits `admin_revoked` event.
 pub fn revoke_admin(env: &Env, caller: &Address, target: &Address) {
     require_owner(env, caller);
@@ -208,6 +232,17 @@ pub fn revoke_admin(env: &Env, caller: &Address, target: &Address) {
 
     if !is_admin(env, target) {
         panic!("{}", AccessError::NotAdmin as u32);
+    }
+
+    // Check minimum-admin invariant: ensure at least one authorized address remains
+    let current_admins = count_admins(env);
+    if current_admins <= 1 {
+        // Emit governance failure event before panicking
+        env.events().publish(
+            (symbol_short!("gov_inv"),),
+            ("revoke_admin", "Cannot revoke last admin - would leave contract with insufficient authorized addresses", caller.clone()),
+        );
+        panic!("{}", AccessError::CannotRevokeLastAdmin as u32);
     }
 
     let mut admins: Map<Address, ()> = env
@@ -231,6 +266,7 @@ pub fn revoke_admin(env: &Env, caller: &Address, target: &Address) {
 /// Transfer contract ownership to `new_owner`.
 ///
 /// * Caller must be the current owner.
+/// * Panics with `AccessError::InvalidOwnershipTransfer` if transferring to same address.
 /// * The old owner loses owner status (but retains any explicit admin entry
 ///   if one was previously granted — revoke separately if desired).
 /// * `new_owner` is NOT automatically added to the admin set; they are the
@@ -239,8 +275,22 @@ pub fn revoke_admin(env: &Env, caller: &Address, target: &Address) {
 pub fn transfer_ownership(env: &Env, caller: &Address, new_owner: &Address) {
     require_owner(env, caller);
 
-    // Snapshot old owner for the event before overwriting
+    // Snapshot old owner for validation and event before overwriting
     let old_owner = get_owner(env);
+    
+    // Prevent invalid transfer to same address
+    if old_owner == *new_owner {
+        panic!("{}", AccessError::InvalidOwnershipTransfer as u32);
+    }
+
+    // Check minimum-admin invariant: ensure we're not transferring away from the last
+    // authorized address if the old owner is not in the admin set
+    let current_admins = count_admins(env);
+    if current_admins == 0 && !is_admin(env, &old_owner) {
+        // Old owner is the only authorized address and not in admin set
+        // After transfer, new owner would be authorized, so this is safe
+        // But we should emit a governance event for transparency
+    }
 
     env.storage()
         .instance()
