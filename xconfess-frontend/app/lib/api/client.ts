@@ -14,6 +14,12 @@ apiClient.interceptors.request.use(
 	(config) => {
 		// Tokens are now handled via secure session cookies
 		config.withCredentials = true;
+
+		// Generate correlation ID for tracing
+		const correlationId = crypto.randomUUID();
+		config.headers["X-Correlation-ID"] = correlationId;
+		config.correlationId = correlationId;
+
 		return config;
 	},
 	(error) => {
@@ -22,10 +28,11 @@ apiClient.interceptors.request.use(
 	},
 );
 
-// Extend AxiosRequestConfig to support per-request retry tracking
+// Extend AxiosRequestConfig to support per-request retry tracking and correlation
 declare module "axios" {
 	interface InternalAxiosRequestConfig {
 		__retryCount?: number;
+		correlationId?: string;
 	}
 }
 
@@ -89,6 +96,7 @@ apiClient.interceptors.response.use(
 				url: config.url,
 				status: error.response?.status,
 				retries: config.__retryCount,
+				correlationId: config.correlationId,
 			},
 		);
 

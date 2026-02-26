@@ -1,10 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-  "contracts/anonymous-tipping",
   "contracts/confession-anchor",
   "contracts/confession-registry",
-  "contracts/reputation-badges",
+  "contracts/anonymous-tipping"
 ]
 
 [workspace.dependencies]

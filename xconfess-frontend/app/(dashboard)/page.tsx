@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ErrorBoundary } from "@/app/components/confession/ErrorBoundary";
+import { ErrorBoundary } from "@/app/components/common/ErrorBoundary";
 import { ConfessionFeed } from "@/app/components/confession/ConfessionFeed";
 import Header from "@/app/components/layout/Header";
 import { useAuthContext } from "../lib/providers/AuthProvider";

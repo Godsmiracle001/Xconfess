@@ -9,7 +9,7 @@ export const useConfessions = () => {
   const [data, setData] = useState<RawConfession[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ message: string; correlationId?: string } | null>(null);
   const [hasMore, setHasMore] = useState(true); // ✅ track if more pages exist
 
   useEffect(() => {
@@ -28,8 +28,10 @@ export const useConfessions = () => {
           page === 1 ? confessions : [...prev, ...confessions],
         );
         setHasMore(meta.hasMore ?? false);
-      } catch (err) {
-        setError(getErrorMessage(err));
+      } catch (err: any) {
+        const message = getErrorMessage(err);
+        const correlationId = err.response?.data?.correlationId || err.config?.correlationId || err.correlationId;
+        setError({ message, correlationId });
       } finally {
         setLoading(false);
       }

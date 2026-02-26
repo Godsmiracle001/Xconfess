@@ -42,23 +42,20 @@ export function ConfessionDetailClient({
     setConfession(initialConfession);
   }, [initialConfession]);
 
-  const refetch = async () => {
-    setRefetching(true);
-    const result = await getConfessionById(confessionId);
-    if (result.ok && result.data) {
-      setConfession({
-        id: result.data.id,
-        content: result.data.content,
-        createdAt: result.data.createdAt,
-        viewCount: result.data.viewCount,
-        reactions: result.data.reactions ?? { like: 0, love: 0 },
-        commentCount: result.data.commentCount,
-        isAnchored: result.data.isAnchored,
-        stellarTxHash: result.data.stellarTxHash,
-      });
-    }
-    setRefetching(false);
-  };
+ const [refetchError, setRefetchError] = useState(false);
+
+const refetch = async () => {
+  setRefetching(true);
+  setRefetchError(false);
+  const result = await getConfessionById(confessionId);
+  if (result.ok && result.data) {
+    setConfession({ ... });
+  } else {
+    setRefetchError(true);
+  }
+  setRefetching(false);
+};
+
 
   const dateLabel = formatDate(new Date(confession.createdAt));
 
@@ -112,7 +109,7 @@ export function ConfessionDetailClient({
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-white text-lg leading-relaxed whitespace-pre-wrap break-all">
+            <p className="text-white text-lg leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">
               {confession.content}
             </p>
 
@@ -160,7 +157,7 @@ export function ConfessionDetailClient({
             variant="ghost"
             size="sm"
             className="text-zinc-500 hover:text-zinc-400"
-            onClick={() => {}}
+         onClick={() => window.open(`mailto:abuse@xconfess.app?subject=Report+${confessionId}`)}
             aria-label="Report confession (coming soon)"
           >
             <AlertCircle className="h-4 w-4 mr-1" />
