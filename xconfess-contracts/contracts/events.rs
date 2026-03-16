@@ -7,6 +7,29 @@ use soroban_sdk::{
 /// ===========================================
 pub const EVENT_VERSION_V1: u32 = 1;
 
+/// ===========================================
+/// MONOTONIC NONCE MANAGEMENT
+/// ===========================================
+
+/// Storage key for the global event nonce counter
+const NONCE_KEY: Symbol = symbol_short!("ev_nonce");
+
+/// Get the current global event nonce without incrementing
+pub fn get_current_nonce(env: &Env) -> u64 {
+    env.storage()
+        .instance()
+        .get(&NONCE_KEY)
+        .unwrap_or(0u64)
+}
+
+/// Increment and return the next event nonce
+fn next_nonce(env: &Env) -> u64 {
+    let current = get_current_nonce(env);
+    let next = current + 1;
+    env.storage().instance().set(&NONCE_KEY, &next);
+    next
+}
+
 /// Stable discriminators (NEVER CHANGE)
 pub const CONFESSION_EVENT: Symbol = symbol_short!("confess");
 pub const REACTION_EVENT: Symbol = symbol_short!("react");
@@ -20,6 +43,7 @@ pub const ROLE_EVENT: Symbol = symbol_short!("role");
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfessionEvent {
     pub event_version: u32,
+    pub nonce: u64,
     pub confession_id: u64,
     pub author: Address,
     pub content_hash: Symbol,
@@ -34,8 +58,10 @@ pub fn emit_confession(
     content_hash: Symbol,
     correlation_id: Option<Symbol>, // optional parameter
 ) {
+    let nonce = next_nonce(env);
     let payload = ConfessionEvent {
         event_version: EVENT_VERSION_V1,
+        nonce,
         confession_id,
         author,
         content_hash,
@@ -53,6 +79,7 @@ pub fn emit_confession(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReactionEvent {
     pub event_version: u32,
+    pub nonce: u64,
     pub confession_id: u64,
     pub reactor: Address,
     pub reaction_type: Symbol,
@@ -67,8 +94,10 @@ pub fn emit_reaction(
     reaction_type: Symbol,
     correlation_id: Option<Symbol>,
 ) {
+    let nonce = next_nonce(env);
     let payload = ReactionEvent {
         event_version: EVENT_VERSION_V1,
+        nonce,
         confession_id,
         reactor,
         reaction_type,
@@ -86,6 +115,7 @@ pub fn emit_reaction(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ReportEvent {
     pub event_version: u32,
+    pub nonce: u64,
     pub confession_id: u64,
     pub reporter: Address,
     pub reason: Symbol,
@@ -100,8 +130,10 @@ pub fn emit_report(
     reason: Symbol,
     correlation_id: Option<Symbol>,
 ) {
+    let nonce = next_nonce(env);
     let payload = ReportEvent {
         event_version: EVENT_VERSION_V1,
+        nonce,
         confession_id,
         reporter,
         reason,
@@ -119,6 +151,7 @@ pub fn emit_report(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RoleEvent {
     pub event_version: u32,
+    pub nonce: u64,
     pub user: Address,
     pub role: Symbol,
     pub granted: bool,
@@ -133,8 +166,10 @@ pub fn emit_role(
     granted: bool,
     correlation_id: Option<Symbol>,
 ) {
+    let nonce = next_nonce(env);
     let payload = RoleEvent {
         event_version: EVENT_VERSION_V1,
+        nonce,
         user,
         role,
         granted,
