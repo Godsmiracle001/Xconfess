@@ -96,8 +96,8 @@ export class ReportsService {
       const report = manager.getRepository(Report).create({
         confessionId,
         reporterId: reporterId ?? undefined,
-        type: reportReasonToType(dto.reason),
-        reason: dto.details ?? dto.reason,
+        type: dto.type,
+        reason: dto.reason ?? null,
         status: ReportStatus.PENDING,
       });
 

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import apiClient from '@/app/lib/api/client';
+import { getErrorMessage } from '@/app/lib/utils/errorHandler';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function RegisterPage() {
       await apiClient.post('/api/users/register', { username, email, password });
       router.push('/login');
     } catch (e: any) {
-      setError(e?.message || 'Registration failed');
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }

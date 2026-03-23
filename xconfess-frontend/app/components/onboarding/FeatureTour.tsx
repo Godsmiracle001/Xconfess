@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
+import {Joyride} from "react-joyride";
+import type { CallBackProps, STATUS, Step } from "react-joyride";
 import { ONBOARDING_STEPS } from "@/app/lib/types/onboarding.types";
 import { useOnboardingStore } from "@/app/lib/store/onboardingStore";
 

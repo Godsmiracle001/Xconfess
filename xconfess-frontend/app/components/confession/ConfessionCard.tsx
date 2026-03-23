@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ReactionButton } from "./ReactionButtons";
+import { TipButton } from "./TipButton";
+import { AnchorButton } from "./AnchorButton";
 import type { NormalizedConfession } from "../../lib/utils/normalizeConfession";
-
-import { Confession } from "@/app/lib/types/confession";
+import { getTipStats, type TipStats } from "@/lib/services/tipping.service";
 
 interface Props {
   confession: NormalizedConfession;
@@ -133,4 +134,6 @@ export const ConfessionCard = memo(({ confession }: Props) => {
       </div>
     </div>
   );
-};
+});
+
+ConfessionCard.displayName = "ConfessionCard";

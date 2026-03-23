@@ -128,7 +128,7 @@ export function getCurrentUser(): AuthTokenPayload | null {
  * Throws an error with the server message on failure.
  */
 export async function login(credentials: LoginCredentials): Promise<AuthTokenPayload> {
-  const response = await fetch(`${API_URL}/auth/login`, {
+  const response = await fetch(`${API_URL}/api/users/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),

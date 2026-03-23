@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/app/lib/api/client';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY, ANONYMOUS_USER_ID_KEY } from '@/app/lib/api/constants';
+import { getErrorMessage } from '@/app/lib/utils/errorHandler';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function LoginPage() {
 
       router.push('/admin/dashboard');
     } catch (e: any) {
-      setError(e?.message || 'Login failed');
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }

@@ -13,8 +13,12 @@ export interface NormalizedConfession {
     id: string;
     username?: string;
     avatar?: string;
+    stellarAddress?: string;
   };
   _demo?: boolean;
+  isAnchored?: boolean;
+  stellarTxHash?: string | null;
+  tipStats?: any | null;
 }
 
 // Raw shape as it may arrive from the backend. 
@@ -42,6 +46,10 @@ export interface RawConfession {
     avatar?: string;
   };
   _demo?: boolean;
+  isAnchored?: boolean;
+  stellarTxHash?: string | null;
+  stellar_tx_hash?: string | null;
+  tipStats?: any | null;
 }
 
 //   Reduces an array of reaction objects `[{ type, count }]` into a plain record `{ like: 5, love: 3 }`. Returns the input unchanged if it is already a plain object.
@@ -79,6 +87,9 @@ export function normalizeConfession(raw: RawConfession): NormalizedConfession {
     reactions: normalizeReactions(raw.reactions),
     gender: raw.gender ?? null,
     author: raw.author,
+    isAnchored: raw.isAnchored ?? false,
+    stellarTxHash: raw.stellar_tx_hash ?? raw.stellarTxHash ?? null,
+    tipStats: raw.tipStats ?? null,
     ...(raw._demo !== undefined ? { _demo: raw._demo } : {}),
   };
 }

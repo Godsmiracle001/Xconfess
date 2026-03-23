@@ -76,4 +76,21 @@ export class UserController {
     return this.formatUserResponse(updatedUser);
   }
 
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() loginDto: LoginDto): Promise<{ access_token: string; user: any; anonymousUserId: string }> {
+    return this.authService.login(loginDto.email, loginDto.password);
+  }
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() registerDto: RegisterDto): Promise<{ access_token: string; user: any; anonymousUserId: string }> {
+    await this.userService.create(
+      registerDto.email,
+      registerDto.password,
+      registerDto.username,
+    );
+    // Automatically login after registration
+    return this.authService.login(registerDto.email, registerDto.password);
+  }
 }
