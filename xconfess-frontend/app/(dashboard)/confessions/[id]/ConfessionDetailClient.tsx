@@ -42,19 +42,22 @@ export function ConfessionDetailClient({
     setConfession(initialConfession);
   }, [initialConfession]);
 
- const [refetchError, setRefetchError] = useState(false);
+  const [refetchError, setRefetchError] = useState(false);
 
-const refetch = async () => {
-  setRefetching(true);
-  setRefetchError(false);
-  const result = await getConfessionById(confessionId);
-  if (result.ok && result.data) {
-    setConfession({ ... });
-  } else {
-    setRefetchError(true);
-  }
-  setRefetching(false);
-};
+  const refetch = async () => {
+    setRefetching(true);
+    setRefetchError(false);
+
+    const result = await getConfessionById(confessionId);
+
+    if (result.ok) {
+      setConfession(result.data);
+    } else {
+      setRefetchError(true);
+    }
+
+    setRefetching(false);
+  };
 
 
   const dateLabel = formatDate(new Date(confession.createdAt));
@@ -148,6 +151,11 @@ const refetch = async () => {
             {refetching && (
               <p className="mt-2 text-xs text-zinc-500">Updating…</p>
             )}
+            {refetchError && (
+              <p className="mt-2 text-xs text-red-500">
+                Could not refresh confession details right now.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -157,7 +165,11 @@ const refetch = async () => {
             variant="ghost"
             size="sm"
             className="text-zinc-500 hover:text-zinc-400"
-         onClick={() => window.open(`mailto:abuse@xconfess.app?subject=Report+${confessionId}`)}
+            onClick={() =>
+              window.open(
+                `mailto:abuse@xconfess.app?subject=Report+${confessionId}`,
+              )
+            }
             aria-label="Report confession (coming soon)"
           >
             <AlertCircle className="h-4 w-4 mr-1" />
