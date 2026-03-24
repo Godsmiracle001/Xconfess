@@ -60,6 +60,7 @@
     "babel-jest": "^30.2.0",
     "concurrently": "^8.2.2",
     "jest": "^30.0.5",
+    "minimatch": "^9.0.5",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2"
   },
