@@ -11,7 +11,10 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
-import { OutboxEvent, OutboxStatus } from '../common/entities/outbox-event.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../common/entities/outbox-event.entity';
 
 @Injectable()
 export class ReactionService {
@@ -27,13 +30,17 @@ export class ReactionService {
     @InjectRepository(OutboxEvent)
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   async createReaction(dto: CreateReactionDto): Promise<Reaction> {
     // 1. Verify confession exists.
     const confession = await this.confessionRepo.findOne({
       where: { id: dto.confessionId },
-      relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+      ],
     });
 
     if (!confession) {
@@ -77,7 +84,12 @@ export class ReactionService {
 
         // Update outbox event for the change?
         // Usually reactions are high volume, but let's notify the author.
-        await this.createOutboxEvent(outboxRepo, confession, updated, 'reaction_update');
+        await this.createOutboxEvent(
+          outboxRepo,
+          confession,
+          updated,
+          'reaction_update',
+        );
 
         return updated;
       }
@@ -91,7 +103,12 @@ export class ReactionService {
 
       const savedReaction = await reactionRepo.save(reaction);
 
-      await this.createOutboxEvent(outboxRepo, confession, savedReaction, 'reaction_notification');
+      await this.createOutboxEvent(
+        outboxRepo,
+        confession,
+        savedReaction,
+        'reaction_notification',
+      );
 
       return savedReaction;
     });

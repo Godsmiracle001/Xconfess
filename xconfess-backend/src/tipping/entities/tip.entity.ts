@@ -36,7 +36,12 @@ export class Tip {
   @Index()
   txId: string;
 
-  @Column({ name: 'sender_address', type: 'varchar', length: 56, nullable: true })
+  @Column({
+    name: 'sender_address',
+    type: 'varchar',
+    length: 56,
+    nullable: true,
+  })
   senderAddress: string | null;
 
   @Column({

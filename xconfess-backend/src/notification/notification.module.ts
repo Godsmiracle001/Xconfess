@@ -22,8 +22,12 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
   providers: [
     NotificationQueue,
     OutboxDispatcherService,
-    { provide: 'DLQ_RETENTION_CONFIG', useFactory: getDlqRetentionConfig, inject: [ConfigService] },
+    {
+      provide: 'DLQ_RETENTION_CONFIG',
+      useFactory: getDlqRetentionConfig,
+      inject: [ConfigService],
+    },
   ],
   exports: [NotificationQueue],
 })
-export class NotificationModule { }
+export class NotificationModule {}

@@ -13,7 +13,14 @@ import {
   Patch,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { ApiTags, ApiOperation, ApiParam, ApiResponse, ApiBody, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiBody,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { AnchorConfessionDto } from '../stellar/dto/anchor-confession.dto';
 import { ConfessionService } from './confession.service';
 import { CreateConfessionDto } from './dto/create-confession.dto';
@@ -30,7 +37,7 @@ export class ConfessionController {
     return this.getById(id, req);
   }
 
-  constructor(private readonly service: ConfessionService) { }
+  constructor(private readonly service: ConfessionService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new anonymous confession' })
@@ -86,10 +93,7 @@ export class ConfessionController {
   @ApiOperation({ summary: 'List soft-deleted confessions (admin)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  getDeleted(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ) {
+  getDeleted(@Query('page') page?: number, @Query('limit') limit?: number) {
     return this.service.getDeletedConfessions(page, limit);
   }
 
@@ -138,7 +142,9 @@ export class ConfessionController {
    * ALWAYS keep generic :id LAST
    */
   @Get(':id')
-  @ApiOperation({ summary: 'Get a single confession by ID (increments view count)' })
+  @ApiOperation({
+    summary: 'Get a single confession by ID (increments view count)',
+  })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   getById(@Param('id') id: string, @Req() req: Request) {
     return this.service.getConfessionByIdWithViewCount(id, req);

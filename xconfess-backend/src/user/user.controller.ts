@@ -25,7 +25,10 @@ import { GetUser } from '../auth/get-user.decorator';
 import { UpdateUserProfileDto } from './dto/updateProfile.dto';
 import { CryptoUtil } from '../common/crypto.util';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
-import { UpdatePrivacySettingsDto, PrivacySettingsResponseDto } from './dto/update-privacy-settings.dto';
+import {
+  UpdatePrivacySettingsDto,
+  PrivacySettingsResponseDto,
+} from './dto/update-privacy-settings.dto';
 
 // Add decrypted email and privacy metadata to the response type for API output
 export interface UserResponse {
@@ -37,7 +40,11 @@ export interface UserResponse {
   resetPasswordToken: string | null;
   resetPasswordExpires: Date | null;
   notificationPreferences: Record<string, boolean>;
-  privacy: { isDiscoverable: boolean; canReceiveReplies: boolean; showReactions: boolean };
+  privacy: {
+    isDiscoverable: boolean;
+    canReceiveReplies: boolean;
+    showReactions: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,7 +58,11 @@ export class UserController {
 
   // Helper method to keep DRY (Don't Repeat Yourself)
   private formatUserResponse(user: User): UserResponse {
-    const email = CryptoUtil.decrypt(user.emailEncrypted, user.emailIv, user.emailTag);
+    const email = CryptoUtil.decrypt(
+      user.emailEncrypted,
+      user.emailIv,
+      user.emailTag,
+    );
     return {
       id: user.id,
       username: user.username,

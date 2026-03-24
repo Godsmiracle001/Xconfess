@@ -6,7 +6,7 @@ import { Cache } from 'cache-manager';
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
 
-  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) { }
+  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   async get<T>(key: string): Promise<T | null> {
     try {
@@ -26,7 +26,9 @@ export class CacheService {
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
     try {
       await this.cacheManager.set(key, value, ttl);
-      this.logger.debug(`Cache SET for key: ${key} (TTL: ${ttl || 'default'}s)`);
+      this.logger.debug(
+        `Cache SET for key: ${key} (TTL: ${ttl || 'default'}s)`,
+      );
     } catch (error) {
       this.logger.error(`Cache set error for key ${key}:`, error);
     }
@@ -48,8 +50,12 @@ export class CacheService {
       if (store && store.keys) {
         const keys = await store.keys(`${pattern}*`);
         if (keys && keys.length > 0) {
-          await Promise.all(keys.map((key: string) => this.cacheManager.del(key)));
-          this.logger.debug(`Cache DEL pattern: ${pattern}* (${keys.length} keys)`);
+          await Promise.all(
+            keys.map((key: string) => this.cacheManager.del(key)),
+          );
+          this.logger.debug(
+            `Cache DEL pattern: ${pattern}* (${keys.length} keys)`,
+          );
         }
       }
     } catch (error) {

@@ -29,7 +29,8 @@ describe('ContractService', () => {
       expect(service['encodeContractArgs'](args)).toEqual(args);
     });
   });
-});import { Test, TestingModule } from '@nestjs/testing';
+});
+import { Test, TestingModule } from '@nestjs/testing';
 import { ContractService } from '../contract.service';
 import { StellarConfigService } from '../stellar-config.service';
 import { TransactionBuilderService } from '../transaction-builder.service';

@@ -3,7 +3,11 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
 import { User } from './entities/user.entity';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { RegisterDto } from './dto/register.dto';
 import { CryptoUtil } from '../common/crypto.util';
 
@@ -68,7 +72,14 @@ describe('UserController', () => {
 
   describe('getProfile', () => {
     it('should return user profile without password', async () => {
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = mockUser as any;
+      const {
+        password,
+        emailEncrypted,
+        emailIv,
+        emailTag,
+        emailHash,
+        ...rest
+      } = mockUser as any;
       const expectedResult = { ...rest, email: emailPlain };
       const result = await controller.getProfile(mockUser);
       expect(result).toEqual(expectedResult);
@@ -97,10 +108,19 @@ describe('UserController', () => {
 
       const result = await controller.register(validRegistrationData);
 
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = mockUser as any;
+      const {
+        password,
+        emailEncrypted,
+        emailIv,
+        emailTag,
+        emailHash,
+        ...rest
+      } = mockUser as any;
       const expectedResult = { ...rest, email: emailPlain };
       expect(result).toEqual(expectedResult);
-      expect(mockUserService.findByEmail).toHaveBeenCalledWith(validRegistrationData.email);
+      expect(mockUserService.findByEmail).toHaveBeenCalledWith(
+        validRegistrationData.email,
+      );
       expect(mockUserService.create).toHaveBeenCalledWith(
         validRegistrationData.email,
         validRegistrationData.password,
@@ -162,11 +182,21 @@ describe('UserController', () => {
         username: 'test-user_123',
       };
       mockUserService.findByEmail.mockResolvedValue(null);
-      mockUserService.create.mockResolvedValue({ ...mockUser, username: specialUsernameData.username });
+      mockUserService.create.mockResolvedValue({
+        ...mockUser,
+        username: specialUsernameData.username,
+      });
 
       const result = await controller.register(specialUsernameData);
 
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = { ...mockUser, username: specialUsernameData.username };
+      const {
+        password,
+        emailEncrypted,
+        emailIv,
+        emailTag,
+        emailHash,
+        ...rest
+      } = { ...mockUser, username: specialUsernameData.username };
       const expectedResult = { ...rest, email: emailPlain };
       expect(result).toEqual(expectedResult);
       expect(mockUserService.create).toHaveBeenCalledWith(
@@ -196,7 +226,14 @@ describe('UserController', () => {
 
   describe('login', () => {
     it('should return access token and user data', async () => {
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = mockUser as any;
+      const {
+        password,
+        emailEncrypted,
+        emailIv,
+        emailTag,
+        emailHash,
+        ...rest
+      } = mockUser as any;
       const mockResponse = {
         access_token: 'mock-token',
         user: { ...rest, email: emailPlain },
@@ -242,4 +279,4 @@ describe('UserController', () => {
       expect(mockAuthService.login).not.toHaveBeenCalled();
     });
   });
-}); 
+});

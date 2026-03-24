@@ -14,7 +14,10 @@ import {
   ModerationStatus,
 } from './entities/moderation-comment.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
-import { OutboxEvent, OutboxStatus } from '../common/entities/outbox-event.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../common/entities/outbox-event.entity';
 
 @Injectable()
 export class CommentService {
@@ -29,7 +32,7 @@ export class CommentService {
     private outboxRepo: Repository<OutboxEvent>,
     private readonly notificationQueue: NotificationQueue,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   async create(
     content: string,
@@ -40,7 +43,11 @@ export class CommentService {
   ): Promise<Comment> {
     const confession = await this.confessionRepo.findOne({
       where: { id: confessionId, isDeleted: false },
-      relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+      ],
     });
 
     if (!confession) {

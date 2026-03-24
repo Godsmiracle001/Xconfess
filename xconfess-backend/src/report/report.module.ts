@@ -19,4 +19,4 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
   controllers: [ReportsController, AdminReportsController],
   exports: [ReportsService],
 })
-export class ReportModule { }
+export class ReportModule {}

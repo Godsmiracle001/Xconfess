@@ -6,9 +6,21 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, LessThan, LessThanOrEqual, Not, Repository } from 'typeorm';
-import { ConfessionDraft, ConfessionDraftStatus } from './entities/confession-draft.entity';
-import { encryptConfession, decryptConfession } from '../utils/confession-encryption';
+import {
+  DataSource,
+  LessThan,
+  LessThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
+import {
+  ConfessionDraft,
+  ConfessionDraftStatus,
+} from './entities/confession-draft.entity';
+import {
+  encryptConfession,
+  decryptConfession,
+} from '../utils/confession-encryption';
 import { ConfessionService } from '../confession/confession.service';
 import { DateTime } from 'luxon';
 
@@ -23,7 +35,7 @@ export class ConfessionDraftService {
     private readonly confessionService: ConfessionService,
     private readonly dataSource: DataSource,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private get aesKey(): string {
     return this.configService.get<string>('app.confessionAesKey', '');
@@ -35,12 +47,14 @@ export class ConfessionDraftService {
 
     if (timezone) {
       const dt = DateTime.fromISO(trimmed, { zone: timezone });
-      if (!dt.isValid) throw new BadRequestException('Invalid scheduledFor/timezone');
+      if (!dt.isValid)
+        throw new BadRequestException('Invalid scheduledFor/timezone');
       return dt.toUTC().toJSDate();
     }
 
     const d = new Date(trimmed);
-    if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid scheduledFor');
+    if (Number.isNaN(d.getTime()))
+      throw new BadRequestException('Invalid scheduledFor');
     return d;
   }
 
@@ -51,10 +65,17 @@ export class ConfessionDraftService {
     };
   }
 
-  async createDraft(userId: number, content: string, scheduledFor?: string, timezone?: string) {
+  async createDraft(
+    userId: number,
+    content: string,
+    scheduledFor?: string,
+    timezone?: string,
+  ) {
     const existingCount = await this.draftRepo.count({ where: { userId } });
     if (existingCount >= MAX_DRAFTS_PER_USER) {
-      throw new BadRequestException(`Draft limit reached (max ${MAX_DRAFTS_PER_USER})`);
+      throw new BadRequestException(
+        `Draft limit reached (max ${MAX_DRAFTS_PER_USER})`,
+      );
     }
 
     const encrypted = encryptConfession(content, this.aesKey);
@@ -121,7 +142,12 @@ export class ConfessionDraftService {
     return { message: 'Draft deleted' };
   }
 
-  async scheduleDraft(userId: number, id: string, scheduledFor: string, timezone?: string) {
+  async scheduleDraft(
+    userId: number,
+    id: string,
+    scheduledFor: string,
+    timezone?: string,
+  ) {
     const draft = await this.draftRepo.findOne({ where: { id } });
     if (!draft) throw new NotFoundException('Draft not found');
     if (draft.userId !== userId) throw new ForbiddenException();
@@ -171,7 +197,10 @@ export class ConfessionDraftService {
       }
 
       const message = decryptConfession(draft.content, this.aesKey);
-      const confession = await this.confessionService.create({ message } as any, manager);
+      const confession = await this.confessionService.create(
+        { message } as any,
+        manager,
+      );
 
       draft.status = ConfessionDraftStatus.POSTED;
       draft.scheduledFor = null;
@@ -194,7 +223,9 @@ export class ConfessionDraftService {
 
     const existingCount = await this.draftRepo.count({ where: { userId } });
     if (existingCount >= MAX_DRAFTS_PER_USER) {
-      throw new BadRequestException(`Draft limit reached (max ${MAX_DRAFTS_PER_USER})`);
+      throw new BadRequestException(
+        `Draft limit reached (max ${MAX_DRAFTS_PER_USER})`,
+      );
     }
 
     draft.status = ConfessionDraftStatus.DRAFT;
@@ -249,7 +280,8 @@ export class ConfessionDraftService {
         await repo.save(draft);
       } catch (e) {
         draft.publishAttempts = (draft.publishAttempts ?? 0) + 1;
-        draft.lastPublishError = e instanceof Error ? e.message : 'Unknown error';
+        draft.lastPublishError =
+          e instanceof Error ? e.message : 'Unknown error';
         await repo.save(draft);
         throw e;
       }

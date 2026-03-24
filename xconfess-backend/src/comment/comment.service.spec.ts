@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unused-vars, @typescript-eslint/unbound-method */
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, UpdateResult } from 'typeorm';
@@ -153,7 +152,10 @@ describe('CommentService (soft‑delete)', () => {
       confessionRepo.findOne.mockResolvedValue(fakeConf);
       commentRepo.create.mockReturnValue(fakeComment);
       commentRepo.save.mockResolvedValue(fakeComment);
-      moderationRepo.create.mockReturnValue({ commentId: 101, status: ModerationStatus.PENDING } as any);
+      moderationRepo.create.mockReturnValue({
+        commentId: 101,
+        status: ModerationStatus.PENDING,
+      } as any);
       moderationRepo.save.mockResolvedValue({} as any);
 
       const result = await service.create('hey', fakeAnonUser, 'c1', 'anonCtx');

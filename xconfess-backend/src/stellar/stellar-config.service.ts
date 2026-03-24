@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as StellarSDK from '@stellar/stellar-sdk';
-import { IStellarConfig, StellarNetwork } from './interfaces/stellar-config.interface';
+import {
+  IStellarConfig,
+  StellarNetwork,
+} from './interfaces/stellar-config.interface';
 
 @Injectable()
 export class StellarConfigService {
@@ -15,7 +18,7 @@ export class StellarConfigService {
 
   private initializeConfig() {
     // FIXED: Proper defaults and validation
-    let network = this.configService.get<StellarNetwork>(
+    const network = this.configService.get<StellarNetwork>(
       'STELLAR_NETWORK',
       StellarNetwork.TESTNET,
     );
@@ -28,8 +31,12 @@ export class StellarConfigService {
       networkPassphrase: this.getNetworkPassphrase(network),
       sorobanRpcUrl: this.getSorobanRpcUrl(network),
       contractIds: {
-        confessionAnchor: this.configService.get('CONFESSION_ANCHOR_CONTRACT_ID'),
-        reputationBadges: this.configService.get('REPUTATION_BADGES_CONTRACT_ID'),
+        confessionAnchor: this.configService.get(
+          'CONFESSION_ANCHOR_CONTRACT_ID',
+        ),
+        reputationBadges: this.configService.get(
+          'REPUTATION_BADGES_CONTRACT_ID',
+        ),
         tippingSystem: this.configService.get('TIPPING_SYSTEM_CONTRACT_ID'),
       },
     };
@@ -74,7 +81,9 @@ export class StellarConfigService {
     return this.config.network === StellarNetwork.MAINNET;
   }
 
-  getContractId(contractName: 'confessionAnchor' | 'reputationBadges' | 'tippingSystem'): string {
+  getContractId(
+    contractName: 'confessionAnchor' | 'reputationBadges' | 'tippingSystem',
+  ): string {
     const id = this.config.contractIds[contractName];
     if (!id) {
       throw new Error(`Contract ID for ${contractName} not configured`);

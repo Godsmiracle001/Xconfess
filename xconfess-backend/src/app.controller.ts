@@ -54,10 +54,13 @@ export class AppController {
 
   @Get('diagnostics/notifications')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  @ApiOperation({ summary: 'Notification delivery metrics and queue health diagnostics' })
+  @ApiOperation({
+    summary: 'Notification delivery metrics and queue health diagnostics',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns queue depth, DLQ depth, counters, and timer metrics for notification processing',
+    description:
+      'Returns queue depth, DLQ depth, counters, and timer metrics for notification processing',
   })
   async getNotificationDiagnostics() {
     return this.notificationQueue.getDiagnostics();

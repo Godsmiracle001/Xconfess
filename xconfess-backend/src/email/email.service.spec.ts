@@ -122,10 +122,10 @@ describe('recipientBucket', () => {
   it('should return consistent bucket for same email and template', () => {
     const email = 'test@example.com';
     const templateKey = 'welcome';
-    
+
     const bucket1 = recipientBucket(email, templateKey);
     const bucket2 = recipientBucket(email, templateKey);
-    
+
     expect(bucket1).toBe(bucket2);
     expect(bucket1).toBeGreaterThanOrEqual(0);
     expect(bucket1).toBeLessThan(100);
@@ -135,19 +135,19 @@ describe('recipientBucket', () => {
     const email1 = '  Test@Example.COM  ';
     const email2 = 'test@example.com';
     const templateKey = 'welcome';
-    
+
     const bucket1 = recipientBucket(email1, templateKey);
     const bucket2 = recipientBucket(email2, templateKey);
-    
+
     expect(bucket1).toBe(bucket2);
   });
 
   it('should produce different buckets for different templates', () => {
     const email = 'test@example.com';
-    
+
     const bucket1 = recipientBucket(email, 'welcome');
     const bucket2 = recipientBucket(email, 'reset-password');
-    
+
     // Different templates should produce different buckets (very likely)
     // We can't guarantee they're different, but the test verifies the function works
     expect(bucket1).toBeGreaterThanOrEqual(0);
@@ -163,7 +163,7 @@ describe('recipientBucket', () => {
       { email: 'b@test.com', template: 'test' },
       { email: 'c@test.com', template: 'test' },
     ];
-    
+
     for (const { email, template } of testCases) {
       const bucket = recipientBucket(email, template);
       expect(bucket).toBeGreaterThanOrEqual(0);
@@ -174,26 +174,34 @@ describe('recipientBucket', () => {
   it('should respect optional salt for additional stability', () => {
     const email = 'test@example.com';
     const templateKey = 'welcome';
-    
+
     const bucketWithoutSalt = recipientBucket(email, templateKey);
-    const bucketWithSalt = recipientBucket(email, templateKey, { salt: 'production-salt' });
-    
+    const bucketWithSalt = recipientBucket(email, templateKey, {
+      salt: 'production-salt',
+    });
+
     // With different salt, bucket should be different
     expect(bucketWithSalt).not.toBe(bucketWithoutSalt);
-    
+
     // But same salt should produce same bucket
-    const bucketWithSalt2 = recipientBucket(email, templateKey, { salt: 'production-salt' });
+    const bucketWithSalt2 = recipientBucket(email, templateKey, {
+      salt: 'production-salt',
+    });
     expect(bucketWithSalt).toBe(bucketWithSalt2);
   });
 });
 
 describe('normalizeRecipientForBucketing', () => {
   it('should trim and lowercase email', () => {
-    expect(normalizeRecipientForBucketing('  Test@Example.COM  ')).toBe('test@example.com');
+    expect(normalizeRecipientForBucketing('  Test@Example.COM  ')).toBe(
+      'test@example.com',
+    );
   });
 
   it('should handle email without extra whitespace', () => {
-    expect(normalizeRecipientForBucketing('test@example.com')).toBe('test@example.com');
+    expect(normalizeRecipientForBucketing('test@example.com')).toBe(
+      'test@example.com',
+    );
   });
 
   it('should handle edge case emails', () => {

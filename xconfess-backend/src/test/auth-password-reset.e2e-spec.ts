@@ -119,10 +119,7 @@ describe('Auth – Password Reset (e2e)', () => {
   // ── fixture helpers ────────────────────────────────────────────────────────
 
   /** Register a brand-new user and return the saved entity. */
-  async function registerUser(
-    email: string,
-    password: string,
-  ): Promise<User> {
+  async function registerUser(email: string, password: string): Promise<User> {
     await request(app.getHttpServer())
       .post('/auth/register')
       .send({ email, password, username: email.split('@')[0] })
@@ -140,7 +137,11 @@ describe('Auth – Password Reset (e2e)', () => {
   }
 
   /** POST /auth/reset-password with a token and new password. */
-  async function resetPassword(token: string, password: string, confirm?: string) {
+  async function resetPassword(
+    token: string,
+    password: string,
+    confirm?: string,
+  ) {
     return request(app.getHttpServer())
       .post('/auth/reset-password')
       .send({ token, password, confirmPassword: confirm ?? password });
@@ -231,7 +232,9 @@ describe('Auth – Password Reset (e2e)', () => {
     let userId: number;
 
     beforeAll(async () => {
-      const user = await userRepo.findOneOrFail({ where: { email: BASE_EMAIL } });
+      const user = await userRepo.findOneOrFail({
+        where: { email: BASE_EMAIL },
+      });
       userId = user.id;
       expiredToken = await seedExpiredToken(userId);
     });
@@ -261,7 +264,10 @@ describe('Auth – Password Reset (e2e)', () => {
 
   describe('3. Malformed or unknown token', () => {
     it('returns 400 or 404 for a completely unknown token string', async () => {
-      const res = await resetPassword('totally-invalid-token-xyz', NEW_PASSWORD);
+      const res = await resetPassword(
+        'totally-invalid-token-xyz',
+        NEW_PASSWORD,
+      );
       expect([400, 404]).toContain(res.status);
     });
 
@@ -311,7 +317,11 @@ describe('Auth – Password Reset (e2e)', () => {
     });
 
     it('returns 400 when confirmPassword does not match password', async () => {
-      const res = await resetPassword(validToken, 'NewPass123!', 'WrongConfirm999!');
+      const res = await resetPassword(
+        validToken,
+        'NewPass123!',
+        'WrongConfirm999!',
+      );
       expect(res.status).toBe(400);
     });
 

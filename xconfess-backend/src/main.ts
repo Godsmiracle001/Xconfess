@@ -81,13 +81,21 @@ async function bootstrap() {
       `);
 
       const columns = result.map((r: any) => r.column_name);
-      if (!columns.includes('view_count') || !columns.includes('search_vector')) {
-        console.warn('⚠️  Database schema may be out of sync. Missing view_count or search_vector columns.');
+      if (
+        !columns.includes('view_count') ||
+        !columns.includes('search_vector')
+      ) {
+        console.warn(
+          '⚠️  Database schema may be out of sync. Missing view_count or search_vector columns.',
+        );
       } else {
         console.log('✅ Database schema verified.');
       }
     } catch (error) {
-      console.error('❌ Failed to verify database schema during startup:', error.message);
+      console.error(
+        '❌ Failed to verify database schema during startup:',
+        error.message,
+      );
     }
   }
 

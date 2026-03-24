@@ -6,4 +6,4 @@ const router: Router = Router();
 // Get trending confessions and analytics
 router.get('/trending', AnalyticsController.getTrending);
 
-export default router
+export default router;

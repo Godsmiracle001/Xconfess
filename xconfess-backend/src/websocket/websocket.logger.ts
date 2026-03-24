@@ -40,7 +40,9 @@ export class WebSocketLogger {
    */
   logConnection(socketId: string, ip: string) {
     this.metrics.totalConnections++;
-    this.logger.log(`[CONNECT] Socket: ${socketId}, IP: ${ip}, Total: ${this.metrics.totalConnections}`);
+    this.logger.log(
+      `[CONNECT] Socket: ${socketId}, IP: ${ip}, Total: ${this.metrics.totalConnections}`,
+    );
   }
 
   /**
@@ -48,7 +50,9 @@ export class WebSocketLogger {
    */
   logDisconnection(socketId: string, ip: string) {
     this.metrics.totalConnections--;
-    this.logger.log(`[DISCONNECT] Socket: ${socketId}, IP: ${ip}, Total: ${this.metrics.totalConnections}`);
+    this.logger.log(
+      `[DISCONNECT] Socket: ${socketId}, IP: ${ip}, Total: ${this.metrics.totalConnections}`,
+    );
   }
 
   /**
@@ -63,7 +67,8 @@ export class WebSocketLogger {
     latency?: number,
   ) {
     this.metrics.totalEvents++;
-    this.metrics.eventsByType[eventType] = (this.metrics.eventsByType[eventType] || 0) + 1;
+    this.metrics.eventsByType[eventType] =
+      (this.metrics.eventsByType[eventType] || 0) + 1;
 
     if (!success) {
       this.metrics.errors++;
@@ -118,7 +123,14 @@ export class WebSocketLogger {
       `[BROADCAST] Event: ${eventType}, Confession: ${confessionId}, Recipients: ${recipientCount}${latency ? `, Latency: ${latency}ms` : ''}`,
     );
 
-    this.logEvent(eventType, 'broadcast', confessionId, true, undefined, latency);
+    this.logEvent(
+      eventType,
+      'broadcast',
+      confessionId,
+      true,
+      undefined,
+      latency,
+    );
   }
 
   /**
@@ -132,8 +144,14 @@ export class WebSocketLogger {
   /**
    * Log room subscription
    */
-  logRoomSubscription(socketId: string, confessionId: string, action: 'subscribe' | 'unsubscribe') {
-    this.logger.debug(`[ROOM_${action.toUpperCase()}] Socket: ${socketId}, Confession: ${confessionId}`);
+  logRoomSubscription(
+    socketId: string,
+    confessionId: string,
+    action: 'subscribe' | 'unsubscribe',
+  ) {
+    this.logger.debug(
+      `[ROOM_${action.toUpperCase()}] Socket: ${socketId}, Confession: ${confessionId}`,
+    );
   }
 
   /**
@@ -142,7 +160,9 @@ export class WebSocketLogger {
   logError(context: string, error: Error | string, socketId?: string) {
     this.metrics.errors++;
     const errorMessage = error instanceof Error ? error.message : error;
-    this.logger.error(`[ERROR] Context: ${context}${socketId ? `, Socket: ${socketId}` : ''}, Error: ${errorMessage}`);
+    this.logger.error(
+      `[ERROR] Context: ${context}${socketId ? `, Socket: ${socketId}` : ''}, Error: ${errorMessage}`,
+    );
   }
 
   /**
@@ -172,9 +192,7 @@ export class WebSocketLogger {
    * Get error logs
    */
   getErrorLogs(limit: number = 100): EventLog[] {
-    return this.eventLogs
-      .filter((log) => !log.success)
-      .slice(-limit);
+    return this.eventLogs.filter((log) => !log.success).slice(-limit);
   }
 
   /**
@@ -208,9 +226,10 @@ export class WebSocketLogger {
    */
   generateReport(): string {
     const metrics = this.getMetrics();
-    const errorRate = metrics.totalEvents > 0 
-      ? ((metrics.errors / metrics.totalEvents) * 100).toFixed(2)
-      : '0.00';
+    const errorRate =
+      metrics.totalEvents > 0
+        ? ((metrics.errors / metrics.totalEvents) * 100).toFixed(2)
+        : '0.00';
 
     return `
 ╔════════════════════════════════════════════════════════════╗
@@ -225,7 +244,10 @@ export class WebSocketLogger {
 ╠════════════════════════════════════════════════════════════╣
 ║ Events by Type:                                            ║
 ${Object.entries(metrics.eventsByType)
-  .map(([type, count]) => `║ - ${type.padEnd(20)} ${count.toString().padStart(30)} ║`)
+  .map(
+    ([type, count]) =>
+      `║ - ${type.padEnd(20)} ${count.toString().padStart(30)} ║`,
+  )
   .join('\n')}
 ╚════════════════════════════════════════════════════════════╝
     `.trim();

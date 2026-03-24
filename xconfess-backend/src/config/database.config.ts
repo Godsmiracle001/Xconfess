@@ -9,7 +9,9 @@ export const getTypeOrmConfig = (
 ): TypeOrmModuleOptions => {
   const nodeEnv = (configService.get<string>('NODE_ENV') || '').toLowerCase();
   const appEnv = (configService.get<string>('APP_ENV') || '').toLowerCase();
-  const syncOptIn = (configService.get<string>('TYPEORM_SYNCHRONIZE') || '').toLowerCase();
+  const syncOptIn = (
+    configService.get<string>('TYPEORM_SYNCHRONIZE') || ''
+  ).toLowerCase();
 
   const isLocalDevEnv =
     nodeEnv === 'development' ||

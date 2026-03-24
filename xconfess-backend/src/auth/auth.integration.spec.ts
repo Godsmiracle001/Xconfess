@@ -58,7 +58,11 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         JwtService,
         {
           provide: AnonymousUserService,
-          useValue: { getOrCreateForUserSession: jest.fn().mockResolvedValue({ id: 'anon-1' }) },
+          useValue: {
+            getOrCreateForUserSession: jest
+              .fn()
+              .mockResolvedValue({ id: 'anon-1' }),
+          },
         },
         {
           provide: getRepositoryToken(User),
@@ -300,7 +304,11 @@ describe('AuthService Integration', () => {
         UserService,
         {
           provide: AnonymousUserService,
-          useValue: { getOrCreateForUserSession: jest.fn().mockResolvedValue({ id: 'anon-1' }) },
+          useValue: {
+            getOrCreateForUserSession: jest
+              .fn()
+              .mockResolvedValue({ id: 'anon-1' }),
+          },
         },
         {
           provide: JwtService,

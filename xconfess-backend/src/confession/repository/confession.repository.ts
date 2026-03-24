@@ -40,7 +40,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
         searchTerm: `%${searchTerm}%`,
       })
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       )
       .orderBy('confession.created_at', 'DESC')
       .getMany();
@@ -98,7 +98,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       })
       .andWhere('confession.isDeleted = false')
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       )
       .addSelect(
         'ts_rank(confession.search_vector, plainto_tsquery(:sanitizedTerm))',
@@ -118,7 +118,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       })
       .andWhere('confession.isDeleted = false')
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       );
 
     let confessions: AnonymousConfession[] = [];
@@ -174,7 +174,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       })
       .andWhere('confession.isDeleted = false')
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       )
       .orderBy('confession.created_at', 'DESC')
       .skip(offset)
@@ -189,7 +189,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       })
       .andWhere('confession.isDeleted = false')
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       );
 
     const [confessions, total] = await Promise.all([
@@ -261,7 +261,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       .where('confession.created_at IS NOT NULL')
       .andWhere('confession.isDeleted = false')
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       )
       .groupBy('confession.id')
       .orderBy('trending_score', 'DESC')
@@ -304,7 +304,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
         statuses: ['approved', 'pending'],
       })
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       )
       .select([
         'confession.id',
@@ -335,7 +335,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
         statuses: ['approved', 'pending'],
       })
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       );
 
     const [confessions, total] = await Promise.all([

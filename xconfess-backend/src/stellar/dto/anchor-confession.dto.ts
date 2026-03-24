@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsString, IsOptional, Matches, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 export class AnchorConfessionDto {
   @IsNotEmpty()

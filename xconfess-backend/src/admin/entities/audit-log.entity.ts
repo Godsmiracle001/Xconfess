@@ -13,18 +13,18 @@ export enum AuditAction {
   // Report actions
   REPORT_RESOLVED = 'report_resolved',
   REPORT_DISMISSED = 'report_dismissed',
-  
+
   // Confession actions
   CONFESSION_DELETED = 'confession_deleted',
   CONFESSION_HIDDEN = 'confession_hidden',
   CONFESSION_UNHIDDEN = 'confession_unhidden',
-  
+
   // User actions
   USER_BANNED = 'user_banned',
   USER_UNBANNED = 'user_unbanned',
   USER_ADMIN_GRANTED = 'user_admin_granted',
   USER_ADMIN_REVOKED = 'user_admin_revoked',
-  
+
   // Moderation actions
   MODERATION_OVERRIDE = 'moderation_override',
   BULK_ACTION = 'bulk_action',

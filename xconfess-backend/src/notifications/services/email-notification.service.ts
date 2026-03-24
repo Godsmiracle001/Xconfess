@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
-import { Notification, NotificationType } from '../entities/notification.entity';
+import {
+  Notification,
+  NotificationType,
+} from '../entities/notification.entity';
 import { NotificationJobData } from '../notification.queue';
 
 @Injectable()
@@ -41,7 +44,10 @@ export class EmailNotificationService {
 
       this.logger.log(`Email sent for notification ${notification.id}`);
     } catch (error) {
-      this.logger.error(`Failed to send email for notification ${notification.id}:`, error);
+      this.logger.error(
+        `Failed to send email for notification ${notification.id}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -77,7 +83,10 @@ export class EmailNotificationService {
     }
   }
 
-  private buildNewMessageEmail(notification: Notification, appUrl: string): string {
+  private buildNewMessageEmail(
+    notification: Notification,
+    appUrl: string,
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -123,9 +132,12 @@ export class EmailNotificationService {
     `;
   }
 
-  private buildBatchMessageEmail(notification: Notification, appUrl: string): string {
+  private buildBatchMessageEmail(
+    notification: Notification,
+    appUrl: string,
+  ): string {
     const count = notification.metadata?.messageCount || 0;
-    
+
     return `
       <!DOCTYPE html>
       <html>
@@ -173,7 +185,10 @@ export class EmailNotificationService {
     `;
   }
 
-  private buildGenericEmail(notification: Notification, appUrl: string): string {
+  private buildGenericEmail(
+    notification: Notification,
+    appUrl: string,
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -214,6 +229,6 @@ export class EmailNotificationService {
       '"': '&quot;',
       "'": '&#039;',
     };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    return text.replace(/[&<>"']/g, (m) => map[m]);
   }
 }

@@ -43,18 +43,20 @@ export class WebSocketAdapter extends IoAdapter {
   }
 
   createIOServer(port: number, options?: ServerOptions): any {
-    const corsOrigin = this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
+    const corsOrigin =
+      this.configService.get('FRONTEND_URL') || 'http://localhost:3000';
     const serverOptions = buildWebSocketServerOptions(corsOrigin, options);
 
     const server = super.createIOServer(port, serverOptions);
 
     // Add connection middleware for authentication and monitoring
     server.use((socket, next) => {
-      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
-      
+      const token =
+        socket.handshake.auth?.token || socket.handshake.headers?.authorization;
+
       // Optional: Add JWT verification here if you want authenticated WebSocket connections
       // For now, we'll allow all connections and handle auth at the event level
-      
+
       next();
     });
 

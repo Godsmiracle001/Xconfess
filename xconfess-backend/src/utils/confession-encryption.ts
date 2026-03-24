@@ -12,7 +12,9 @@ const IV_LENGTH = 16;
  */
 export function encryptConfession(text: string, key: string): string {
   if (!key || key.length !== 32) {
-    throw new Error('Invalid AES key: must be exactly 32 characters (AES-256).');
+    throw new Error(
+      'Invalid AES key: must be exactly 32 characters (AES-256).',
+    );
   }
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(key), iv);
@@ -30,7 +32,9 @@ export function encryptConfession(text: string, key: string): string {
  */
 export function decryptConfession(encryptedText: string, key: string): string {
   if (!key || key.length !== 32) {
-    throw new Error('Invalid AES key: must be exactly 32 characters (AES-256).');
+    throw new Error(
+      'Invalid AES key: must be exactly 32 characters (AES-256).',
+    );
   }
   const [ivHex, encrypted] = encryptedText.split(':');
   const iv = Buffer.from(ivHex, 'hex');

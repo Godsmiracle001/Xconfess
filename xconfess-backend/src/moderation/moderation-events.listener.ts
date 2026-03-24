@@ -94,7 +94,7 @@ export class ModerationEventsListener {
           flags: event.flags as unknown as ModerationCategory[],
           status: ModerationStatus.FLAGGED,
           requiresReview: true,
-          details: {}
+          details: {},
         },
         event.confessionId,
         event.userId,

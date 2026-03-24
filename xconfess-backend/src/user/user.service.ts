@@ -15,8 +15,6 @@ import { UpdatePrivacySettingsDto } from './dto/update-privacy-settings.dto';
 import { EmailService } from '../email/email.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { maskUserId } from '../utils/mask-user-id';
- 
-
 
 @Injectable()
 export class UserService {
@@ -96,8 +94,8 @@ export class UserService {
   async findByResetToken(token: string): Promise<User | null> {
     try {
       this.logger.debug(`Finding user by reset token`);
-      const user = await this.userRepository.findOne({ 
-        where: { 
+      const user = await this.userRepository.findOne({
+        where: {
           resetPasswordToken: token,
         },
       });
@@ -121,7 +119,9 @@ export class UserService {
 
   async updatePassword(userId: number, newPassword: string): Promise<void> {
     try {
-      this.logger.log(`Updating password for masked user ID: ${maskUserId(userId)}`);
+      this.logger.log(
+        `Updating password for masked user ID: ${maskUserId(userId)}`,
+      );
 
       // Hash the new password
       const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -133,35 +133,51 @@ export class UserService {
         resetPasswordExpires: null,
       });
 
-      this.logger.log(`Password updated successfully for masked user ID: ${maskUserId(userId)}`);
+      this.logger.log(
+        `Password updated successfully for masked user ID: ${maskUserId(userId)}`,
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : '';
 
-      this.logger.error(`Failed to update password for masked user ID ${maskUserId(userId)}: ${errorMessage}`, errorStack);
+      this.logger.error(
+        `Failed to update password for masked user ID ${maskUserId(userId)}: ${errorMessage}`,
+        errorStack,
+      );
       throw new InternalServerErrorException(
         `Failed to update password: ${errorMessage}`,
       );
     }
   }
 
-  async setResetPasswordToken(userId: number, token: string, expiresAt: Date): Promise<void> {
+  async setResetPasswordToken(
+    userId: number,
+    token: string,
+    expiresAt: Date,
+  ): Promise<void> {
     try {
-      this.logger.log(`Setting reset password token for masked user ID: ${maskUserId(userId)}`);
+      this.logger.log(
+        `Setting reset password token for masked user ID: ${maskUserId(userId)}`,
+      );
 
       await this.userRepository.update(userId, {
         resetPasswordToken: token,
         resetPasswordExpires: expiresAt,
       });
 
-      this.logger.log(`Reset password token set successfully for masked user ID: ${maskUserId(userId)}`);
+      this.logger.log(
+        `Reset password token set successfully for masked user ID: ${maskUserId(userId)}`,
+      );
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : '';
 
-      this.logger.error(`Failed to set reset token for masked user ID ${maskUserId(userId)}: ${errorMessage}`, errorStack);
+      this.logger.error(
+        `Failed to set reset token for masked user ID ${maskUserId(userId)}: ${errorMessage}`,
+        errorStack,
+      );
       throw new InternalServerErrorException(
         `Failed to set reset token: ${errorMessage}`,
       );
@@ -197,18 +213,23 @@ export class UserService {
 
       // Save user to database
       const savedUser = await this.userRepository.save(user);
-      this.logger.log(`User created successfully with masked user ID: ${maskUserId(savedUser.id)}`);
+      this.logger.log(
+        `User created successfully with masked user ID: ${maskUserId(savedUser.id)}`,
+      );
 
       // Send welcome email (fire and forget)
       try {
         const decryptedEmail = normalizedEmail; // already have it
-        await this.emailService.sendWelcomeEmail(decryptedEmail, savedUser.username);
+        await this.emailService.sendWelcomeEmail(
+          decryptedEmail,
+          savedUser.username,
+        );
         this.logger.log(`Welcome email sent to [PROTECTED]`);
       } catch (emailError) {
         // Log but don't fail the user registration if email sending fails
         this.logger.error(
           `Failed to send welcome email: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
-          emailError instanceof Error ? emailError.stack : ''
+          emailError instanceof Error ? emailError.stack : '',
         );
       }
 
@@ -226,8 +247,10 @@ export class UserService {
     }
   }
 
-
-  async updateProfile(userId: number, updateDto: UpdateUserProfileDto): Promise<User> {
+  async updateProfile(
+    userId: number,
+    updateDto: UpdateUserProfileDto,
+  ): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
 
@@ -237,8 +260,10 @@ export class UserService {
 
   async deactivateAccount(userId: number): Promise<User> {
     try {
-      this.logger.log(`Deactivating account for masked user ID: ${maskUserId(userId)}`);
-      
+      this.logger.log(
+        `Deactivating account for masked user ID: ${maskUserId(userId)}`,
+      );
+
       const user = await this.userRepository.findOne({ where: { id: userId } });
       if (!user) {
         throw new NotFoundException('User not found');
@@ -246,20 +271,29 @@ export class UserService {
 
       user.is_active = false;
       const updatedUser = await this.userRepository.save(user);
-      
-      this.logger.log(`Account deactivated successfully for masked user ID: ${maskUserId(userId)}`);
+
+      this.logger.log(
+        `Account deactivated successfully for masked user ID: ${maskUserId(userId)}`,
+      );
       return updatedUser;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to deactivate account: ${errorMessage}`);
-      throw error instanceof NotFoundException ? error : new InternalServerErrorException(`Failed to deactivate account: ${errorMessage}`);
+      throw error instanceof NotFoundException
+        ? error
+        : new InternalServerErrorException(
+            `Failed to deactivate account: ${errorMessage}`,
+          );
     }
   }
 
   async reactivateAccount(userId: number): Promise<User> {
     try {
-      this.logger.log(`Reactivating account for masked user ID: ${maskUserId(userId)}`);
-      
+      this.logger.log(
+        `Reactivating account for masked user ID: ${maskUserId(userId)}`,
+      );
+
       const user = await this.userRepository.findOne({ where: { id: userId } });
       if (!user) {
         throw new NotFoundException('User not found');
@@ -267,20 +301,29 @@ export class UserService {
 
       user.is_active = true;
       const updatedUser = await this.userRepository.save(user);
-      
-      this.logger.log(`Account reactivated successfully for masked user ID: ${maskUserId(userId)}`);
+
+      this.logger.log(
+        `Account reactivated successfully for masked user ID: ${maskUserId(userId)}`,
+      );
       return updatedUser;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to reactivate account: ${errorMessage}`);
-      throw error instanceof NotFoundException ? error : new InternalServerErrorException(`Failed to reactivate account: ${errorMessage}`);
+      throw error instanceof NotFoundException
+        ? error
+        : new InternalServerErrorException(
+            `Failed to reactivate account: ${errorMessage}`,
+          );
     }
   }
 
   async setUserRole(userId: number, role: UserRole): Promise<User> {
     try {
-      this.logger.log(`Setting role to ${role} for masked user ID: ${maskUserId(userId)}`);
-      
+      this.logger.log(
+        `Setting role to ${role} for masked user ID: ${maskUserId(userId)}`,
+      );
+
       const user = await this.userRepository.findOne({ where: { id: userId } });
       if (!user) {
         throw new NotFoundException('User not found');
@@ -288,13 +331,20 @@ export class UserService {
 
       user.role = role;
       const updatedUser = await this.userRepository.save(user);
-      
-      this.logger.log(`Role set to ${role} successfully for masked user ID: ${maskUserId(userId)}`);
+
+      this.logger.log(
+        `Role set to ${role} successfully for masked user ID: ${maskUserId(userId)}`,
+      );
       return updatedUser;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to set user role: ${errorMessage}`);
-      throw error instanceof NotFoundException ? error : new InternalServerErrorException(`Failed to set user role: ${errorMessage}`);
+      throw error instanceof NotFoundException
+        ? error
+        : new InternalServerErrorException(
+            `Failed to set user role: ${errorMessage}`,
+          );
     }
   }
 
@@ -302,15 +352,23 @@ export class UserService {
     try {
       return await this.userRepository.save(user);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to save user: ${errorMessage}`);
-      throw new InternalServerErrorException(`Failed to save user: ${errorMessage}`);
+      throw new InternalServerErrorException(
+        `Failed to save user: ${errorMessage}`,
+      );
     }
   }
 
-  async updatePrivacySettings(userId: number, dto: UpdatePrivacySettingsDto): Promise<PrivacySettings> {
+  async updatePrivacySettings(
+    userId: number,
+    dto: UpdatePrivacySettingsDto,
+  ): Promise<PrivacySettings> {
     try {
-      this.logger.log(`Updating privacy settings for masked user ID: ${maskUserId(userId)}`);
+      this.logger.log(
+        `Updating privacy settings for masked user ID: ${maskUserId(userId)}`,
+      );
 
       const user = await this.userRepository.findOne({ where: { id: userId } });
       if (!user) {
@@ -318,20 +376,30 @@ export class UserService {
       }
 
       user.privacySettings = {
-        isDiscoverable: dto.isDiscoverable ?? user.privacySettings?.isDiscoverable ?? true,
-        canReceiveReplies: dto.canReceiveReplies ?? user.privacySettings?.canReceiveReplies ?? true,
-        showReactions: dto.showReactions ?? user.privacySettings?.showReactions ?? true,
+        isDiscoverable:
+          dto.isDiscoverable ?? user.privacySettings?.isDiscoverable ?? true,
+        canReceiveReplies:
+          dto.canReceiveReplies ??
+          user.privacySettings?.canReceiveReplies ??
+          true,
+        showReactions:
+          dto.showReactions ?? user.privacySettings?.showReactions ?? true,
       };
 
       await this.userRepository.save(user);
-      this.logger.log(`Privacy settings updated successfully for masked user ID: ${maskUserId(userId)}`);
+      this.logger.log(
+        `Privacy settings updated successfully for masked user ID: ${maskUserId(userId)}`,
+      );
 
       return user.privacySettings;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to update privacy settings: ${errorMessage}`);
-      throw new InternalServerErrorException(`Failed to update privacy settings: ${errorMessage}`);
+      throw new InternalServerErrorException(
+        `Failed to update privacy settings: ${errorMessage}`,
+      );
     }
   }
 
@@ -348,9 +416,12 @@ export class UserService {
       };
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to get privacy settings: ${errorMessage}`);
-      throw new InternalServerErrorException(`Failed to get privacy settings: ${errorMessage}`);
+      throw new InternalServerErrorException(
+        `Failed to get privacy settings: ${errorMessage}`,
+      );
     }
   }
 }

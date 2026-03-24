@@ -11,10 +11,15 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
 @Module({
   imports: [
     forwardRef(() => ConfessionModule),
-    TypeOrmModule.forFeature([Reaction, AnonymousConfession, AnonymousUser, OutboxEvent]),
+    TypeOrmModule.forFeature([
+      Reaction,
+      AnonymousConfession,
+      AnonymousUser,
+      OutboxEvent,
+    ]),
   ],
   controllers: [ReactionController],
   providers: [ReactionService],
   exports: [ReactionService],
 })
-export class ReactionModule { }
+export class ReactionModule {}

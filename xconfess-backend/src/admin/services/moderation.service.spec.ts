@@ -48,10 +48,16 @@ describe('ModerationService', () => {
       createQueryBuilder: jest.fn().mockReturnValue(qb),
     };
     const svc = new ModerationService(repo);
-    const [logs, total] = await svc.getAuditLogs(1, AuditAction.REPORT_RESOLVED, 'report', 'r1', 10, 0);
+    const [logs, total] = await svc.getAuditLogs(
+      1,
+      AuditAction.REPORT_RESOLVED,
+      'report',
+      'r1',
+      10,
+      0,
+    );
     expect(total).toBe(1);
     expect(logs[0].id).toBe('1');
     expect(qb.andWhere).toHaveBeenCalled();
   });
 });
-

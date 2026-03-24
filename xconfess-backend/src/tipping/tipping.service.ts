@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
@@ -42,7 +47,9 @@ export class TippingService {
     private readonly stellarService: StellarService,
   ) {}
 
-  private extractSettlementReceiptMetadata(txData: any): SettlementReceiptMetadata {
+  private extractSettlementReceiptMetadata(
+    txData: any,
+  ): SettlementReceiptMetadata {
     const empty: SettlementReceiptMetadata = {
       settlementId: null,
       proofMetadata: null,
@@ -51,18 +58,24 @@ export class TippingService {
 
     const memoType = txData?.memo_type;
     const memoValue = txData?.memo;
-    if (memoType !== 'text' || typeof memoValue !== 'string' || memoValue.length === 0) {
+    if (
+      memoType !== 'text' ||
+      typeof memoValue !== 'string' ||
+      memoValue.length === 0
+    ) {
       return empty;
     }
 
     try {
       const payload = JSON.parse(memoValue);
       const settlementId =
-        typeof payload?.settlement_id === 'string' && payload.settlement_id.length > 0
+        typeof payload?.settlement_id === 'string' &&
+        payload.settlement_id.length > 0
           ? payload.settlement_id
           : null;
       const proofMetadata =
-        typeof payload?.proof_metadata === 'string' && payload.proof_metadata.length > 0
+        typeof payload?.proof_metadata === 'string' &&
+        payload.proof_metadata.length > 0
           ? payload.proof_metadata
           : null;
 
@@ -70,7 +83,9 @@ export class TippingService {
         proofMetadata &&
         proofMetadata.length > TippingService.MAX_RECEIPT_PROOF_METADATA_LEN
       ) {
-        throw new BadRequestException('Settlement receipt proof metadata exceeds allowed bounds');
+        throw new BadRequestException(
+          'Settlement receipt proof metadata exceeds allowed bounds',
+        );
       }
 
       return {
@@ -130,7 +145,9 @@ export class TippingService {
     });
 
     if (!confession) {
-      throw new NotFoundException(`Confession with ID ${confessionId} not found`);
+      throw new NotFoundException(
+        `Confession with ID ${confessionId} not found`,
+      );
     }
 
     // Check if tip already exists for this transaction
@@ -144,7 +161,7 @@ export class TippingService {
       if (existingTip.confessionId !== confessionId) {
         throw new ConflictException(
           `Transaction ${dto.txId} was already used for a different confession. ` +
-          `Original confession: ${existingTip.confessionId}`,
+            `Original confession: ${existingTip.confessionId}`,
         );
       }
 
@@ -207,7 +224,10 @@ export class TippingService {
     return response.json();
   }
 
-  private async processTransactionData(txData: any, txId: string): Promise<ProcessedTransactionData> {
+  private async processTransactionData(
+    txData: any,
+    txId: string,
+  ): Promise<ProcessedTransactionData> {
     try {
       const operations = txData._embedded?.operations || [];
       const paymentOps = operations.filter(
@@ -215,7 +235,9 @@ export class TippingService {
       );
 
       if (!paymentOps || paymentOps.length === 0) {
-        throw new BadRequestException('Transaction does not contain XLM payment');
+        throw new BadRequestException(
+          'Transaction does not contain XLM payment',
+        );
       }
 
       const paymentOp = paymentOps[0];

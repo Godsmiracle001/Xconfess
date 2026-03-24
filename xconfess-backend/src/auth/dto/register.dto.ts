@@ -29,7 +29,7 @@ export class RegisterDto {
    *   "password is too weak" is clearer than a generic pattern failure.
    */
   @IsString()
-  @MinLength(8,  { message: 'password must be at least 8 characters' })
+  @MinLength(8, { message: 'password must be at least 8 characters' })
   @MaxLength(72, { message: 'password must be at most 72 characters' })
   @Matches(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/,
@@ -44,7 +44,7 @@ export class RegisterDto {
    * Display name shown in the UI.  3–30 characters, alphanumeric and underscores.
    */
   @IsString()
-  @MinLength(3,  { message: 'username must be at least 3 characters' })
+  @MinLength(3, { message: 'username must be at least 3 characters' })
   @MaxLength(30, { message: 'username must be at most 30 characters' })
   @Matches(/^[a-zA-Z0-9_]+$/, {
     message: 'username may only contain letters, numbers, and underscores',

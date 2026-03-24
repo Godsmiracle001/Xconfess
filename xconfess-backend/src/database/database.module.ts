@@ -4,7 +4,7 @@ import { MigrationVerificationService } from './migration-verification.service';
 
 @Global()
 @Module({
-    providers: [QueryAnalyzer, MigrationVerificationService],
-    exports: [QueryAnalyzer, MigrationVerificationService],
+  providers: [QueryAnalyzer, MigrationVerificationService],
+  exports: [QueryAnalyzer, MigrationVerificationService],
 })
-export class DatabaseModule { }
+export class DatabaseModule {}

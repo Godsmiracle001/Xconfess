@@ -108,7 +108,10 @@ const templateRegistry: EmailTemplateRegistry = {
     },
     rollout: {
       canaryVersion: 'v2',
-      canaryWeight: parseInt(process.env.EMAIL_WELCOME_CANARY_WEIGHT || '0', 10),
+      canaryWeight: parseInt(
+        process.env.EMAIL_WELCOME_CANARY_WEIGHT || '0',
+        10,
+      ),
       killSwitchEnabled: false,
     },
   },
@@ -253,5 +256,8 @@ export const mailConfig = registerAs('mail', () => ({
 export const circuitBreakerConfig = registerAs('circuitBreaker', () => ({
   failureThreshold: parseInt(process.env.CB_FAILURE_THRESHOLD || '3', 10),
   cooldownSeconds: parseInt(process.env.CB_COOLDOWN_SECONDS || '60', 10),
-  probeSuccessThreshold: parseInt(process.env.CB_PROBE_SUCCESS_THRESHOLD || '2', 10),
+  probeSuccessThreshold: parseInt(
+    process.env.CB_PROBE_SUCCESS_THRESHOLD || '2',
+    10,
+  ),
 }));

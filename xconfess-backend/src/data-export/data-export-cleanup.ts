@@ -6,7 +6,9 @@ import { ExportRequest } from './entities/export-request.entity';
 
 @Injectable()
 export class DataCleanupService {
-  constructor(@InjectRepository(ExportRequest) private repo: Repository<ExportRequest>) { }
+  constructor(
+    @InjectRepository(ExportRequest) private repo: Repository<ExportRequest>,
+  ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async purgeOldExports() {
@@ -16,7 +18,7 @@ export class DataCleanupService {
     // We keep the record but delete the heavy binary data
     await this.repo.update(
       { createdAt: LessThan(sevenDaysAgo) },
-      { fileData: null, status: 'EXPIRED' }
+      { fileData: null, status: 'EXPIRED' },
     );
   }
 }

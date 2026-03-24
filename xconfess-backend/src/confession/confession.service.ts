@@ -52,7 +52,7 @@ export class ConfessionService {
     private readonly cacheService: CacheService,
     private readonly tagService: TagService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private get aesKey(): string {
     return this.configService.get<string>('app.confessionAesKey', '');
@@ -85,8 +85,8 @@ export class ConfessionService {
       // Step 1.5: Create an AnonymousUser to associate with this confession
       const anonymousUser = manager
         ? await manager
-          .getRepository(AnonymousUser)
-          .save(manager.getRepository(AnonymousUser).create())
+            .getRepository(AnonymousUser)
+            .save(manager.getRepository(AnonymousUser).create())
         : await this.anonymousUserService.create();
 
       // Step 2: Encrypt and save the confession
@@ -217,7 +217,7 @@ export class ConfessionService {
         statuses: [ModerationStatus.APPROVED, ModerationStatus.PENDING],
       })
       .andWhere(
-        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       )
       .leftJoinAndSelect('confession.reactions', 'reactions')
       .leftJoinAndSelect('reactions.anonymousUser', 'reactionUser')
@@ -309,7 +309,8 @@ export class ConfessionService {
     }
 
     const updated = await this.confessionRepo.findOne({ where: { id } });
-    if (updated) updated.message = decryptConfession(updated.message, this.aesKey);
+    if (updated)
+      updated.message = decryptConfession(updated.message, this.aesKey);
     return updated;
   }
 
@@ -334,9 +335,7 @@ export class ConfessionService {
       where: { id, isDeleted: true },
     });
     if (!existing)
-      throw new NotFoundException(
-        `Soft-deleted confession ${id} not found`,
-      );
+      throw new NotFoundException(`Soft-deleted confession ${id} not found`);
     await this.confessionRepo.update(id, {
       isDeleted: false,
       deletedAt: null,
@@ -414,7 +413,13 @@ export class ConfessionService {
   async getConfessionByIdWithViewCount(id: string, req: Request) {
     const conf = await this.confessionRepo.findOne({
       where: { id, isDeleted: false, isHidden: false },
-      relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user', 'reactions', 'reactions.anonymousUser'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+        'reactions',
+        'reactions.anonymousUser',
+      ],
       select: {
         id: true,
         message: true,
@@ -454,7 +459,13 @@ export class ConfessionService {
       await this.confessionRepo.incrementViewCountAtomically(id);
       const updated = await this.confessionRepo.findOne({
         where: { id },
-        relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user', 'reactions', 'reactions.anonymousUser'],
+        relations: [
+          'anonymousUser',
+          'anonymousUser.userLinks',
+          'anonymousUser.userLinks.user',
+          'reactions',
+          'reactions.anonymousUser',
+        ],
       });
       if (updated) {
         const updatedAuthor = updated.anonymousUser?.userLinks?.[0]?.user;

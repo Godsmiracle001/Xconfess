@@ -21,7 +21,7 @@ export class DataExportController {
   constructor(
     private readonly exportService: DataExportService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Post('request')
@@ -44,10 +44,7 @@ export class DataExportController {
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/redownload')
-  async redownload(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
+  async redownload(@Param('id') id: string, @Req() req: any) {
     return this.exportService.getRedownloadLink(id, String(req.user.id));
   }
 

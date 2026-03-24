@@ -7,7 +7,9 @@ describe('AdminGateway', () => {
     (gateway as any).server = { emit: jest.fn() };
 
     gateway.emitNewReport({ x: 1 });
-    expect((gateway as any).server.emit).toHaveBeenCalledWith('new-report', { x: 1 });
+    expect((gateway as any).server.emit).toHaveBeenCalledWith('new-report', {
+      x: 1,
+    });
   });
 
   it('disconnects if no token provided', async () => {
@@ -26,7 +28,9 @@ describe('AdminGateway', () => {
 
   it('accepts admin token and sets client data', async () => {
     const jwt: any = { verify: jest.fn().mockReturnValue({ sub: '1' }) };
-    const userService: any = { findById: jest.fn().mockResolvedValue({ role: UserRole.ADMIN }) };
+    const userService: any = {
+      findById: jest.fn().mockResolvedValue({ role: UserRole.ADMIN }),
+    };
     const gateway = new AdminGateway(jwt, userService);
     const client: any = {
       id: 's2',
@@ -62,7 +66,9 @@ describe('AdminGateway', () => {
 
   it('supports reconnect after transient disconnect', async () => {
     const jwt: any = { verify: jest.fn().mockReturnValue({ sub: '42' }) };
-    const userService: any = { findById: jest.fn().mockResolvedValue({ role: UserRole.ADMIN }) };
+    const userService: any = {
+      findById: jest.fn().mockResolvedValue({ role: UserRole.ADMIN }),
+    };
     const gateway = new AdminGateway(jwt, userService);
 
     const firstClient: any = {
@@ -89,4 +95,3 @@ describe('AdminGateway', () => {
     expect(userService.findById).toHaveBeenCalledTimes(2);
   });
 });
-

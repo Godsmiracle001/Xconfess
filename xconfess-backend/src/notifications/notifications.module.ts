@@ -40,7 +40,7 @@ import { DlqAdminController } from './dlq-admin.controller';
           delay: 2000,
         },
         removeOnComplete: { count: 500 }, // keep last 500 for observability
-        removeOnFail: false,              // keep failed jobs until DLQ ack
+        removeOnFail: false, // keep failed jobs until DLQ ack
       },
     }),
 

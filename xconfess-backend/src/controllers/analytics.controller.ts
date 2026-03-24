@@ -8,7 +8,9 @@ export class AnalyticsController {
 
       // Validate period
       if (!['7days', '30days'].includes(period)) {
-        return res.status(400).json({ error: 'Invalid period. Use 7days or 30days' });
+        return res
+          .status(400)
+          .json({ error: 'Invalid period. Use 7days or 30days' });
       }
 
       const analytics = await AnalyticsService.getTrendingAnalytics(period);
@@ -16,7 +18,7 @@ export class AnalyticsController {
       // Set cache headers (15 minutes)
       res.set({
         'Cache-Control': 'public, max-age=900', // 15 minutes
-        'Expires': new Date(Date.now() + 15 * 60 * 1000).toUTCString()
+        Expires: new Date(Date.now() + 15 * 60 * 1000).toUTCString(),
       });
 
       res.json(analytics);

@@ -201,7 +201,11 @@ interface TemplateSloSeries {
 
 @Injectable()
 export class EmailService implements OnModuleInit {
-  sendGenericNotification(recipientEmail: any, templateKey: string, templateData: any) {
+  sendGenericNotification(
+    recipientEmail: any,
+    templateKey: string,
+    templateData: any,
+  ) {
     throw new Error('Method not implemented.');
   }
   private readonly logger = new Logger(EmailService.name);
@@ -248,7 +252,7 @@ export class EmailService implements OnModuleInit {
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogService?: AuditLogService,
     @Optional() private readonly appLogger?: AppLogger,
-  ) { }
+  ) {}
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -350,12 +354,20 @@ export class EmailService implements OnModuleInit {
   ): Promise<void> {
     const reg = this.templateRegistry?.[templateKey];
     if (!reg?.versions[version]) {
-      throw new Error(`Template or version not found: ${templateKey} v${version}`);
+      throw new Error(
+        `Template or version not found: ${templateKey} v${version}`,
+      );
     }
 
-    const before = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+    const before = {
+      activeVersion: reg.activeVersion,
+      rollout: reg.rollout || {},
+    };
     reg.activeVersion = version;
-    const after = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+    const after = {
+      activeVersion: reg.activeVersion,
+      rollout: reg.rollout || {},
+    };
 
     await this.auditLogService?.logTemplateRolloutDiff({
       templateKey,
@@ -383,15 +395,25 @@ export class EmailService implements OnModuleInit {
     const reg = this.templateRegistry?.[templateKey];
     if (!reg) throw new Error(`Template not found: ${templateKey}`);
 
-    const before = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+    const before = {
+      activeVersion: reg.activeVersion,
+      rollout: reg.rollout || {},
+    };
 
     reg.rollout = {
       ...(reg.rollout || {}),
-      ...(options.canaryVersion !== undefined ? { canaryVersion: options.canaryVersion } : {}),
-      ...(options.canaryWeight !== undefined ? { canaryWeight: options.canaryWeight } : {}),
+      ...(options.canaryVersion !== undefined
+        ? { canaryVersion: options.canaryVersion }
+        : {}),
+      ...(options.canaryWeight !== undefined
+        ? { canaryWeight: options.canaryWeight }
+        : {}),
     };
 
-    const after = { activeVersion: reg.activeVersion, rollout: reg.rollout || {} };
+    const after = {
+      activeVersion: reg.activeVersion,
+      rollout: reg.rollout || {},
+    };
 
     await this.auditLogService?.logTemplateRolloutDiff({
       templateKey,
@@ -486,7 +508,9 @@ export class EmailService implements OnModuleInit {
       },
     });
 
-    this.logger.log(`Template '${templateKey}' promoted to ${policy.canaryVersion}`);
+    this.logger.log(
+      `Template '${templateKey}' promoted to ${policy.canaryVersion}`,
+    );
   }
 
   rollbackCanary(templateKey: string): void {
@@ -519,13 +543,17 @@ export class EmailService implements OnModuleInit {
     const reg = this.templateRegistry?.[key];
     if (!reg) return undefined;
 
-    const globalKillSwitch = this.configService.get<boolean>('mail.globalKillSwitch');
+    const globalKillSwitch = this.configService.get<boolean>(
+      'mail.globalKillSwitch',
+    );
     const localKillSwitch = reg.rollout?.killSwitchEnabled === true;
     const isKillSwitchActive = globalKillSwitch || localKillSwitch;
 
     const activeVersion = reg.versions[reg.activeVersion];
     const canaryVersionKey = reg.rollout?.canaryVersion;
-    const canaryVersion = canaryVersionKey ? reg.versions[canaryVersionKey] : undefined;
+    const canaryVersion = canaryVersionKey
+      ? reg.versions[canaryVersionKey]
+      : undefined;
 
     if (isKillSwitchActive) {
       if (canaryVersion) {
@@ -541,7 +569,9 @@ export class EmailService implements OnModuleInit {
           )
           .catch(() => undefined);
       }
-      return activeVersion ? { template: activeVersion, isCanary: false } : undefined;
+      return activeVersion
+        ? { template: activeVersion, isCanary: false }
+        : undefined;
     }
 
     if (canaryVersion && canaryVersion.lifecycleState === 'canary') {
@@ -653,7 +683,8 @@ export class EmailService implements OnModuleInit {
           maxErrorRatePercent: threshold.maxErrorRatePercent,
           maxP95LatencyMs: threshold.maxP95LatencyMs,
           minSampleSize: threshold.minSampleSize,
-          alertAfterConsecutiveBreaches: threshold.alertAfterConsecutiveBreaches,
+          alertAfterConsecutiveBreaches:
+            threshold.alertAfterConsecutiveBreaches,
         },
       };
 
@@ -726,7 +757,9 @@ export class EmailService implements OnModuleInit {
           auth: { user: account.user, pass: account.pass },
         }),
       };
-      this.logger.log('Ethereal test account ready. Preview at https://ethereal.email');
+      this.logger.log(
+        'Ethereal test account ready. Preview at https://ethereal.email',
+      );
     });
   }
 
@@ -755,7 +788,9 @@ export class EmailService implements OnModuleInit {
   private onSendSuccess(provider: TransporterEntry): void {
     if (this.cb.state === 'HALF_OPEN') {
       this.cb.consecutiveProbeSuccesses += 1;
-      if (this.cb.consecutiveProbeSuccesses >= this.cbConfig.probeSuccessThreshold) {
+      if (
+        this.cb.consecutiveProbeSuccesses >= this.cbConfig.probeSuccessThreshold
+      ) {
         this.transitionTo(
           'CLOSED',
           `probe_success_threshold_reached provider=${provider.label}`,
@@ -829,7 +864,10 @@ export class EmailService implements OnModuleInit {
         `Email blocked — circuit OPEN, no fallback. to=${maskedTo} channel=${channel}`,
       );
       this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
-        ...this.buildTemplateMetricLabels({ channel, outcome: 'terminal', reason }, templateMeta),
+        ...this.buildTemplateMetricLabels(
+          { channel, outcome: 'terminal', reason },
+          templateMeta,
+        ),
       });
       const err = new Error(`Email service unavailable: ${reason}`) as any;
       err.templateMeta = templateMeta;
@@ -838,10 +876,16 @@ export class EmailService implements OnModuleInit {
     }
 
     if (!provider.transporter) {
-      this.logger.warn('Email transporter not initialized yet. Email not sent.');
+      this.logger.warn(
+        'Email transporter not initialized yet. Email not sent.',
+      );
       this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
         ...this.buildTemplateMetricLabels(
-          { channel, outcome: 'terminal', reason: 'transporter_not_initialized' },
+          {
+            channel,
+            outcome: 'terminal',
+            reason: 'transporter_not_initialized',
+          },
           templateMeta,
         ),
       });
@@ -871,12 +915,18 @@ export class EmailService implements OnModuleInit {
       this.onSendSuccess(provider);
 
       this.appLogger?.incrementCounter('notification_send_success_total', 1, {
-        ...this.buildTemplateMetricLabels({ channel, provider: provider.label }, templateMeta),
+        ...this.buildTemplateMetricLabels(
+          { channel, provider: provider.label },
+          templateMeta,
+        ),
       });
       this.appLogger?.observeTimer(
         'notification_send_duration_ms',
         Date.now() - startedAt,
-        this.buildTemplateMetricLabels({ channel, provider: provider.label }, templateMeta),
+        this.buildTemplateMetricLabels(
+          { channel, provider: provider.label },
+          templateMeta,
+        ),
       );
       this.evaluateTemplateSlo(templateMeta, true, Date.now() - startedAt);
 
@@ -896,12 +946,13 @@ export class EmailService implements OnModuleInit {
 
       this.logger.log(
         `Email sent via ${provider.label} to ${maskedTo} | channel=${channel}` +
-        (templateMeta
-          ? ` | template=${templateMeta.templateKey}@${templateMeta.templateVersion}${templateMeta.isCanary ? '[canary]' : ''}`
-          : ''),
+          (templateMeta
+            ? ` | template=${templateMeta.templateKey}@${templateMeta.templateVersion}${templateMeta.isCanary ? '[canary]' : ''}`
+            : ''),
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
 
       this.onSendFailure(
         provider,
@@ -917,7 +968,10 @@ export class EmailService implements OnModuleInit {
       this.appLogger?.observeTimer(
         'notification_send_duration_ms',
         Date.now() - startedAt,
-        this.buildTemplateMetricLabels({ channel, provider: provider.label }, templateMeta),
+        this.buildTemplateMetricLabels(
+          { channel, provider: provider.label },
+          templateMeta,
+        ),
       );
       this.evaluateTemplateSlo(templateMeta, false, Date.now() - startedAt);
 
@@ -941,16 +995,30 @@ export class EmailService implements OnModuleInit {
         this.logger.warn(
           `Primary send failed — retrying on fallback | channel=${channel} error=${errorMessage}`,
         );
-        this.appLogger?.incrementCounter('notification_retry_attempt_total', 1, {
-          ...this.buildTemplateMetricLabels(
-            { channel, provider: provider.label, retry_mode: 'fallback' },
-            templateMeta,
-          ),
-        });
-        return this.sendViaFallback(to, subject, html, text, channel, startedAt, templateMeta);
+        this.appLogger?.incrementCounter(
+          'notification_retry_attempt_total',
+          1,
+          {
+            ...this.buildTemplateMetricLabels(
+              { channel, provider: provider.label, retry_mode: 'fallback' },
+              templateMeta,
+            ),
+          },
+        );
+        return this.sendViaFallback(
+          to,
+          subject,
+          html,
+          text,
+          channel,
+          startedAt,
+          templateMeta,
+        );
       }
 
-      const wrappedError = new Error(`Failed to send email: ${errorMessage}`) as any;
+      const wrappedError = new Error(
+        `Failed to send email: ${errorMessage}`,
+      ) as any;
       wrappedError.templateMeta = templateMeta;
       wrappedError.errorCode = 'email_send_failed';
       throw wrappedError;
@@ -984,18 +1052,28 @@ export class EmailService implements OnModuleInit {
         ...this.buildTemplateMetricLabels({ channel }, templateMeta),
       });
       this.appLogger?.incrementCounter('notification_send_success_total', 1, {
-        ...this.buildTemplateMetricLabels({ channel, provider: 'fallback' }, templateMeta),
+        ...this.buildTemplateMetricLabels(
+          { channel, provider: 'fallback' },
+          templateMeta,
+        ),
       });
       this.appLogger?.observeTimer(
         'notification_send_duration_ms',
         Date.now() - startedAt,
-        this.buildTemplateMetricLabels({ channel, provider: 'fallback' }, templateMeta),
+        this.buildTemplateMetricLabels(
+          { channel, provider: 'fallback' },
+          templateMeta,
+        ),
       );
       this.evaluateTemplateSlo(templateMeta, true, Date.now() - startedAt);
     } catch (fallbackError) {
       const msg =
-        fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
-      this.logger.error(`Fallback also failed for ${to}: ${msg} | channel=${channel}`);
+        fallbackError instanceof Error
+          ? fallbackError.message
+          : 'Unknown error';
+      this.logger.error(
+        `Fallback also failed for ${to}: ${msg} | channel=${channel}`,
+      );
       this.appLogger?.incrementCounter('notification_send_failure_total', 1, {
         ...this.buildTemplateMetricLabels(
           { channel, outcome: 'terminal', provider: 'fallback' },
@@ -1004,7 +1082,9 @@ export class EmailService implements OnModuleInit {
       });
       this.evaluateTemplateSlo(templateMeta, false, Date.now() - startedAt);
 
-      const wrappedError = new Error(`Both primary and fallback failed: ${msg}`) as any;
+      const wrappedError = new Error(
+        `Both primary and fallback failed: ${msg}`,
+      ) as any;
       wrappedError.templateMeta = templateMeta;
       wrappedError.errorCode = 'email_send_failed_all_providers';
       throw wrappedError;
@@ -1013,11 +1093,17 @@ export class EmailService implements OnModuleInit {
 
   // ── Circuit breaker diagnostics ───────────────────────────────────────────
 
-  getCircuitState(): { state: CircuitState; reason: string; openedAt: string | null } {
+  getCircuitState(): {
+    state: CircuitState;
+    reason: string;
+    openedAt: string | null;
+  } {
     return {
       state: this.cb.state,
       reason: this.cb.lastTransitionReason,
-      openedAt: this.cb.openedAt ? new Date(this.cb.openedAt).toISOString() : null,
+      openedAt: this.cb.openedAt
+        ? new Date(this.cb.openedAt).toISOString()
+        : null,
     };
   }
 
@@ -1030,11 +1116,18 @@ export class EmailService implements OnModuleInit {
     if (resolved) {
       const { template, isCanary } = resolved;
       const rendered = renderTemplate(templateKey, template, { username });
-      await this.sendEmail(email, rendered.subject, rendered.html, rendered.text, 'email_welcome', {
-        templateKey,
-        templateVersion: template.version,
-        isCanary,
-      });
+      await this.sendEmail(
+        email,
+        rendered.subject,
+        rendered.html,
+        rendered.text,
+        'email_welcome',
+        {
+          templateKey,
+          templateVersion: template.version,
+          isCanary,
+        },
+      );
     } else {
       throw new Error('No valid template for welcome');
     }
@@ -1070,8 +1163,18 @@ export class EmailService implements OnModuleInit {
       await this.sendEmail(
         toEmail,
         `Someone reacted with ${emoji} to your confession!`,
-        this.generateReactionEmailTemplate(username, reactorName, confessionContent, emoji),
-        this.generateReactionEmailText(username, reactorName, confessionContent, emoji),
+        this.generateReactionEmailTemplate(
+          username,
+          reactorName,
+          confessionContent,
+          emoji,
+        ),
+        this.generateReactionEmailText(
+          username,
+          reactorName,
+          confessionContent,
+          emoji,
+        ),
         'email_reaction',
       );
     }
@@ -1125,7 +1228,10 @@ export class EmailService implements OnModuleInit {
       const rendered = renderTemplate(templateKey, template, {
         confessionId,
         commentPreview,
-        frontendUrl: this.configService.get<string>('app.frontendUrl', 'http://localhost:3000'),
+        frontendUrl: this.configService.get<string>(
+          'app.frontendUrl',
+          'http://localhost:3000',
+        ),
       });
       await this.sendEmail(
         to,
@@ -1133,10 +1239,17 @@ export class EmailService implements OnModuleInit {
         rendered.html,
         rendered.text,
         'email_comment_notification',
-        templateMeta ?? { templateKey, templateVersion: template.version, isCanary },
+        templateMeta ?? {
+          templateKey,
+          templateVersion: template.version,
+          isCanary,
+        },
       );
     } else {
-      const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3000');
+      const frontendUrl = this.configService.get<string>(
+        'app.frontendUrl',
+        'http://localhost:3000',
+      );
       await this.sendEmail(
         to,
         'New Comment on Your Confession',

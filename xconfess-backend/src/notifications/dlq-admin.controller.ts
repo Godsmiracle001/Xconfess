@@ -10,30 +10,34 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue, Job } from 'bull';
-import { NotificationJobData, NOTIFICATION_DLQ, NOTIFICATION_QUEUE } from './notification.queue';
+import {
+  NotificationJobData,
+  NOTIFICATION_DLQ,
+  NOTIFICATION_QUEUE,
+} from './notification.queue';
 // import { AdminGuard } from '../../auth/guards/admin.guard';
 
 interface DlqJobView {
-  id:           string | number | undefined;
-  userId:       string;
-  type:         string;
-  title:        string;
-  failedAt:     string | undefined;
+  id: string | number | undefined;
+  userId: string;
+  type: string;
+  title: string;
+  failedAt: string | undefined;
   attemptsMade: number | undefined;
-  lastError:    string | undefined;
-  enqueuedAt:   number;
+  lastError: string | undefined;
+  enqueuedAt: number;
 }
 
 function toView(job: Job<NotificationJobData>): DlqJobView {
   return {
-    id:           job.id,
-    userId:       job.data.userId,
-    type:         job.data.type,
-    title:        job.data.title,
-    failedAt:     job.data._meta?.failedAt,
+    id: job.id,
+    userId: job.data.userId,
+    type: job.data.type,
+    title: job.data.title,
+    failedAt: job.data._meta?.failedAt,
     attemptsMade: job.data._meta?.attemptsMade,
-    lastError:    job.data._meta?.lastError,
-    enqueuedAt:   job.timestamp,
+    lastError: job.data._meta?.lastError,
+    enqueuedAt: job.timestamp,
   };
 }
 
@@ -51,18 +55,24 @@ function toView(job: Job<NotificationJobData>): DlqJobView {
 @Controller('admin/dlq')
 export class DlqAdminController {
   constructor(
-    @InjectQueue(NOTIFICATION_DLQ)  private readonly dlq: Queue<NotificationJobData>,
-    @InjectQueue(NOTIFICATION_QUEUE) private readonly mainQueue: Queue<NotificationJobData>,
+    @InjectQueue(NOTIFICATION_DLQ)
+    private readonly dlq: Queue<NotificationJobData>,
+    @InjectQueue(NOTIFICATION_QUEUE)
+    private readonly mainQueue: Queue<NotificationJobData>,
   ) {}
 
   // ----------------------------------------------------------------- list
   @Get()
   async list(
     @Query('start') start = '0',
-    @Query('end')   end   = '49',
+    @Query('end') end = '49',
   ): Promise<{ total: number; jobs: DlqJobView[] }> {
     const [jobs, total] = await Promise.all([
-      this.dlq.getJobs(['waiting', 'completed', 'failed', 'delayed'], +start, +end),
+      this.dlq.getJobs(
+        ['waiting', 'completed', 'failed', 'delayed'],
+        +start,
+        +end,
+      ),
       this.dlq.count(),
     ]);
 

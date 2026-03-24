@@ -22,7 +22,9 @@ export class ModerationRepositoryService {
     apiProvider?: string,
     manager?: EntityManager,
   ): Promise<ModerationLog> {
-    const repo = manager ? manager.getRepository(ModerationLog) : this.moderationLogRepo;
+    const repo = manager
+      ? manager.getRepository(ModerationLog)
+      : this.moderationLogRepo;
     const log = repo.create({
       confessionId,
       userId,

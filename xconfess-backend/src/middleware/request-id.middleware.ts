@@ -14,19 +14,19 @@ import { v4 as uuidv4 } from 'uuid';
  */
 @Injectable()
 export class RequestIdMiddleware implements NestMiddleware {
-    use(req: Request, res: Response, next: NextFunction): void {
-        const incomingId = req.headers['x-request-id'];
-        const requestId: string =
-            typeof incomingId === 'string' && incomingId.trim().length > 0
-                ? incomingId.trim()
-                : uuidv4();
+  use(req: Request, res: Response, next: NextFunction): void {
+    const incomingId = req.headers['x-request-id'];
+    const requestId: string =
+      typeof incomingId === 'string' && incomingId.trim().length > 0
+        ? incomingId.trim()
+        : uuidv4();
 
-        // Attach to request object for downstream use
-        (req as any).requestId = requestId;
+    // Attach to request object for downstream use
+    (req as any).requestId = requestId;
 
-        // Echo back in response headers
-        res.setHeader('x-request-id', requestId);
+    // Echo back in response headers
+    res.setHeader('x-request-id', requestId);
 
-        next();
-    }
+    next();
+  }
 }

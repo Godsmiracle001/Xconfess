@@ -26,7 +26,8 @@ export class AdminService {
       return decryptConfession(message, this.aesKey);
     } catch (e) {
       this.logger.warn(
-        `Failed to decrypt confession message (returning raw). Reason: ${e instanceof Error ? e.message : 'unknown'
+        `Failed to decrypt confession message (returning raw). Reason: ${
+          e instanceof Error ? e.message : 'unknown'
         }`,
       );
       return message;
@@ -45,7 +46,7 @@ export class AdminService {
     private readonly moderationService: ModerationService,
     private readonly moderationTemplateService: ModerationTemplateService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private get aesKey(): string {
     return this.configService.get<string>('app.confessionAesKey', '');
@@ -88,7 +89,9 @@ export class AdminService {
     const [reports, total] = await query.getManyAndCount();
     const mapped = reports.map((r) => {
       if (r.confession?.message) {
-        r.confession.message = this.safeDecryptConfessionMessage(r.confession.message);
+        r.confession.message = this.safeDecryptConfessionMessage(
+          r.confession.message,
+        );
       }
       return r;
     });
@@ -106,7 +109,9 @@ export class AdminService {
     }
 
     if (report.confession?.message) {
-      report.confession.message = this.safeDecryptConfessionMessage(report.confession.message);
+      report.confession.message = this.safeDecryptConfessionMessage(
+        report.confession.message,
+      );
     }
     return report;
   }
@@ -132,14 +137,23 @@ export class AdminService {
 
     const saved = await this.reportRepository.save(report);
 
-    const templateUsed = templateId ? await this.moderationTemplateService.findById(templateId).catch(() => null) : null;
+    const templateUsed = templateId
+      ? await this.moderationTemplateService
+          .findById(templateId)
+          .catch(() => null)
+      : null;
 
     await this.moderationService.logAction(
       adminId,
       AuditAction.REPORT_RESOLVED,
       'report',
       id,
-      { reportType: report.type, confessionId: report.confessionId, templateId, templateName: templateUsed?.name ?? null },
+      {
+        reportType: report.type,
+        confessionId: report.confessionId,
+        templateId,
+        templateName: templateUsed?.name ?? null,
+      },
       resolutionNotes,
       request,
     );
@@ -405,7 +419,9 @@ export class AdminService {
     });
     for (const r of reports) {
       if (r.confession?.message) {
-        r.confession.message = this.safeDecryptConfessionMessage(r.confession.message);
+        r.confession.message = this.safeDecryptConfessionMessage(
+          r.confession.message,
+        );
       }
     }
 
@@ -419,12 +435,12 @@ export class AdminService {
     const anonIds = Array.from(new Set(links.map((l) => l.anonymousUserId)));
     const confessions = anonIds.length
       ? await this.confessionRepository
-        .createQueryBuilder('confession')
-        .leftJoin('confession.anonymousUser', 'anon')
-        .where('anon.id IN (:...anonIds)', { anonIds })
-        .orderBy('confession.created_at', 'DESC')
-        .take(200)
-        .getMany()
+          .createQueryBuilder('confession')
+          .leftJoin('confession.anonymousUser', 'anon')
+          .where('anon.id IN (:...anonIds)', { anonIds })
+          .orderBy('confession.created_at', 'DESC')
+          .take(200)
+          .getMany()
       : [];
 
     // Decrypt confession messages for admin visibility

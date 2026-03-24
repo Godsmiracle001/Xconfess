@@ -47,10 +47,12 @@ import { DatabaseModule } from './database/database.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        throttlers: [{
-          ttl: config.get<number>('throttle.ttl') || 900,
-          limit: config.get<number>('throttle.limit') || 100,
-        }],
+        throttlers: [
+          {
+            ttl: config.get<number>('throttle.ttl') || 900,
+            limit: config.get<number>('throttle.limit') || 100,
+          },
+        ],
       }),
     }),
     TypeOrmModule.forRootAsync({
@@ -89,4 +91,4 @@ import { DatabaseModule } from './database/database.module';
     DataExportService,
   ],
 })
-export class AppModule { }
+export class AppModule {}

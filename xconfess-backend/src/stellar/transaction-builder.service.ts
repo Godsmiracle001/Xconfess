@@ -7,7 +7,7 @@ import { ITransactionOptions } from './interfaces/stellar-config.interface';
 export class TransactionBuilderService {
   private readonly logger = new Logger(TransactionBuilderService.name);
 
-  constructor(private stellarConfig: StellarConfigService) { }
+  constructor(private stellarConfig: StellarConfigService) {}
 
   /**
    * Build a Stellar transaction with operations
@@ -72,10 +72,7 @@ export class TransactionBuilderService {
   /**
    * Sign transaction with secret key
    */
-  signTransaction(
-    transaction: any,
-    secretKey: string,
-  ): any {
+  signTransaction(transaction: any, secretKey: string): any {
     try {
       const keypair = StellarSDK.Keypair.fromSecret(secretKey);
       transaction.sign(keypair);
@@ -106,9 +103,7 @@ export class TransactionBuilderService {
   /**
    * Submit transaction to network
    */
-  async submitTransaction(
-    transaction: any,
-  ): Promise<any> {
+  async submitTransaction(transaction: any): Promise<any> {
     try {
       const server = this.stellarConfig.getServer();
       const result = await server.submitTransaction(transaction);

@@ -85,7 +85,14 @@ describe('AdminService', () => {
     });
     reportRepository.createQueryBuilder.mockReturnValue(qb);
 
-    const [rows, total] = await service.getReports(undefined, undefined, undefined, undefined, 50, 0);
+    const [rows, total] = await service.getReports(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      50,
+      0,
+    );
     expect(total).toBe(1);
     expect(rows[0].id).toBe('r1');
     expect(qb.getManyAndCount).toHaveBeenCalled();
@@ -93,7 +100,9 @@ describe('AdminService', () => {
 
   it('getReportById throws if missing', async () => {
     reportRepository.findOne.mockResolvedValue(null);
-    await expect(service.getReportById('nope')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getReportById('nope')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('resolveReport updates status and logs audit action', async () => {
@@ -121,10 +130,13 @@ describe('AdminService', () => {
   });
 
   it('resolveReport throws if already resolved', async () => {
-    reportRepository.findOne.mockResolvedValue({ id: 'r1', status: ReportStatus.RESOLVED });
-    await expect(service.resolveReport('r1', 1, null, undefined)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    reportRepository.findOne.mockResolvedValue({
+      id: 'r1',
+      status: ReportStatus.RESOLVED,
+    });
+    await expect(
+      service.resolveReport('r1', 1, null, undefined),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('dismissReport updates status and logs audit action', async () => {
@@ -157,9 +169,16 @@ describe('AdminService', () => {
   });
 
   it('bulkResolveReports resolves pending reports and logs bulk action', async () => {
-    reportRepository.find.mockResolvedValue([{ id: 'a', status: ReportStatus.PENDING }]);
+    reportRepository.find.mockResolvedValue([
+      { id: 'a', status: ReportStatus.PENDING },
+    ]);
     reportRepository.save.mockResolvedValue(undefined);
-    const count = await service.bulkResolveReports(['a'], 1, 'notes', {} as any);
+    const count = await service.bulkResolveReports(
+      ['a'],
+      1,
+      'notes',
+      {} as any,
+    );
     expect(count).toBe(1);
     expect(moderationService.logAction).toHaveBeenCalledWith(
       1,
@@ -174,9 +193,9 @@ describe('AdminService', () => {
 
   it('deleteConfession throws if confession missing', async () => {
     confessionRepository.findOne.mockResolvedValue(null);
-    await expect(service.deleteConfession('c1', 1, null, undefined)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.deleteConfession('c1', 1, null, undefined),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('hide/unhide confession toggles isHidden and logs', async () => {
@@ -217,7 +236,9 @@ describe('AdminService', () => {
     });
     reportRepository.find.mockResolvedValue([]);
     userAnonRepository.find.mockResolvedValue([{ anonymousUserId: 'anon1' }]);
-    const qb = createChainableQB({ getMany: jest.fn().mockResolvedValue([{ id: 'c1', message: 'x' }]) });
+    const qb = createChainableQB({
+      getMany: jest.fn().mockResolvedValue([{ id: 'c1', message: 'x' }]),
+    });
     confessionRepository.createQueryBuilder.mockReturnValue(qb);
 
     const res = await service.getUserHistory(1);
@@ -233,14 +254,28 @@ describe('AdminService', () => {
       .mockResolvedValueOnce(3);
     reportRepository.count.mockResolvedValue(3);
 
-    const qbActive = createChainableQB({ getCount: jest.fn().mockResolvedValue(4) });
+    const qbActive = createChainableQB({
+      getCount: jest.fn().mockResolvedValue(4),
+    });
     userRepository.createQueryBuilder.mockReturnValue(qbActive);
 
-    const qbStatus = createChainableQB({ getRawMany: jest.fn().mockResolvedValue([{ status: 'pending', count: '1' }]) });
-    const qbType = createChainableQB({ getRawMany: jest.fn().mockResolvedValue([{ type: 'spam', count: '1' }]) });
-    reportRepository.createQueryBuilder.mockReturnValueOnce(qbStatus).mockReturnValueOnce(qbType);
+    const qbStatus = createChainableQB({
+      getRawMany: jest
+        .fn()
+        .mockResolvedValue([{ status: 'pending', count: '1' }]),
+    });
+    const qbType = createChainableQB({
+      getRawMany: jest.fn().mockResolvedValue([{ type: 'spam', count: '1' }]),
+    });
+    reportRepository.createQueryBuilder
+      .mockReturnValueOnce(qbStatus)
+      .mockReturnValueOnce(qbType);
 
-    const qbTrend = createChainableQB({ getRawMany: jest.fn().mockResolvedValue([{ date: new Date().toISOString(), count: '2' }]) });
+    const qbTrend = createChainableQB({
+      getRawMany: jest
+        .fn()
+        .mockResolvedValue([{ date: new Date().toISOString(), count: '2' }]),
+    });
     confessionRepository.createQueryBuilder.mockReturnValue(qbTrend);
 
     const res = await service.getAnalytics(undefined, undefined);
@@ -249,4 +284,3 @@ describe('AdminService', () => {
     expect(res.trends.confessionsOverTime).toBeDefined();
   });
 });
-

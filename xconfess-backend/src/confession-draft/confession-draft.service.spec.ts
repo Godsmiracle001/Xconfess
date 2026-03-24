@@ -2,7 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { ConfessionDraftService } from './confession-draft.service';
-import { ConfessionDraft, ConfessionDraftStatus } from './entities/confession-draft.entity';
+import {
+  ConfessionDraft,
+  ConfessionDraftStatus,
+} from './entities/confession-draft.entity';
 import { ConfessionService } from '../confession/confession.service';
 
 describe('ConfessionDraftService', () => {
@@ -29,7 +32,9 @@ describe('ConfessionDraftService', () => {
         {
           provide: DataSource,
           useValue: {
-            transaction: jest.fn(async (cb: any) => cb({ getRepository: () => repo })),
+            transaction: jest.fn(async (cb: any) =>
+              cb({ getRepository: () => repo }),
+            ),
           },
         },
       ],

@@ -1,11 +1,11 @@
-import { Response } from "express";
-import { AuthenticatedRequest } from "../middleware/auth.middleware";
-import { calculateUserStats } from "../services/userStats.service";
+import { Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { calculateUserStats } from '../services/userStats.service';
 
 export const getProfile = (req: AuthenticatedRequest, res: Response) => {
   res.json({
     id: req.user!.id,
-    username: "Anonymous",
+    username: 'Anonymous',
     isAnonymous: true,
     avatarUrl: null,
   });
@@ -13,7 +13,7 @@ export const getProfile = (req: AuthenticatedRequest, res: Response) => {
 
 export const getPublicProfile = (req: AuthenticatedRequest, res: Response) => {
   res.json({
-    username: "Anonymous",
+    username: 'Anonymous',
   });
 };
 
@@ -23,7 +23,7 @@ export const updateProfile = (req: AuthenticatedRequest, res: Response) => {
 
 export const getStats = (req: AuthenticatedRequest, res: Response) => {
   const mockConfessions = [
-    { id: "1", createdAt: new Date(), reactionCount: 120 },
+    { id: '1', createdAt: new Date(), reactionCount: 120 },
   ];
 
   const stats = calculateUserStats(mockConfessions);

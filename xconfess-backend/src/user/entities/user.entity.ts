@@ -72,7 +72,8 @@ export class User {
   @Column({
     name: 'privacy_settings',
     type: 'jsonb',
-    default: () => "'{\"isDiscoverable\": true, \"canReceiveReplies\": true, \"showReactions\": true}'",
+    default: () =>
+      '\'{"isDiscoverable": true, "canReceiveReplies": true, "showReactions": true}\'',
   })
   privacySettings: PrivacySettings;
 

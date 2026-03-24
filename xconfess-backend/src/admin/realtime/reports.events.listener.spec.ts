@@ -25,4 +25,3 @@ describe('ReportsEventsListener', () => {
     expect(gateway.emitNewReport).toHaveBeenNthCalledWith(3, events[2]);
   });
 });
-

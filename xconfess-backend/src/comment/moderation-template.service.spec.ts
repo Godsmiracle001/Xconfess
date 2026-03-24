@@ -1,5 +1,8 @@
 import { ModerationTemplateService } from './moderation-template.service';
-import { ModerationNoteTemplate, TemplateCategory } from './entities/moderation-note-template.entity';
+import {
+  ModerationNoteTemplate,
+  TemplateCategory,
+} from './entities/moderation-note-template.entity';
 import { NotFoundException } from '@nestjs/common';
 
 describe('ModerationTemplateService', () => {
@@ -9,7 +12,9 @@ describe('ModerationTemplateService', () => {
   beforeEach(() => {
     mockRepo = {
       create: jest.fn((dto) => ({ ...dto, id: 1 })),
-      save: jest.fn((entity) => Promise.resolve({ ...entity, id: entity.id || 1 })),
+      save: jest.fn((entity) =>
+        Promise.resolve({ ...entity, id: entity.id || 1 }),
+      ),
       findOne: jest.fn(),
       find: jest.fn(),
       createQueryBuilder: jest.fn(() => ({
@@ -32,7 +37,11 @@ describe('ModerationTemplateService', () => {
         category: TemplateCategory.INFO,
       };
       const result = await service.create(dto, 1);
-      expect(mockRepo.create).toHaveBeenCalledWith({ ...dto, createdById: 1, isActive: true });
+      expect(mockRepo.create).toHaveBeenCalledWith({
+        ...dto,
+        createdById: 1,
+        isActive: true,
+      });
       expect(mockRepo.save).toHaveBeenCalled();
       expect(result.name).toBe('Test Template');
     });
@@ -65,12 +74,18 @@ describe('ModerationTemplateService', () => {
       mockRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await service.findAll();
-      expect(qb.andWhere).toHaveBeenCalledWith('template.isActive = :isActive', { isActive: true });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'template.isActive = :isActive',
+        { isActive: true },
+      );
       expect(result).toEqual(templates);
     });
 
     it('should include inactive templates when includeInactive is true', async () => {
-      const templates = [{ id: 1, name: 'Active' }, { id: 2, name: 'Inactive', isActive: false }];
+      const templates = [
+        { id: 1, name: 'Active' },
+        { id: 2, name: 'Inactive', isActive: false },
+      ];
       const qb: any = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
@@ -107,7 +122,11 @@ describe('ModerationTemplateService', () => {
 
   describe('getTemplateContent', () => {
     it('should return template content when found and active', async () => {
-      mockRepo.findOne.mockResolvedValue({ id: 1, content: 'Template content', isActive: true });
+      mockRepo.findOne.mockResolvedValue({
+        id: 1,
+        content: 'Template content',
+        isActive: true,
+      });
       const result = await service.getTemplateContent(1);
       expect(result).toBe('Template content');
     });

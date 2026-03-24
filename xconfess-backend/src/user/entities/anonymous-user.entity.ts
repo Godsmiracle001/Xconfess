@@ -30,6 +30,6 @@ export class AnonymousUser {
   @OneToMany(() => Reaction, (reaction) => reaction.anonymousUser)
   reactions: Reaction[];
 
-  @OneToMany(() => UserAnonymousUser, link => link.anonymousUser)
+  @OneToMany(() => UserAnonymousUser, (link) => link.anonymousUser)
   userLinks: UserAnonymousUser[];
 }

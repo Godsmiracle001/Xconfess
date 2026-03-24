@@ -13,7 +13,10 @@ import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { UserAnonymousUser } from '../user/entities/user-anonymous-link.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
-import { OutboxEvent, OutboxStatus } from '../common/entities/outbox-event.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../common/entities/outbox-event.entity';
 import {
   MessageRepository,
   ThreadViewerRole,
@@ -33,14 +36,15 @@ export class MessagesService {
     private readonly customMessageRepository: MessageRepository,
     private readonly anonymousUserService: AnonymousUserService,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
   private resolveThreadViewerRole(
     confessionAuthorId: string | undefined,
     senderId: string,
     userAnonIds: string[],
   ): ThreadViewerRole | null {
-    const isAuthor = !!confessionAuthorId && userAnonIds.includes(confessionAuthorId);
+    const isAuthor =
+      !!confessionAuthorId && userAnonIds.includes(confessionAuthorId);
     const isSender = userAnonIds.includes(senderId);
 
     if (!isAuthor && !isSender) {
@@ -59,7 +63,11 @@ export class MessagesService {
   ): Promise<Message> {
     const confession = await this.confessionRepository.findOne({
       where: { id: createMessageDto.confession_id },
-      relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+      ],
     });
     if (!confession) throw new NotFoundException('Confession not found');
 
@@ -136,7 +144,11 @@ export class MessagesService {
       throw new ForbiddenException('You are not part of this conversation');
     }
 
-    await this.customMessageRepository.markThreadRead(confessionId, senderId, viewerRole);
+    await this.customMessageRepository.markThreadRead(
+      confessionId,
+      senderId,
+      viewerRole,
+    );
 
     return this.messageRepository.find({
       where: {
@@ -223,7 +235,13 @@ export class MessagesService {
     }
     const message = await this.messageRepository.findOne({
       where: { id: dto.message_id },
-      relations: ['confession', 'confession.anonymousUser', 'sender', 'sender.userLinks', 'sender.userLinks.user'],
+      relations: [
+        'confession',
+        'confession.anonymousUser',
+        'sender',
+        'sender.userLinks',
+        'sender.userLinks.user',
+      ],
     });
     if (!message) throw new NotFoundException('Message not found');
     if (message.hasReply) throw new ForbiddenException('Already replied');

@@ -6,7 +6,11 @@ describe('EncryptionService', () => {
   let service: EncryptionService;
 
   const mockConfigService = {
-    get: jest.fn().mockReturnValue('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+    get: jest
+      .fn()
+      .mockReturnValue(
+        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      ),
   };
 
   beforeEach(async () => {

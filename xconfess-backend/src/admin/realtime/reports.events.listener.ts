@@ -11,4 +11,3 @@ export class ReportsEventsListener {
     this.adminGateway.emitNewReport(payload);
   }
 }
-

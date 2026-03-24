@@ -24,16 +24,13 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
-  ) { }
+  ) {}
 
   async handleConnection(@ConnectedSocket() client: Socket) {
     try {
       const token =
         (client.handshake.auth as any)?.token ||
-        (client.handshake.headers.authorization as string | undefined)?.replace(
-          /^Bearer\s+/i,
-          '',
-        );
+        client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '');
 
       if (!token) {
         client.disconnect(true);
@@ -64,11 +61,12 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleDisconnect(@ConnectedSocket() client: Socket) {
-    this.logger.log(`Admin disconnected: ${client.data?.userId ?? 'unknown'} (${client.id})`);
+    this.logger.log(
+      `Admin disconnected: ${client.data?.userId ?? 'unknown'} (${client.id})`,
+    );
   }
 
   emitNewReport(payload: any) {
     this.server.emit('new-report', payload);
   }
 }
-

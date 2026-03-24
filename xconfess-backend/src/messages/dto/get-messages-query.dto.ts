@@ -16,7 +16,9 @@ export enum SortOrder {
  * Pagination bounds are inherited from PaginationDto.
  */
 export class GetMessagesQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ description: 'Filter to a specific conversation UUID.' })
+  @ApiPropertyOptional({
+    description: 'Filter to a specific conversation UUID.',
+  })
   @IsOptional()
   @IsUUID('4', { message: 'conversationId must be a valid UUID.' })
   conversationId?: string;

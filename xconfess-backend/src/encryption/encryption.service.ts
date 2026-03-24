@@ -54,7 +54,10 @@ export class EncryptionService {
     return decipher.update(encrypted, 'hex', 'utf8') + decipher.final('utf8');
   }
 
-  encryptFields<T extends Record<string, unknown>>(obj: T, fields: string[]): T {
+  encryptFields<T extends Record<string, unknown>>(
+    obj: T,
+    fields: string[],
+  ): T {
     const result = { ...obj };
 
     for (const field of fields) {
@@ -67,7 +70,10 @@ export class EncryptionService {
     return result;
   }
 
-  decryptFields<T extends Record<string, unknown>>(obj: T, fields: string[]): T {
+  decryptFields<T extends Record<string, unknown>>(
+    obj: T,
+    fields: string[],
+  ): T {
     const result = { ...obj };
 
     for (const field of fields) {

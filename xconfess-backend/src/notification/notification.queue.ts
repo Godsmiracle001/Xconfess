@@ -10,9 +10,7 @@ import { Comment } from '../comment/entities/comment.entity';
 import { AppLogger } from '../logger/logger.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
-import {
-  DlqRetentionConfig,
-} from '../config/dlq-retention.config';
+import { DlqRetentionConfig } from '../config/dlq-retention.config';
 import { NotificationCategory, User } from '../user/entities/user.entity';
 import { UserService } from '../user/user.service';
 import { UserIdMasker } from '../utils/mask-user-id';
@@ -97,7 +95,10 @@ export class NotificationQueue implements OnModuleDestroy {
     @Inject('DLQ_RETENTION_CONFIG')
     dlqConfig: DlqRetentionConfig,
   ) {
-    this.dedupeTtl = this.configService.get<number>('rateLimit.notification.dedupeTtlSeconds', 60);
+    this.dedupeTtl = this.configService.get<number>(
+      'rateLimit.notification.dedupeTtlSeconds',
+      60,
+    );
     this.dlqConfig = dlqConfig;
     this.initializeWorkers();
     // Schedule periodic cleanup (every 6 hours)
@@ -335,7 +336,13 @@ export class NotificationQueue implements OnModuleDestroy {
       const idempotencyFields: IdempotencyFields = {
         eventType: type,
         recipientEmail: payload.recipientEmail,
-        entityId: String(payload.commentId || payload.messageId || payload.reactionId || payload.reportId || ''),
+        entityId: String(
+          payload.commentId ||
+            payload.messageId ||
+            payload.reactionId ||
+            payload.reportId ||
+            '',
+        ),
       };
 
       const idempotencyKey = this.buildIdempotencyKey(idempotencyFields);
@@ -381,7 +388,10 @@ export class NotificationQueue implements OnModuleDestroy {
           templateKey = 'comment_notification';
           templateData = {
             confessionId: payload.confessionId,
-            commentPreview: payload.comment?.content || payload.commentPreview || 'New comment',
+            commentPreview:
+              payload.comment?.content ||
+              payload.commentPreview ||
+              'New comment',
           };
           break;
         case 'message-notification':
@@ -536,17 +546,37 @@ export class NotificationQueue implements OnModuleDestroy {
         {
           name: 'notification_send_success_total',
           type: 'counter',
-          labels: ['channel', 'queue', 'template_key', 'template_version', 'template_track'],
+          labels: [
+            'channel',
+            'queue',
+            'template_key',
+            'template_version',
+            'template_track',
+          ],
         },
         {
           name: 'notification_send_failure_total',
           type: 'counter',
-          labels: ['channel', 'queue', 'outcome', 'template_key', 'template_version', 'template_track'],
+          labels: [
+            'channel',
+            'queue',
+            'outcome',
+            'template_key',
+            'template_version',
+            'template_track',
+          ],
         },
         {
           name: 'notification_retry_attempt_total',
           type: 'counter',
-          labels: ['channel', 'queue', 'attempt', 'template_key', 'template_version', 'template_track'],
+          labels: [
+            'channel',
+            'queue',
+            'attempt',
+            'template_key',
+            'template_version',
+            'template_track',
+          ],
         },
         {
           name: 'notification_dedupe_suppressed_total',
@@ -584,15 +614,23 @@ export class NotificationQueue implements OnModuleDestroy {
 
     const filteredJobs = failedJobs.filter((job) => {
       const failedAt = job.finishedOn ? new Date(job.finishedOn) : null;
-      const failedAfter = filter?.failedAfter ? new Date(filter.failedAfter) : null;
-      const failedBefore = filter?.failedBefore ? new Date(filter.failedBefore) : null;
+      const failedAfter = filter?.failedAfter
+        ? new Date(filter.failedAfter)
+        : null;
+      const failedBefore = filter?.failedBefore
+        ? new Date(filter.failedBefore)
+        : null;
       const search = filter?.search?.toLowerCase()?.trim();
       const serializedPayload = JSON.stringify(job.data ?? {}).toLowerCase();
       const failedReason = (job.failedReason ?? '').toLowerCase();
 
       if (failedAfter && failedAt && failedAt < failedAfter) return false;
       if (failedBefore && failedAt && failedAt > failedBefore) return false;
-      if (search && !serializedPayload.includes(search) && !failedReason.includes(search))
+      if (
+        search &&
+        !serializedPayload.includes(search) &&
+        !failedReason.includes(search)
+      )
         return false;
 
       return true;
@@ -667,7 +705,11 @@ export class NotificationQueue implements OnModuleDestroy {
 
       if (!queuedJob) {
         result.failed += 1;
-        result.details.push({ id: job.id, status: 'failed', reason: 'Job not found' });
+        result.details.push({
+          id: job.id,
+          status: 'failed',
+          reason: 'Job not found',
+        });
         continue;
       }
 
@@ -679,7 +721,11 @@ export class NotificationQueue implements OnModuleDestroy {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown replay error';
         result.failed += 1;
-        result.details.push({ id: job.id, status: 'failed', reason: errorMessage });
+        result.details.push({
+          id: job.id,
+          status: 'failed',
+          reason: errorMessage,
+        });
       }
     }
 
@@ -745,7 +791,7 @@ export class NotificationQueue implements OnModuleDestroy {
       failedReason: job.failedReason ?? null,
       failedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
       createdAt: job.timestamp ? new Date(job.timestamp).toISOString() : null,
-      channel: this.getChannel(job.data as CommentNotificationPayload),
+      channel: this.getChannel(job.data),
       recipientEmail: job.data?.recipientEmail,
     };
   }
@@ -773,6 +819,9 @@ export class NotificationQueue implements OnModuleDestroy {
     await this.queue.close();
     await this.worker.close();
     await this.redisClient.quit();
-    this.appLogger.log('NotificationQueue shutdown complete', 'NotificationQueue');
+    this.appLogger.log(
+      'NotificationQueue shutdown complete',
+      'NotificationQueue',
+    );
   }
 }

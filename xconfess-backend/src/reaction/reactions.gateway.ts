@@ -21,7 +21,8 @@ const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
   transports: ['websocket', 'polling'],
 })
 export class ReactionsGateway
-  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -35,11 +36,14 @@ export class ReactionsGateway
   // Track connections per IP for basic DDoS prevention
   private connectionsPerIP = new Map<string, number>();
 
-  constructor(private configService: ConfigService) { }
+  constructor(private configService: ConfigService) {}
 
   afterInit(server: Server) {
     // Configure CORS dynamically from ConfigService
-    const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3000');
+    const frontendUrl = this.configService.get<string>(
+      'app.frontendUrl',
+      'http://localhost:3000',
+    );
     server.engine.opts.cors = {
       origin: frontendUrl,
       credentials: true,

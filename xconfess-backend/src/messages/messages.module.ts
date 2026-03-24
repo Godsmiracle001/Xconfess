@@ -14,7 +14,14 @@ import { MessageRepository } from './repository/message.repository';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Message, User, AnonymousConfession, UserAnonymousUser, AnonymousUser, OutboxEvent]),
+    TypeOrmModule.forFeature([
+      Message,
+      User,
+      AnonymousConfession,
+      UserAnonymousUser,
+      AnonymousUser,
+      OutboxEvent,
+    ]),
     forwardRef(() => NotificationModule),
     UserModule,
   ],
@@ -22,4 +29,4 @@ import { MessageRepository } from './repository/message.repository';
   controllers: [MessagesController],
   exports: [MessagesService],
 })
-export class MessagesModule { }
+export class MessagesModule {}

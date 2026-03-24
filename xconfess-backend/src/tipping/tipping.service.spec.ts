@@ -1,6 +1,10 @@
 import { TippingService } from './tipping.service';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 
 describe('TippingService', () => {
   let service: TippingService;
@@ -13,7 +17,9 @@ describe('TippingService', () => {
       findOne: jest.fn(),
       find: jest.fn(),
       create: jest.fn((dto) => ({ ...dto, id: 'tip-123' })),
-      save: jest.fn((tip) => Promise.resolve({ ...tip, id: tip.id || 'tip-123' })),
+      save: jest.fn((tip) =>
+        Promise.resolve({ ...tip, id: tip.id || 'tip-123' }),
+      ),
     };
 
     mockConfessionRepo = {
@@ -22,7 +28,9 @@ describe('TippingService', () => {
 
     mockStellarService = {
       verifyTransaction: jest.fn(),
-      getHorizonTxUrl: jest.fn().mockReturnValue('https://horizon/testnet/txs/tx123'),
+      getHorizonTxUrl: jest
+        .fn()
+        .mockReturnValue('https://horizon/testnet/txs/tx123'),
     };
 
     service = new TippingService(
@@ -43,16 +51,19 @@ describe('TippingService', () => {
 
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          _embedded: {
-            operations: [{
-              type: 'payment',
-              asset_type: 'native',
-              amount: '1.0',
-              from: 'GABC123',
-            }],
-          },
-        }),
+        json: () =>
+          Promise.resolve({
+            _embedded: {
+              operations: [
+                {
+                  type: 'payment',
+                  asset_type: 'native',
+                  amount: '1.0',
+                  from: 'GABC123',
+                },
+              ],
+            },
+          }),
       });
       global.fetch = mockFetch;
 
@@ -96,17 +107,17 @@ describe('TippingService', () => {
       mockConfessionRepo.findOne.mockResolvedValue({ id: confessionId });
       mockTipRepo.findOne.mockResolvedValue(existingTip);
 
-      await expect(service.verifyAndRecordTip(confessionId, mockDto))
-        .rejects
-        .toThrow(ConflictException);
+      await expect(
+        service.verifyAndRecordTip(confessionId, mockDto),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should throw NotFoundException for non-existent confession', async () => {
       mockConfessionRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.verifyAndRecordTip(confessionId, mockDto))
-        .rejects
-        .toThrow(NotFoundException);
+      await expect(
+        service.verifyAndRecordTip(confessionId, mockDto),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should reject invalid transaction', async () => {
@@ -114,9 +125,9 @@ describe('TippingService', () => {
       mockTipRepo.findOne.mockResolvedValue(null);
       mockStellarService.verifyTransaction.mockResolvedValue(false);
 
-      await expect(service.verifyAndRecordTip(confessionId, mockDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(
+        service.verifyAndRecordTip(confessionId, mockDto),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject transaction below minimum amount', async () => {
@@ -126,22 +137,25 @@ describe('TippingService', () => {
 
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          _embedded: {
-            operations: [{
-              type: 'payment',
-              asset_type: 'native',
-              amount: '0.01', // Below minimum
-              from: 'GABC123',
-            }],
-          },
-        }),
+        json: () =>
+          Promise.resolve({
+            _embedded: {
+              operations: [
+                {
+                  type: 'payment',
+                  asset_type: 'native',
+                  amount: '0.01', // Below minimum
+                  from: 'GABC123',
+                },
+              ],
+            },
+          }),
       });
       global.fetch = mockFetch;
 
-      await expect(service.verifyAndRecordTip(confessionId, mockDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(
+        service.verifyAndRecordTip(confessionId, mockDto),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should reject transaction without XLM payment', async () => {
@@ -151,17 +165,18 @@ describe('TippingService', () => {
 
       const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({
-          _embedded: {
-            operations: [], // No payment operations
-          },
-        }),
+        json: () =>
+          Promise.resolve({
+            _embedded: {
+              operations: [], // No payment operations
+            },
+          }),
       });
       global.fetch = mockFetch;
 
-      await expect(service.verifyAndRecordTip(confessionId, mockDto))
-        .rejects
-        .toThrow(BadRequestException);
+      await expect(
+        service.verifyAndRecordTip(confessionId, mockDto),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

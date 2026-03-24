@@ -22,4 +22,4 @@ import { StellarController } from './stellar.controller';
     ContractService,
   ],
 })
-export class StellarModule { }
+export class StellarModule {}

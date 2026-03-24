@@ -29,12 +29,12 @@ export interface NotificationRecipient {
 
 /**
  * Centralized service for resolving recipient email addresses for notifications.
- * 
+ *
  * Handles:
  * - Decrypting email from User entity (encrypted email model)
  * - Gracefully handling missing email (AnonymousUser or unverified users)
  * - Providing structured logs for debugging notification failures
- * 
+ *
  * This service addresses the issue where notification send paths expect direct
  * user email fields that may not exist due to the encrypted email model.
  */
@@ -49,12 +49,12 @@ export class RecipientResolver {
 
   /**
    * Resolve the email address for a user ID.
-   * 
+   *
    * This method:
    * 1. Fetches the user from the database
    * 2. Decrypts the encrypted email field
    * 3. Returns a structured result with proper logging context
-   * 
+   *
    * @param userId - The ID of the user to resolve email for
    * @returns NotificationRecipient with the resolved email or reason for failure
    */
@@ -79,12 +79,12 @@ export class RecipientResolver {
           userId,
           reason: 'USER_NOT_FOUND',
         };
-        
+
         this.logger.warn(
           `Cannot resolve recipient: User not found for ID ${userId}`,
           { ...logContext, result },
         );
-        
+
         return result;
       }
 
@@ -96,12 +96,12 @@ export class RecipientResolver {
           userId,
           reason: 'MISSING_ENCRYPTED_EMAIL',
         };
-        
+
         this.logger.warn(
           `Cannot resolve recipient: User ${userId} has no encrypted email data`,
           { ...logContext, hasEmailEncrypted: !!user.emailEncrypted, result },
         );
-        
+
         return result;
       }
 
@@ -121,12 +121,12 @@ export class RecipientResolver {
             userId,
             reason: 'INVALID_DECRYPTED_EMAIL',
           };
-          
-          this.logger.warn(
-            `Decrypted email is invalid for user ${userId}`,
-            { ...logContext, result },
-          );
-          
+
+          this.logger.warn(`Decrypted email is invalid for user ${userId}`, {
+            ...logContext,
+            result,
+          });
+
           return result;
         }
 
@@ -143,10 +143,11 @@ export class RecipientResolver {
 
         return result;
       } catch (decryptError) {
-        const errorMessage = decryptError instanceof Error 
-          ? decryptError.message 
-          : 'Unknown decryption error';
-        
+        const errorMessage =
+          decryptError instanceof Error
+            ? decryptError.message
+            : 'Unknown decryption error';
+
         const result: NotificationRecipient = {
           email: null,
           canNotify: false,
@@ -162,8 +163,9 @@ export class RecipientResolver {
         return result;
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
       const result: NotificationRecipient = {
         email: null,
         canNotify: false,
@@ -182,13 +184,15 @@ export class RecipientResolver {
 
   /**
    * Resolve multiple recipients at once.
-   * 
+   *
    * @param userIds - Array of user IDs to resolve
    * @returns Map of userId to NotificationRecipient
    */
-  async resolveRecipients(userIds: number[]): Promise<Map<number, NotificationRecipient>> {
+  async resolveRecipients(
+    userIds: number[],
+  ): Promise<Map<number, NotificationRecipient>> {
     const results = new Map<number, NotificationRecipient>();
-    
+
     await Promise.all(
       userIds.map(async (userId) => {
         const recipient = await this.resolveRecipient(userId);
@@ -206,7 +210,7 @@ export class RecipientResolver {
     if (!email || typeof email !== 'string') {
       return false;
     }
-    
+
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email.trim());
@@ -220,11 +224,10 @@ export class RecipientResolver {
     if (!domain) {
       return '***';
     }
-    
-    const maskedLocal = localPart.length > 3 
-      ? `${localPart.substring(0, 3)}***` 
-      : '***';
-    
+
+    const maskedLocal =
+      localPart.length > 3 ? `${localPart.substring(0, 3)}***` : '***';
+
     return `${maskedLocal}@${domain}`;
   }
 }

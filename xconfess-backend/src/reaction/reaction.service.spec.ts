@@ -8,7 +8,9 @@ import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 
 // ─── Factories ───────────────────────────────────────────────────────────────
 
-const makeConfession = (overrides: Partial<AnonymousConfession> = {}): AnonymousConfession =>
+const makeConfession = (
+  overrides: Partial<AnonymousConfession> = {},
+): AnonymousConfession =>
   ({
     id: 'conf-uuid-1',
     message: 'Test confession',
@@ -19,7 +21,9 @@ const makeConfession = (overrides: Partial<AnonymousConfession> = {}): Anonymous
     ...overrides,
   }) as AnonymousConfession;
 
-const makeAnonymousUser = (overrides: Partial<AnonymousUser> = {}): AnonymousUser =>
+const makeAnonymousUser = (
+  overrides: Partial<AnonymousUser> = {},
+): AnonymousUser =>
   ({
     id: 'anon-uuid-1',
     ...overrides,
@@ -57,7 +61,10 @@ describe('ReactionService', () => {
       providers: [
         ReactionService,
         { provide: getRepositoryToken(Reaction), useFactory: repoMock },
-        { provide: getRepositoryToken(AnonymousConfession), useFactory: repoMock },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useFactory: repoMock,
+        },
         { provide: getRepositoryToken(AnonymousUser), useFactory: repoMock },
       ],
     }).compile();
@@ -146,8 +153,12 @@ describe('ReactionService', () => {
     it('throws NotFoundException when confession does not exist', async () => {
       confessionRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.createReaction(dto)).rejects.toThrow(NotFoundException);
-      await expect(service.createReaction(dto)).rejects.toThrow('Confession not found');
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        'Confession not found',
+      );
 
       // Must not proceed to user/reaction lookup
       expect(anonymousUserRepo.findOne).not.toHaveBeenCalled();
@@ -158,8 +169,12 @@ describe('ReactionService', () => {
       confessionRepo.findOne.mockResolvedValue(makeConfession());
       anonymousUserRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.createReaction(dto)).rejects.toThrow(NotFoundException);
-      await expect(service.createReaction(dto)).rejects.toThrow('Anonymous user not found');
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        'Anonymous user not found',
+      );
 
       expect(reactionRepo.create).not.toHaveBeenCalled();
     });

@@ -224,7 +224,11 @@ export class StellarService {
   /**
    * Get contract configuration info
    */
-  getContractInfo(): { contractId: string; network: string; horizonUrl: string } {
+  getContractInfo(): {
+    contractId: string;
+    network: string;
+    horizonUrl: string;
+  } {
     return {
       contractId: this.contractId,
       network: this.network,

@@ -1,11 +1,17 @@
-import { Processor, Process, OnQueueFailed, OnQueueCompleted, InjectQueue } from '@nestjs/bull';
+import {
+  Processor,
+  Process,
+  OnQueueFailed,
+  OnQueueCompleted,
+  InjectQueue,
+} from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bull';
 import { EmailNotificationService } from './services/email-notification.service';
 import { NotificationType } from './entities/notification.entity';
 
 export const NOTIFICATION_QUEUE = 'notifications';
-export const NOTIFICATION_DLQ   = 'notifications-dlq';
+export const NOTIFICATION_DLQ = 'notifications-dlq';
 
 export interface NotificationJobData {
   userId: string;
@@ -34,7 +40,8 @@ export class NotificationProcessor {
 
   constructor(
     private readonly emailNotificationService: EmailNotificationService,
-    @InjectQueue(NOTIFICATION_DLQ) private readonly dlq: Queue<NotificationJobData>,
+    @InjectQueue(NOTIFICATION_DLQ)
+    private readonly dlq: Queue<NotificationJobData>,
   ) {}
 
   // ------------------------------------------------------------------ process
@@ -42,7 +49,7 @@ export class NotificationProcessor {
   async handleSendNotification(job: Job<NotificationJobData>): Promise<void> {
     this.logger.log(
       `Processing notification job ${job.id} (attempt ${job.attemptsMade + 1})` +
-      ` → userId: ${job.data.userId}`,
+        ` → userId: ${job.data.userId}`,
     );
 
     await this.emailNotificationService.sendEmail(job.data);
@@ -76,9 +83,9 @@ export class NotificationProcessor {
           ...job.data,
           _meta: {
             originalJobId: String(job.id),
-            failedAt:      new Date().toISOString(),
-            attemptsMade:  job.attemptsMade,
-            lastError:     error.message,
+            failedAt: new Date().toISOString(),
+            attemptsMade: job.attemptsMade,
+            lastError: error.message,
           },
         },
         {

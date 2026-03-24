@@ -10,11 +10,7 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Comment,
-      ModerationComment,
-      OutboxEvent,
-    ]),
+    TypeOrmModule.forFeature([Comment, ModerationComment, OutboxEvent]),
     NotificationModule,
   ],
   controllers: [CommentController],
@@ -23,8 +19,6 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
 })
 export class CommentModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(AnonymousContextMiddleware)
-      .forRoutes('comments');
+    consumer.apply(AnonymousContextMiddleware).forRoutes('comments');
   }
 }

@@ -288,7 +288,9 @@ describe('NotificationQueue', () => {
         isCanary: true,
       };
 
-      emailServiceMock.sendCommentNotification.mockRejectedValue(validationError);
+      emailServiceMock.sendCommentNotification.mockRejectedValue(
+        validationError,
+      );
 
       await expect(
         (service as any).processCommentNotification(makePayload()),

@@ -81,7 +81,11 @@ describe('AdminController', () => {
       mockAdminService.resolveReport.mockResolvedValue(mockReport);
 
       const req = { user: { userId: '1' } } as any;
-      const result = await controller.resolveReport('1', { resolutionNotes: 'test' }, req);
+      const result = await controller.resolveReport(
+        '1',
+        { resolutionNotes: 'test' },
+        req,
+      );
 
       expect(adminService.resolveReport).toHaveBeenCalledWith(
         '1',
@@ -94,10 +98,18 @@ describe('AdminController', () => {
 
   describe('dismissReport', () => {
     it('should dismiss a report', async () => {
-      mockAdminService.dismissReport.mockResolvedValue({ id: '1', status: 'dismissed' });
+      mockAdminService.dismissReport.mockResolvedValue({
+        id: '1',
+        status: 'dismissed',
+      });
       const req = { user: { userId: '2' } } as any;
       await controller.dismissReport('1', { resolutionNotes: 'nope' }, req);
-      expect(adminService.dismissReport).toHaveBeenCalledWith('1', 2, 'nope', req);
+      expect(adminService.dismissReport).toHaveBeenCalledWith(
+        '1',
+        2,
+        'nope',
+        req,
+      );
     });
   });
 
@@ -105,7 +117,10 @@ describe('AdminController', () => {
     it('should bulk resolve reports', async () => {
       mockAdminService.bulkResolveReports.mockResolvedValue(3);
       const req = { user: { userId: '1' } } as any;
-      const res = await controller.bulkResolveReports({ reportIds: ['a', 'b', 'c'] } as any, req);
+      const res = await controller.bulkResolveReports(
+        { reportIds: ['a', 'b', 'c'] } as any,
+        req,
+      );
       expect(res).toEqual({ resolved: 3 });
     });
   });
@@ -114,13 +129,23 @@ describe('AdminController', () => {
     it('deleteConfession calls service', async () => {
       mockAdminService.deleteConfession.mockResolvedValue(undefined);
       const req = { user: { userId: '1' } } as any;
-      const res = await controller.deleteConfession('c1', { reason: 'bad' }, req);
+      const res = await controller.deleteConfession(
+        'c1',
+        { reason: 'bad' },
+        req,
+      );
       expect(res.message).toContain('deleted');
     });
 
     it('hide/unhide call service', async () => {
-      mockAdminService.hideConfession.mockResolvedValue({ id: 'c1', isHidden: true });
-      mockAdminService.unhideConfession.mockResolvedValue({ id: 'c1', isHidden: false });
+      mockAdminService.hideConfession.mockResolvedValue({
+        id: 'c1',
+        isHidden: true,
+      });
+      mockAdminService.unhideConfession.mockResolvedValue({
+        id: 'c1',
+        isHidden: false,
+      });
       const req = { user: { userId: '1' } } as any;
       await controller.hideConfession('c1', { reason: 'x' }, req);
       await controller.unhideConfession('c1', req);

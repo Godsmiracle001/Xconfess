@@ -89,17 +89,25 @@ describe('MessagesService', () => {
 
   describe('findForConfessionThread', () => {
     it('should return messages if user is author', async () => {
-      const confession = { 
-        id: mockConfessionId, 
-        anonymousUser: { id: mockAnonId } 
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: mockAnonId },
       };
-      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(confession as any);
-      jest.spyOn(userAnonRepo, 'find').mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
-      
+      jest
+        .spyOn(confessionRepo, 'findOne')
+        .mockResolvedValue(confession as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
+
       const mockMessages = [{ id: 1, content: 'test' }];
       jest.spyOn(messageRepo, 'find').mockResolvedValue(mockMessages as any);
 
-      const result = await service.findForConfessionThread(mockConfessionId, mockSenderId, mockUser);
+      const result = await service.findForConfessionThread(
+        mockConfessionId,
+        mockSenderId,
+        mockUser,
+      );
       expect(result).toEqual(mockMessages);
       expect(customMessageRepository.markThreadRead).toHaveBeenCalledWith(
         mockConfessionId,
@@ -107,23 +115,34 @@ describe('MessagesService', () => {
         'AUTHOR',
       );
       expect(messageRepo.find).toHaveBeenCalledWith({
-        where: { confession: { id: mockConfessionId }, sender: { id: mockSenderId } },
+        where: {
+          confession: { id: mockConfessionId },
+          sender: { id: mockSenderId },
+        },
         order: { createdAt: 'ASC' },
       });
     });
 
     it('should return messages if user is sender', async () => {
-      const confession = { 
-        id: mockConfessionId, 
-        anonymousUser: { id: 'other-anon' } 
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: 'other-anon' },
       };
-      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(confession as any);
-      jest.spyOn(userAnonRepo, 'find').mockResolvedValue([{ anonymousUserId: mockSenderId }] as any);
-      
+      jest
+        .spyOn(confessionRepo, 'findOne')
+        .mockResolvedValue(confession as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: mockSenderId }] as any);
+
       const mockMessages = [{ id: 1, content: 'test' }];
       jest.spyOn(messageRepo, 'find').mockResolvedValue(mockMessages as any);
 
-      const result = await service.findForConfessionThread(mockConfessionId, mockSenderId, mockUser);
+      const result = await service.findForConfessionThread(
+        mockConfessionId,
+        mockSenderId,
+        mockUser,
+      );
       expect(result).toEqual(mockMessages);
       expect(customMessageRepository.markThreadRead).toHaveBeenCalledWith(
         mockConfessionId,
@@ -133,15 +152,24 @@ describe('MessagesService', () => {
     });
 
     it('should throw ForbiddenException if user is neither author nor sender', async () => {
-      const confession = { 
-        id: mockConfessionId, 
-        anonymousUser: { id: 'other-anon' } 
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: 'other-anon' },
       };
-      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(confession as any);
-      jest.spyOn(userAnonRepo, 'find').mockResolvedValue([{ anonymousUserId: 'unrelated-anon' }] as any);
+      jest
+        .spyOn(confessionRepo, 'findOne')
+        .mockResolvedValue(confession as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: 'unrelated-anon' }] as any);
 
-      await expect(service.findForConfessionThread(mockConfessionId, mockSenderId, mockUser))
-        .rejects.toThrow(ForbiddenException);
+      await expect(
+        service.findForConfessionThread(
+          mockConfessionId,
+          mockSenderId,
+          mockUser,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -153,8 +181,12 @@ describe('MessagesService', () => {
         confession: { id: 'c1', anonymousUser: { id: mockAnonId } },
       } as any;
       jest.spyOn(messageRepo, 'findOne').mockResolvedValue(message);
-      jest.spyOn(userAnonRepo, 'find').mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
-      const mockSave = jest.fn().mockImplementation((m) => Promise.resolve({ ...m }));
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
+      const mockSave = jest
+        .fn()
+        .mockImplementation((m) => Promise.resolve({ ...m }));
       const mockManager = { save: mockSave };
       jest
         .spyOn(messageRepo.manager as any, 'transaction')
@@ -173,17 +205,21 @@ describe('MessagesService', () => {
         confession: { id: 'c1', anonymousUser: { id: 'other-anon' } },
       } as any;
       jest.spyOn(messageRepo, 'findOne').mockResolvedValue(message);
-      jest.spyOn(userAnonRepo, 'find').mockResolvedValue([{ anonymousUserId: 'unrelated-anon' }] as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: 'unrelated-anon' }] as any);
 
-      await expect(service.reply({ message_id: 1, reply: 'Reply' }, mockUser))
-        .rejects.toThrow(ForbiddenException);
+      await expect(
+        service.reply({ message_id: 1, reply: 'Reply' }, mockUser),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw NotFoundException when message does not exist', async () => {
       jest.spyOn(messageRepo, 'findOne').mockResolvedValue(null);
 
-      await expect(service.reply({ message_id: 999, reply: 'Reply' }, mockUser))
-        .rejects.toThrow(NotFoundException);
+      await expect(
+        service.reply({ message_id: 999, reply: 'Reply' }, mockUser),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException when already replied', async () => {
@@ -194,24 +230,35 @@ describe('MessagesService', () => {
       } as any;
       jest.spyOn(messageRepo, 'findOne').mockResolvedValue(message);
 
-      await expect(service.reply({ message_id: 1, reply: 'Reply' }, mockUser))
-        .rejects.toThrow(ForbiddenException);
+      await expect(
+        service.reply({ message_id: 1, reply: 'Reply' }, mockUser),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('findAllThreadsForUser', () => {
     it('should return grouped threads', async () => {
-      jest.spyOn(userAnonRepo, 'find').mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
-      
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
+
       const mockMessages = [
         {
-          confession: { id: 'c1', message: 'Confession 1', anonymousUser: { id: 'author1' } },
+          confession: {
+            id: 'c1',
+            message: 'Confession 1',
+            anonymousUser: { id: 'author1' },
+          },
           sender: { id: 's1' },
           content: 'msg1',
           createdAt: new Date(),
         },
         {
-          confession: { id: 'c1', message: 'Confession 1', anonymousUser: { id: 'author1' } },
+          confession: {
+            id: 'c1',
+            message: 'Confession 1',
+            anonymousUser: { id: 'author1' },
+          },
           sender: { id: 's1' },
           content: 'msg2',
           createdAt: new Date(Date.now() - 1000),

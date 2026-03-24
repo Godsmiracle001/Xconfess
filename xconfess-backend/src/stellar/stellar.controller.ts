@@ -11,7 +11,7 @@ export class StellarController {
   constructor(
     private stellarService: StellarService,
     private contractService: ContractService,
-  ) { }
+  ) {}
 
   @Get('config')
   @ApiOperation({ summary: 'Get Stellar network configuration' })

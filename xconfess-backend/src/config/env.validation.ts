@@ -46,7 +46,8 @@ export const envValidationSchema = Joi.object({
 
   // ── Encryption ────────────────────────────────────────────────────────
   CONFESSION_AES_KEY: Joi.string().length(32).optional().messages({
-    'string.length': 'CONFESSION_AES_KEY must be exactly 32 characters (AES-256).',
+    'string.length':
+      'CONFESSION_AES_KEY must be exactly 32 characters (AES-256).',
   }),
 
   // ── Stellar ───────────────────────────────────────────────────────────
@@ -82,7 +83,9 @@ export const envValidationSchema = Joi.object({
 
   // ── Email templates / SLO ────────────────────────────────────────────
   EMAIL_WELCOME_CANARY_WEIGHT: Joi.number().min(0).max(100).default(0),
-  EMAIL_ROLLOUT_KILLSWITCH: Joi.string().valid('true', 'false').default('false'),
+  EMAIL_ROLLOUT_KILLSWITCH: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
   EMAIL_TEMPLATE_SLO_WINDOW_MINUTES: Joi.number().default(15),
   EMAIL_TEMPLATE_SLO_ACTIVE_MAX_ERROR_RATE_PERCENT: Joi.number().default(5),
   EMAIL_TEMPLATE_SLO_ACTIVE_MAX_P95_LATENCY_MS: Joi.number().default(1200),

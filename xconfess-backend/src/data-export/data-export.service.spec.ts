@@ -62,7 +62,11 @@ describe('DataExportService', () => {
   });
 
   it('creates export request and emits request-created audit entry', async () => {
-    const created = { id: 'req-1', userId: '42', status: 'PENDING' } as ExportRequest;
+    const created = {
+      id: 'req-1',
+      userId: '42',
+      status: 'PENDING',
+    } as ExportRequest;
 
     mockExportRepository.findOne.mockResolvedValue(null);
     mockExportRepository.create.mockReturnValue(created);
@@ -108,15 +112,17 @@ describe('DataExportService', () => {
 
     try {
       mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
-      mockConfigService.get.mockImplementation((key: string, fallback: string) => {
-        if (key === 'app.appSecret') {
-          return 'test-secret';
-        }
-        if (key === 'app.backendUrl') {
-          return 'https://backend.example.com';
-        }
-        return fallback;
-      });
+      mockConfigService.get.mockImplementation(
+        (key: string, fallback: string) => {
+          if (key === 'app.appSecret') {
+            return 'test-secret';
+          }
+          if (key === 'app.backendUrl') {
+            return 'https://backend.example.com';
+          }
+          return fallback;
+        },
+      );
 
       const url = service.generateSignedDownloadUrl('req-2', '77');
 
@@ -166,7 +172,10 @@ describe('DataExportService', () => {
   });
 
   it('does not emit download audit log when file is missing', async () => {
-    mockExportRepository.findOne.mockResolvedValue({ fileData: null, status: 'EXPIRED' });
+    mockExportRepository.findOne.mockResolvedValue({
+      fileData: null,
+      status: 'EXPIRED',
+    });
 
     await service.getExportFile('req-4', '11');
 

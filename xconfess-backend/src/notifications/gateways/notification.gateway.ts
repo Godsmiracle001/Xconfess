@@ -17,7 +17,9 @@ import { NotificationService } from '../services/notification.service';
   namespace: '/notifications',
 })
 @UseGuards(WsJwtGuard)
-export class NotificationGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -27,11 +29,14 @@ export class NotificationGateway implements OnGatewayInit, OnGatewayConnection, 
   constructor(
     private notificationService: NotificationService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   afterInit(server: Server) {
     // Configure CORS dynamically from ConfigService
-    const frontendUrl = this.configService.get<string>('app.frontendUrl', 'http://localhost:3000');
+    const frontendUrl = this.configService.get<string>(
+      'app.frontendUrl',
+      'http://localhost:3000',
+    );
     server.engine.opts.cors = {
       origin: frontendUrl,
       credentials: true,
@@ -105,7 +110,9 @@ export class NotificationGateway implements OnGatewayInit, OnGatewayConnection, 
       client.emit('all-notifications-read', {});
     } catch (error) {
       this.logger.error(`Error marking all notifications as read:`, error);
-      client.emit('error', { message: 'Failed to mark all notifications as read' });
+      client.emit('error', {
+        message: 'Failed to mark all notifications as read',
+      });
     }
   }
 
@@ -114,10 +121,12 @@ export class NotificationGateway implements OnGatewayInit, OnGatewayConnection, 
     const userId = client.data.userId;
 
     try {
-      const { unreadCount } = await this.notificationService.getUserNotifications(
-        userId,
-        { page: 1, limit: 1, unreadOnly: true },
-      );
+      const { unreadCount } =
+        await this.notificationService.getUserNotifications(userId, {
+          page: 1,
+          limit: 1,
+          unreadOnly: true,
+        });
 
       client.emit('unread-count', { count: unreadCount });
     } catch (error) {
@@ -136,7 +145,9 @@ export class NotificationGateway implements OnGatewayInit, OnGatewayConnection, 
       { page: 1, limit: 1, unreadOnly: true },
     );
 
-    this.server.to(`user:${userId}`).emit('unread-count', { count: unreadCount });
+    this.server
+      .to(`user:${userId}`)
+      .emit('unread-count', { count: unreadCount });
   }
 
   isUserOnline(userId: string): boolean {

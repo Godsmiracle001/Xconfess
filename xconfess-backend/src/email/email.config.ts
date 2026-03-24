@@ -78,7 +78,7 @@ export interface BucketConfig {
 
 /**
  * Normalize recipient input for bucketing.
- * 
+ *
  * Steps:
  * 1. Trim whitespace
  * 2. Convert to lowercase
@@ -106,10 +106,10 @@ export function recipientBucket(
 ): number {
   // Normalize recipient: trim and lowercase
   const normalized = normalizeRecipientForBucketing(recipientEmail);
-  
+
   // Apply optional salt if provided
   const input = config?.salt ? `${config.salt}${normalized}` : normalized;
-  
+
   const hash = crypto
     .createHmac('sha256', templateKey)
     .update(input)

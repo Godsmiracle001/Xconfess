@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ModerationNoteTemplate, TemplateCategory } from './entities/moderation-note-template.entity';
+import {
+  ModerationNoteTemplate,
+  TemplateCategory,
+} from './entities/moderation-note-template.entity';
 
 export interface CreateTemplateDto {
   name: string;
@@ -23,7 +30,10 @@ export class ModerationTemplateService {
     private readonly templateRepository: Repository<ModerationNoteTemplate>,
   ) {}
 
-  async create(dto: CreateTemplateDto, adminId: number): Promise<ModerationNoteTemplate> {
+  async create(
+    dto: CreateTemplateDto,
+    adminId: number,
+  ): Promise<ModerationNoteTemplate> {
     const template = this.templateRepository.create({
       ...dto,
       createdById: adminId,
@@ -33,7 +43,8 @@ export class ModerationTemplateService {
   }
 
   async findAll(includeInactive = false): Promise<ModerationNoteTemplate[]> {
-    const query = this.templateRepository.createQueryBuilder('template')
+    const query = this.templateRepository
+      .createQueryBuilder('template')
       .leftJoinAndSelect('template.createdBy', 'createdBy')
       .orderBy('template.category', 'ASC')
       .addOrderBy('template.name', 'ASC');
@@ -56,14 +67,19 @@ export class ModerationTemplateService {
     return template;
   }
 
-  async findByCategory(category: TemplateCategory): Promise<ModerationNoteTemplate[]> {
+  async findByCategory(
+    category: TemplateCategory,
+  ): Promise<ModerationNoteTemplate[]> {
     return this.templateRepository.find({
       where: { category, isActive: true },
       order: { name: 'ASC' },
     });
   }
 
-  async update(id: number, dto: UpdateTemplateDto): Promise<ModerationNoteTemplate> {
+  async update(
+    id: number,
+    dto: UpdateTemplateDto,
+  ): Promise<ModerationNoteTemplate> {
     const template = await this.findById(id);
     Object.assign(template, dto);
     return this.templateRepository.save(template);
@@ -75,7 +91,9 @@ export class ModerationTemplateService {
   }
 
   async getTemplateContent(id: number): Promise<string | null> {
-    const template = await this.templateRepository.findOne({ where: { id, isActive: true } });
+    const template = await this.templateRepository.findOne({
+      where: { id, isActive: true },
+    });
     return template?.content ?? null;
   }
 }

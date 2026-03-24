@@ -14,9 +14,14 @@ export interface EncryptionResult {
 export class CryptoUtil {
   static encrypt(text: string): EncryptionResult {
     const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(ENCRYPTION_KEY), iv);
+    const cipher = crypto.createCipheriv(
+      ALGORITHM,
+      Buffer.from(ENCRYPTION_KEY),
+      iv,
+    );
 
-    const encrypted = cipher.update(text, 'utf8', 'base64') + cipher.final('base64');
+    const encrypted =
+      cipher.update(text, 'utf8', 'base64') + cipher.final('base64');
     const tag = cipher.getAuthTag();
 
     return {
@@ -34,7 +39,9 @@ export class CryptoUtil {
     );
     decipher.setAuthTag(Buffer.from(tag, 'base64'));
 
-    return decipher.update(encrypted, 'base64', 'utf8') + decipher.final('utf8');
+    return (
+      decipher.update(encrypted, 'base64', 'utf8') + decipher.final('utf8')
+    );
   }
 
   static hash(text: string): string {

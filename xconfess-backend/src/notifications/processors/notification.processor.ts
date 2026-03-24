@@ -36,7 +36,9 @@ export class NotificationProcessor {
 
       // Check if email was already sent
       if (notification.isEmailSent) {
-        this.logger.log(`Email already sent for notification ${notificationId}`);
+        this.logger.log(
+          `Email already sent for notification ${notificationId}`,
+        );
         return;
       }
 
@@ -45,7 +47,11 @@ export class NotificationProcessor {
         where: { userId },
       });
 
-      if (!preference || !preference.enableEmailNotifications || !preference.emailAddress) {
+      if (
+        !preference ||
+        !preference.enableEmailNotifications ||
+        !preference.emailAddress
+      ) {
         this.logger.log(`Email notifications disabled for user ${userId}`);
         return;
       }
@@ -61,10 +67,15 @@ export class NotificationProcessor {
       notification.emailSentAt = new Date();
       await this.notificationRepository.save(notification);
 
-      this.logger.log(`Email sent successfully for notification ${notificationId}`);
+      this.logger.log(
+        `Email sent successfully for notification ${notificationId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to send email for notification ${notificationId}:`, error);
-      
+      this.logger.error(
+        `Failed to send email for notification ${notificationId}:`,
+        error,
+      );
+
       // Retry logic (Bull will handle retries based on configuration)
       throw error;
     }
@@ -76,10 +87,9 @@ export class NotificationProcessor {
 
     try {
       this.logger.log(`Running batch check for user ${userId}`);
-      
+
       // This can be used for scheduled batch checking if needed
       // Implementation depends on specific batching strategy
-      
     } catch (error) {
       this.logger.error(`Batch check failed for user ${userId}:`, error);
       throw error;

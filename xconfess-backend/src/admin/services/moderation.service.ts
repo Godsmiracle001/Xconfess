@@ -46,7 +46,8 @@ export class ModerationService {
     limit = 100,
     offset = 0,
   ): Promise<[AuditLog[], number]> {
-    const query = this.auditLogRepository.createQueryBuilder('log')
+    const query = this.auditLogRepository
+      .createQueryBuilder('log')
       .leftJoinAndSelect('log.admin', 'admin')
       .orderBy('log.createdAt', 'DESC')
       .take(limit)
