@@ -19,7 +19,6 @@ import { MessagesModule } from './messages/messages.module';
 import { AdminModule } from './admin/admin.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ReportModule } from './report/report.module';
-import { DataExportService } from './data-export/data-export.service';
 import { DataExportModule } from './data-export/data-export.module';
 import { StellarModule } from './stellar/stellar.module';
 import { CacheModule } from './cache/cache.module';
@@ -86,7 +85,6 @@ import { DatabaseModule } from './database/database.module';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-    DataExportService,
   ],
 })
 export class AppModule { }
