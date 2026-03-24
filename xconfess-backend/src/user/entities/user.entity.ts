@@ -19,6 +19,12 @@ export enum NotificationCategory {
   SYSTEM = 'system',
 }
 
+export interface PrivacySettings {
+  isDiscoverable: boolean;
+  canReceiveReplies: boolean;
+  showReactions: boolean;
+}
+
 @Entity()
 @Unique(['username'])
 @Unique(['emailHash'])
@@ -63,12 +69,33 @@ export class User {
   })
   notificationPreferences: Partial<Record<NotificationCategory, boolean>>;
 
+  @Column({
+    name: 'privacy_settings',
+    type: 'jsonb',
+    default: () => "'{\"isDiscoverable\": true, \"canReceiveReplies\": true, \"showReactions\": true}'",
+  })
+  privacySettings: PrivacySettings;
+
   isNotificationEnabled(category: NotificationCategory): boolean {
-    // Default = true if not explicitly disabled
     if (!this.notificationPreferences) return true;
 
     const value = this.notificationPreferences[category];
     return value !== false;
+  }
+
+  isDiscoverable(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.isDiscoverable !== false;
+  }
+
+  canReceiveReplies(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.canReceiveReplies !== false;
+  }
+
+  shouldShowReactions(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.showReactions !== false;
   }
 
   @CreateDateColumn()

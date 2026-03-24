@@ -202,6 +202,9 @@ interface TemplateSloSeries {
 
 @Injectable()
 export class EmailService implements OnModuleInit {
+  sendGenericNotification(recipientEmail: any, templateKey: string, templateData: any) {
+    throw new Error('Method not implemented.');
+  }
   private readonly logger = new Logger(EmailService.name);
 
   private primary: TransporterEntry | null = null;

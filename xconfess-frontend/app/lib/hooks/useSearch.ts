@@ -18,8 +18,16 @@ interface UseSearchResult {
   page: number;
   isLoading: boolean;
   error: string | null;
+  statusMeta: {
+    partial: boolean;
+    degraded: boolean;
+    message: string | null;
+    warnings: string[];
+    searchType?: string;
+  } | null;
   loadMore: () => void;
   reset: () => void;
+  retry: () => void;
 }
 
 function searchKey(q: string, f: SearchFilters): string {
@@ -45,6 +53,8 @@ export function useSearch({
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusMeta, setStatusMeta] = useState<UseSearchResult["statusMeta"]>(null);
+  const [retryTick, setRetryTick] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const accumulatedRef = useRef<SearchConfession[]>([]);
   const keyRef = useRef<string>("");
@@ -66,6 +76,7 @@ export function useSearch({
       setHasMore(false);
       setPage(1);
       setError(null);
+      setStatusMeta(null);
       accumulatedRef.current = [];
       keyRef.current = "";
       return;
@@ -103,6 +114,22 @@ export function useSearch({
         const list = data.confessions ?? [];
         const totalCount = data.total ?? 0;
         const more = data.hasMore === true;
+        const warnings = Array.isArray(data.warnings)
+          ? data.warnings.filter(
+              (entry: unknown) =>
+                typeof entry === "string" && entry.trim().length > 0
+            )
+          : [];
+        const partial = Boolean(data.partial);
+        const degraded = Boolean(data.degraded);
+        const message =
+          typeof data.message === "string" && data.message.trim().length > 0
+            ? data.message
+            : null;
+        const searchType =
+          typeof data.meta?.searchType === "string"
+            ? data.meta.searchType
+            : undefined;
 
         if (append) {
           accumulatedRef.current = [...accumulatedRef.current, ...list];
@@ -113,10 +140,35 @@ export function useSearch({
         setResults([...accumulatedRef.current]);
         setTotal(totalCount);
         setHasMore(more);
+        setStatusMeta(
+          partial || degraded || warnings.length > 0 || message
+            ? {
+                partial,
+                degraded,
+                message,
+                warnings,
+                searchType,
+              }
+            : null
+        );
       })
       .catch((e) => {
         if (e instanceof Error && e.name === "AbortError") return;
         setError(e instanceof Error ? e.message : "Search failed");
+        setStatusMeta(
+          append
+            ? {
+                partial: false,
+                degraded: true,
+                message:
+                  e instanceof Error
+                    ? e.message
+                    : "Some results may be missing. Retry to refresh the list.",
+                warnings: [],
+                searchType: "error",
+              }
+            : null
+        );
         if (page === 1) {
           setResults([]);
           setTotal(0);
@@ -129,7 +181,7 @@ export function useSearch({
       });
 
     return () => abortRef.current?.abort();
-  }, [runSearch, page, debouncedQuery, filters]);
+  }, [runSearch, page, debouncedQuery, filters, retryTick]);
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoading) return;
@@ -142,9 +194,15 @@ export function useSearch({
     setHasMore(false);
     setPage(1);
     setError(null);
+    setStatusMeta(null);
     accumulatedRef.current = [];
     keyRef.current = "";
   }, []);
+
+  const retry = useCallback(() => {
+    if (!runSearch) return;
+    setRetryTick((tick) => tick + 1);
+  }, [runSearch]);
 
   return {
     results,
@@ -153,7 +211,9 @@ export function useSearch({
     page,
     isLoading,
     error,
+    statusMeta,
     loadMore,
     reset,
+    retry,
   };
 }

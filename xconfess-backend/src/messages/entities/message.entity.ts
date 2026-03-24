@@ -29,4 +29,12 @@ export class Message {
 
   @Column({ type: 'timestamp', nullable: true })
   repliedAt: Date | null;
+
+  // Timestamp when confession author read this thread message entry.
+  @Column({ type: 'timestamp', nullable: true })
+  authorReadAt: Date | null;
+
+  // Timestamp when sender read the reply state for this thread message entry.
+  @Column({ type: 'timestamp', nullable: true })
+  senderReadAt: Date | null;
 }

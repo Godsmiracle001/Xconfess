@@ -1,5 +1,5 @@
 // src/data-export/data-export.service.ts
-import { Injectable, BadRequestException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -8,6 +8,7 @@ import { Repository, MoreThan } from 'typeorm';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { ExportRequest } from './entities/export-request.entity';
+import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 
 export type ExportHistoryStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED' | 'EXPIRED';
@@ -27,6 +28,8 @@ export class DataExportService {
   constructor(
     @InjectRepository(ExportRequest)
     private exportRepository: Repository<ExportRequest>,
+    @InjectRepository(ExportChunk)
+    private chunkRepository: Repository<ExportChunk>,
     @InjectQueue('export-queue') private exportQueue: Queue,
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogService?: AuditLogService,
@@ -73,12 +76,15 @@ export class DataExportService {
   }
 
 
-  generateSignedDownloadUrl(requestId: string, userId: string): string {
+  generateSignedDownloadUrl(requestId: string, userId: string, chunkIndex?: number): string {
     const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours from now
     const secret = this.configService.get<string>('app.appSecret', '');
 
     // Create a hash of the payload
-    const dataToSign = `${requestId}:${userId}:${expires}`;
+    const dataToSign = chunkIndex !== undefined
+      ? `${requestId}:${userId}:${chunkIndex}:${expires}`
+      : `${requestId}:${userId}:${expires}`;
+
     const signature = crypto
       .createHmac('sha256', secret || 'APP_SECRET_NOT_SET')
       .update(dataToSign)
@@ -99,13 +105,14 @@ export class DataExportService {
       })
       .catch(() => undefined);
 
-    return `${baseUrl}/api/data-export/download/${requestId}?userId=${userId}&expires=${expires}&signature=${signature}`;
+    const chunkParam = chunkIndex !== undefined ? `&chunk=${chunkIndex}` : '';
+    return `${baseUrl}/api/data-export/download/${requestId}?userId=${userId}&expires=${expires}&signature=${signature}${chunkParam}`;
   }
 
   async getExportFile(requestId: string, userId: string) {
     const exportRecord = await this.exportRepository.findOne({
       where: { id: requestId, userId },
-      select: ['fileData', 'status'],
+      select: ['fileData', 'status', 'isChunked', 'chunkCount', 'totalSize', 'combinedChecksum'],
     });
 
     if (exportRecord?.fileData) {
@@ -122,6 +129,21 @@ export class DataExportService {
     }
 
     return exportRecord;
+  }
+
+  async getExportChunk(requestId: string, userId: string, chunkIndex: number) {
+    // First verify ownership of the request
+    const request = await this.exportRepository.findOne({
+      where: { id: requestId, userId },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Export request not found or unauthorized');
+    }
+
+    return this.chunkRepository.findOne({
+      where: { exportRequestId: requestId, chunkIndex },
+    });
   }
 
   async markExportGenerated(

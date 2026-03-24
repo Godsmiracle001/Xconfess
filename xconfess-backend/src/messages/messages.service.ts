@@ -14,6 +14,10 @@ import { AnonymousUserService } from '../user/anonymous-user.service';
 import { UserAnonymousUser } from '../user/entities/user-anonymous-link.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { OutboxEvent, OutboxStatus } from '../common/entities/outbox-event.entity';
+import {
+  MessageRepository,
+  ThreadViewerRole,
+} from './repository/message.repository';
 
 @Injectable()
 export class MessagesService {
@@ -26,9 +30,28 @@ export class MessagesService {
     private readonly userAnonRepo: Repository<UserAnonymousUser>,
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
+    private readonly customMessageRepository: MessageRepository,
     private readonly anonymousUserService: AnonymousUserService,
     private readonly dataSource: DataSource,
   ) { }
+
+  private resolveThreadViewerRole(
+    confessionAuthorId: string | undefined,
+    senderId: string,
+    userAnonIds: string[],
+  ): ThreadViewerRole | null {
+    const isAuthor = !!confessionAuthorId && userAnonIds.includes(confessionAuthorId);
+    const isSender = userAnonIds.includes(senderId);
+
+    if (!isAuthor && !isSender) {
+      return null;
+    }
+
+    // Canonical ownership model:
+    // - Author view owns author-side read state
+    // - Sender view owns sender-side read state
+    return isAuthor ? 'AUTHOR' : 'SENDER';
+  }
 
   async create(
     createMessageDto: CreateMessageDto,
@@ -39,6 +62,11 @@ export class MessagesService {
       relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user'],
     });
     if (!confession) throw new NotFoundException('Confession not found');
+
+    const authorUser = confession.anonymousUser?.userLinks?.[0]?.user;
+    if (authorUser && !authorUser.canReceiveReplies()) {
+      throw new ForbiddenException('This user is not accepting messages');
+    }
 
     // Get or create anonymous identity for this session
     const sender = await this.anonymousUserService.getOrCreateForUserSession(
@@ -99,12 +127,16 @@ export class MessagesService {
     });
     const anonIds = userAnons.map((ua) => ua.anonymousUserId);
 
-    const isAuthor = confession.anonymousUser?.id && anonIds.includes(confession.anonymousUser.id);
-    const isSender = anonIds.includes(senderId);
-
-    if (!isAuthor && !isSender) {
+    const viewerRole = this.resolveThreadViewerRole(
+      confession.anonymousUser?.id,
+      senderId,
+      anonIds,
+    );
+    if (!viewerRole) {
       throw new ForbiddenException('You are not part of this conversation');
     }
+
+    await this.customMessageRepository.markThreadRead(confessionId, senderId, viewerRole);
 
     return this.messageRepository.find({
       where: {
@@ -137,6 +169,18 @@ export class MessagesService {
     messages.forEach((m) => {
       const threadId = `${m.confession.id}_${m.sender.id}`;
       if (!threadsMap.has(threadId)) {
+        const role = this.resolveThreadViewerRole(
+          m.confession.anonymousUser?.id,
+          m.sender.id,
+          anonIds,
+        );
+        const hasUnreadForRole =
+          role === 'AUTHOR'
+            ? !m.authorReadAt
+            : role === 'SENDER'
+              ? !!m.hasReply && !m.senderReadAt
+              : false;
+
         threadsMap.set(threadId, {
           confessionId: m.confession.id,
           senderId: m.sender.id,
@@ -145,9 +189,27 @@ export class MessagesService {
             (m.confession.message.length > 50 ? '...' : ''),
           lastMessage: m.content,
           lastMessageAt: m.createdAt,
-          hasUnread: false,
-          isAuthor: anonIds.includes(m.confession.anonymousUser?.id),
+          hasUnread: hasUnreadForRole,
+          unreadCount: hasUnreadForRole ? 1 : 0,
+          isAuthor: role === 'AUTHOR',
         });
+      } else {
+        const existing = threadsMap.get(threadId);
+        const role = this.resolveThreadViewerRole(
+          m.confession.anonymousUser?.id,
+          m.sender.id,
+          anonIds,
+        );
+        const messageUnread =
+          role === 'AUTHOR'
+            ? !m.authorReadAt
+            : role === 'SENDER'
+              ? !!m.hasReply && !m.senderReadAt
+              : false;
+        if (messageUnread) {
+          existing.hasUnread = true;
+          existing.unreadCount += 1;
+        }
       }
     });
 

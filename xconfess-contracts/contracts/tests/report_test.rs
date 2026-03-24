@@ -1,5 +1,7 @@
 use soroban_sdk::{Env, String as SorobanString, symbol};
 use xconfess_contract::report::ReportContract;
+use anonymous_tipping::AnonymousTipping;
+use soroban_sdk::{testutils::Address as _, Address};
 
 #[test]
 fn test_report_deduplication() {
@@ -71,4 +73,37 @@ fn test_report_reason_over_limit_rejected() {
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().as_str(), "reason_too_long");
     assert_eq!(ReportContract::latest_report_nonce(env, confession), 0);
+}
+
+#[test]
+fn anonymous_tip_emits_settlement_receipt_event_and_updates_nonce() {
+    let env = Env::default();
+    let recipient = Address::generate(&env);
+    AnonymousTipping::init(env.clone());
+
+    let before_events: std::vec::Vec<_> = env.events().all().collect();
+    assert_eq!(AnonymousTipping::latest_settlement_nonce(env.clone()), 0);
+
+    let settlement_id = AnonymousTipping::send_tip(env.clone(), recipient.clone(), 250);
+    let after_events: std::vec::Vec<_> = env.events().all().collect();
+
+    assert_eq!(settlement_id, 1);
+    assert_eq!(AnonymousTipping::latest_settlement_nonce(env.clone()), 1);
+    assert_eq!(AnonymousTipping::get_tips(env.clone(), recipient), 250);
+    assert_eq!(after_events.len(), before_events.len() + 1);
+}
+
+#[test]
+fn anonymous_tip_missing_proof_path_still_settles() {
+    let env = Env::default();
+    let recipient = Address::generate(&env);
+    AnonymousTipping::init(env.clone());
+
+    let first = AnonymousTipping::send_tip(env.clone(), recipient.clone(), 100);
+    let second = AnonymousTipping::send_tip(env.clone(), recipient.clone(), 50);
+
+    assert_eq!(first, 1);
+    assert_eq!(second, 2);
+    assert_eq!(AnonymousTipping::latest_settlement_nonce(env.clone()), 2);
+    assert_eq!(AnonymousTipping::get_tips(env, recipient), 150);
 }

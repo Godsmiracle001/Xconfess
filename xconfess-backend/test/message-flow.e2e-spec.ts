@@ -274,6 +274,40 @@ describe('Message Flow E2E – Ownership & Reply Constraints', () => {
         });
     });
 
+    // ─── Test 7: Mixed anonymous/auth participant regression ───
+    describe('GET /api/messages/threads – mixed-context ownership consistency', () => {
+        it('should return normalized unread state without duplicate participant entries', async () => {
+            mockMessagesService.findAllThreadsForUser.mockResolvedValue([
+                {
+                    confessionId,
+                    senderId: senderAnonId,
+                    confessionMessage: 'Seed confession...',
+                    lastMessage: 'Latest sender message',
+                    lastMessageAt: new Date().toISOString(),
+                    hasUnread: true,
+                    unreadCount: 2,
+                    isAuthor: true,
+                },
+            ]);
+
+            const res = await request(app.getHttpServer())
+                .get('/api/messages/threads')
+                .set('x-test-user', 'author')
+                .expect(200);
+
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body).toHaveLength(1);
+            expect(res.body[0]).toMatchObject({
+                confessionId,
+                senderId: senderAnonId,
+                hasUnread: true,
+                unreadCount: 2,
+                isAuthor: true,
+            });
+            expect(mockMessagesService.findAllThreadsForUser).toHaveBeenCalledTimes(1);
+        });
+    });
+
     // ─── Test 6: Reply validation ───
     describe('POST /api/messages/reply – input validation', () => {
         it('should reject empty reply content', async () => {

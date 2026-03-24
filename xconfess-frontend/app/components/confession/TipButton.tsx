@@ -20,6 +20,7 @@ export const TipButton = ({
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
   const { publicKey, isConnected, connect } = useWallet();
 
@@ -33,6 +34,45 @@ export const TipButton = ({
     };
     fetchStats();
   }, [confessionId]);
+
+  const refreshStats = async () => {
+    const updatedStats = await getTipStats(confessionId);
+    if (updatedStats) {
+      setStats(updatedStats);
+    }
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      setError(null);
+      await connect();
+    } catch {
+      setError("Please connect your Freighter wallet to send tips");
+    }
+  };
+
+  const handleRetryVerification = async () => {
+    if (!pendingTxHash) return;
+    setIsSending(true);
+    setError(null);
+    try {
+      const verifyResult = await verifyTip(confessionId, pendingTxHash);
+      if (!verifyResult.success) {
+        throw new Error(
+          verifyResult.error ||
+            "Verification is still pending. Please retry in a moment."
+        );
+      }
+      setPendingTxHash(null);
+      setSuccess(true);
+      await refreshStats();
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err.message || "Failed to verify tip");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const handleTip = async () => {
     if (!recipientAddress) {
@@ -50,9 +90,7 @@ export const TipButton = ({
       // Try to connect wallet
       try {
         await connect();
-        // Wait a bit for connection
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch (err) {
+      } catch {
         setError("Please connect your Freighter wallet to send tips");
         return;
       }
@@ -74,20 +112,19 @@ export const TipButton = ({
       const verifyResult = await verifyTip(confessionId, result.txHash);
 
       if (!verifyResult.success) {
+        setPendingTxHash(result.txHash);
         throw new Error(
-          verifyResult.error || "Tip sent but failed to verify on backend"
+          verifyResult.error ||
+            "Tip was sent on-chain, but verification is pending. Retry verification without resending."
         );
       }
 
       setSuccess(true);
-      setIsOpen(false);
       setTipAmount("0.1");
+      setPendingTxHash(null);
 
       // Refresh stats
-      const updatedStats = await getTipStats(confessionId);
-      if (updatedStats) {
-        setStats(updatedStats);
-      }
+      await refreshStats();
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
@@ -136,7 +173,19 @@ export const TipButton = ({
 
           {!isConnected && (
             <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded text-sm text-yellow-200">
-              Please connect your Freighter wallet to send tips
+              <p className="mb-2">Please connect your Freighter wallet to send tips.</p>
+              <button
+                type="button"
+                onClick={handleConnectWallet}
+                className="px-3 py-1.5 rounded bg-yellow-500/20 border border-yellow-600/60 text-yellow-100 hover:bg-yellow-500/30 transition-colors text-xs font-medium"
+              >
+                Connect wallet
+              </button>
+            </div>
+          )}
+          {isConnected && !publicKey && (
+            <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700 rounded text-sm text-amber-100">
+              Wallet signer is unavailable. Unlock Freighter and try again.
             </div>
           )}
 
@@ -170,13 +219,30 @@ export const TipButton = ({
                 Tip sent successfully! 🎉
               </div>
             )}
+            {pendingTxHash && (
+              <div className="p-3 bg-amber-900/30 border border-amber-700 rounded text-sm text-amber-100">
+                Tip submitted on-chain. Backend verification is still pending.
+                <button
+                  type="button"
+                  onClick={handleRetryVerification}
+                  disabled={isSending}
+                  className="ml-2 px-2 py-1 rounded bg-amber-500/20 border border-amber-600/60 hover:bg-amber-500/30 transition-colors text-xs font-medium disabled:opacity-60"
+                >
+                  Retry verification
+                </button>
+              </div>
+            )}
 
             <button
               onClick={handleTip}
-              disabled={isSending || !isConnected}
+              disabled={isSending || !isConnected || !publicKey || !!pendingTxHash}
               className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed rounded font-medium text-white transition-all"
             >
-              {isSending ? "Sending..." : `Send ${tipAmount} XLM Tip`}
+              {isSending
+                ? "Sending..."
+                : pendingTxHash
+                ? "Verification pending"
+                : `Send ${tipAmount} XLM Tip`}
             </button>
 
             {stats && (

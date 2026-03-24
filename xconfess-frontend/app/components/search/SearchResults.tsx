@@ -14,7 +14,18 @@ interface SearchResultsProps {
   page: number;
   hasMore: boolean;
   total?: number;
+  statusMeta?: {
+    partial: boolean;
+    degraded: boolean;
+    message: string | null;
+    warnings: string[];
+    searchType?: string;
+  } | null;
+  hasActiveFilters?: boolean;
   onLoadMore?: () => void;
+  onRetry?: () => void;
+  onClearFilters?: () => void;
+  onUseSuggestion?: (query: string) => void;
   className?: string;
 }
 
@@ -27,9 +38,16 @@ export function SearchResults({
   page,
   hasMore,
   total,
+  statusMeta,
+  hasActiveFilters = false,
   onLoadMore,
+  onRetry,
+  onClearFilters,
+  onUseSuggestion,
   className,
 }: SearchResultsProps) {
+  const suggestions = ["confession", "secret", "relationships"];
+
   if (isLoading && page === 1) {
     return (
       <div
@@ -78,8 +96,42 @@ export function SearchResults({
           No confessions match your search.
         </p>
         <p className="text-zinc-500 text-sm mt-2 text-center">
-          Try different keywords or loosen your filters.
+          {statusMeta?.partial
+            ? "Results may be partial right now. Try a broader query while search catches up."
+            : "Try different keywords or loosen your filters."}
         </p>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="px-3 py-1.5 rounded-md bg-zinc-800 text-zinc-200 hover:bg-zinc-700 transition-colors text-sm"
+            >
+              Retry search
+            </button>
+          )}
+          {hasActiveFilters && onClearFilters && (
+            <button
+              type="button"
+              onClick={onClearFilters}
+              className="px-3 py-1.5 rounded-md border border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors text-sm"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => onUseSuggestion?.(suggestion)}
+              className="px-2.5 py-1 rounded-full border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors text-xs"
+            >
+              Try &quot;{suggestion}&quot;
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
@@ -90,6 +142,43 @@ export function SearchResults({
 
   return (
     <div className={cn("space-y-4", className)} role="region" aria-label="Search results">
+      {statusMeta?.degraded && (
+        <div
+          className="rounded-lg border border-amber-700/70 bg-amber-950/20 px-3 py-2 text-amber-200 text-sm"
+          role="status"
+        >
+          <p className="font-medium">
+            {statusMeta.partial
+              ? "Partial results shown"
+              : "Search is in a degraded state"}
+          </p>
+          <p className="text-amber-300/90 text-xs mt-1">
+            {statusMeta.message ||
+              statusMeta.warnings[0] ||
+              "Some upstream data may be delayed. You can retry or continue with the current results."}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 transition-colors text-xs font-medium"
+              >
+                Retry
+              </button>
+            )}
+            {hasActiveFilters && onClearFilters && (
+              <button
+                type="button"
+                onClick={onClearFilters}
+                className="px-2.5 py-1 rounded-md border border-amber-700/60 text-amber-100 hover:border-amber-500 transition-colors text-xs font-medium"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       {showCount && (
         <p className="text-sm text-zinc-500">
           Showing {start}–{end} of {total} result{total !== 1 ? "s" : ""}

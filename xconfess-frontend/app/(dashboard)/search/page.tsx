@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { SearchInput } from "@/app/components/search/SearchInput";
 import { FilterSidebar } from "@/app/components/search/FilterSidebar";
 import { FilterChips } from "@/app/components/search/FilterChips";
 import { SearchResults } from "@/app/components/search/SearchResults";
+import ErrorState from "@/app/components/common/ErrorState";
 import { useDebounce } from "@/app/lib/hooks/useDebounce";
 import { useSearch } from "@/app/lib/hooks/useSearch";
 import {
@@ -17,6 +19,62 @@ import { cn } from "@/app/lib/utils/cn";
 
 const DEBOUNCE_MS = 300;
 
+function parseFiltersFromParams(params: URLSearchParams): SearchFilters {
+  const sort = params.get("sort");
+  const dateFrom = params.get("dateFrom");
+  const dateTo = params.get("dateTo");
+  const minReactions = params.get("minReactions");
+  const gender = params.get("gender");
+
+  const filters: SearchFilters = { ...DEFAULT_FILTERS };
+
+  if (sort && ["newest", "oldest", "reactions"].includes(sort)) {
+    filters.sort = sort as SearchFilters["sort"];
+  }
+  if (dateFrom) {
+    filters.dateFrom = dateFrom;
+  }
+  if (dateTo) {
+    filters.dateTo = dateTo;
+  }
+  if (minReactions) {
+    const parsed = Number(minReactions);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      filters.minReactions = parsed;
+    }
+  }
+  if (gender) {
+    filters.gender = gender;
+  }
+
+  return filters;
+}
+
+function filtersToSearchParams(filters: SearchFilters, query: string): URLSearchParams {
+  const params = new URLSearchParams();
+  
+  if (query.trim()) {
+    params.set("q", query.trim());
+  }
+  if (filters.sort && filters.sort !== "newest") {
+    params.set("sort", filters.sort);
+  }
+  if (filters.dateFrom) {
+    params.set("dateFrom", filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    params.set("dateTo", filters.dateTo);
+  }
+  if (filters.minReactions != null && filters.minReactions > 0) {
+    params.set("minReactions", String(filters.minReactions));
+  }
+  if (filters.gender) {
+    params.set("gender", filters.gender);
+  }
+  
+  return params;
+}
+
 function hasActiveFilters(f: SearchFilters): boolean {
   return !!(
     f.dateFrom ||
@@ -27,13 +85,26 @@ function hasActiveFilters(f: SearchFilters): boolean {
 }
 
 export default function SearchPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({ ...DEFAULT_FILTERS });
+  const [isInitialized, setIsInitialized] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const q = searchParams.get("q") || "";
+    const parsedFilters = parseFiltersFromParams(searchParams);
+    setQuery(q);
+    setFilters(parsedFilters);
+    setIsInitialized(true);
+  }, [searchParams]);
 
   const debouncedQuery = useDebounce(query, DEBOUNCE_MS);
   const runSearch =
-    debouncedQuery.trim().length > 0 || hasActiveFilters(filters);
+    isInitialized && (debouncedQuery.trim().length > 0 || hasActiveFilters(filters));
 
   const {
     results,
@@ -42,8 +113,10 @@ export default function SearchPage() {
     page,
     isLoading,
     error,
+    statusMeta,
     loadMore,
     reset,
+    retry,
   } = useSearch({
     query,
     filters,
@@ -53,46 +126,77 @@ export default function SearchPage() {
 
   const hasSearched = runSearch;
   const isEmpty = hasSearched && !isLoading && results.length === 0;
+  const hasActiveFilterValues = hasActiveFilters(filters);
+  const fatalError = Boolean(error && results.length === 0 && !isLoading);
+  const effectiveStatusMeta =
+    error && results.length > 0
+      ? {
+          partial: false,
+          degraded: true,
+          message: error,
+          warnings: [],
+          searchType: "error",
+        }
+      : statusMeta;
+
+  const updateUrl = useCallback((q: string, f: SearchFilters) => {
+    const params = filtersToSearchParams(f, q);
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [pathname, router]);
 
   const handleSubmit = useCallback((q: string) => {
-    setQuery(q.trim());
-  }, []);
+    const trimmed = q.trim();
+    setQuery(trimmed);
+    updateUrl(trimmed, filters);
+  }, [filters, updateUrl]);
 
   const handleApplyFilters = useCallback((f: SearchFilters) => {
     setFilters(f);
     setSidebarOpen(false);
-  }, []);
+    updateUrl(query, f);
+  }, [query, updateUrl]);
 
   const handleResetFilters = useCallback(() => {
     setFilters({ ...DEFAULT_FILTERS });
     setSidebarOpen(false);
-  }, []);
+    updateUrl(query, DEFAULT_FILTERS);
+  }, [query, updateUrl]);
 
   const handleRemoveFilter = useCallback(
     (key: FilterChipKey) => {
       if (key === "query") {
         setQuery("");
         reset();
+        updateUrl("", filters);
         return;
       }
       if (key === "dateFrom") {
-        setFilters((prev) => ({ ...prev, dateFrom: undefined }));
+        const newFilters = { ...filters, dateFrom: undefined };
+        setFilters(newFilters);
+        updateUrl(query, newFilters);
         return;
       }
       if (key === "dateTo") {
-        setFilters((prev) => ({ ...prev, dateTo: undefined }));
+        const newFilters = { ...filters, dateTo: undefined };
+        setFilters(newFilters);
+        updateUrl(query, newFilters);
         return;
       }
       if (key === "minReactions") {
-        setFilters((prev) => ({ ...prev, minReactions: undefined }));
+        const newFilters = { ...filters, minReactions: undefined };
+        setFilters(newFilters);
+        updateUrl(query, newFilters);
         return;
       }
       if (key === "sort") {
-        setFilters((prev) => ({ ...prev, sort: "newest" }));
+        const newFilters = { ...filters, sort: "newest" };
+        setFilters(newFilters);
+        updateUrl(query, newFilters);
         return;
       }
     },
-    [reset]
+    [reset, updateUrl, query, filters]
   );
 
   const handleClearAll = useCallback(() => {
@@ -100,7 +204,12 @@ export default function SearchPage() {
     setFilters({ ...DEFAULT_FILTERS });
     reset();
     setSidebarOpen(false);
-  }, [reset]);
+    updateUrl("", DEFAULT_FILTERS);
+  }, [reset, updateUrl]);
+
+  const handleSuggestion = useCallback((suggestion: string) => {
+    setQuery(suggestion);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -157,6 +266,13 @@ export default function SearchPage() {
             query={query}
             onRemoveFilter={handleRemoveFilter}
             onClearAll={handleClearAll}
+            statusChip={
+              effectiveStatusMeta?.partial
+                ? { label: "Partial results", tone: "warning" }
+                : effectiveStatusMeta?.degraded
+                ? { label: "Degraded search", tone: "warning" }
+                : null
+            }
           />
         </div>
 
@@ -188,25 +304,55 @@ export default function SearchPage() {
           </div>
 
           <main className="flex-1 min-w-0">
-            {error && (
-              <div
-                className="mb-6 rounded-xl border border-red-800 bg-red-950/30 px-4 py-3 text-red-200 text-sm"
-                role="alert"
-              >
-                {error}
+            {fatalError ? (
+              <div className="mb-6">
+                <ErrorState
+                  title="Search request failed"
+                  description="We could not reach search right now."
+                  error={error ?? "Search failed"}
+                  onRetry={retry}
+                  variant="error"
+                  fullHeight={false}
+                  primaryActionLabel="Clear filters"
+                  onPrimaryAction={handleClearAll}
+                />
               </div>
+            ) : (
+              <>
+                {error && (
+                  <div className="mb-4">
+                    <ErrorState
+                      title="Search degraded"
+                      description="Loaded results may be incomplete."
+                      error={error}
+                      onRetry={retry}
+                      variant="warning"
+                      showIcon={false}
+                      fullHeight={false}
+                      showRetry
+                      primaryActionLabel="Clear filters"
+                      onPrimaryAction={handleClearAll}
+                    />
+                  </div>
+                )}
+                <SearchResults
+                  results={results}
+                  query={debouncedQuery.trim() || undefined}
+                  isLoading={isLoading}
+                  isEmpty={isEmpty}
+                  hasSearched={hasSearched}
+                  page={page}
+                  hasMore={hasMore}
+                  total={total}
+                  statusMeta={effectiveStatusMeta}
+                  hasActiveFilters={hasActiveFilterValues}
+                  onLoadMore={loadMore}
+                  onRetry={retry}
+                  onClearFilters={handleClearAll}
+                  onUseSuggestion={handleSuggestion}
+                />
+              </>
             )}
-            <SearchResults
-              results={results}
-              query={debouncedQuery.trim() || undefined}
-              isLoading={isLoading}
-              isEmpty={isEmpty}
-              hasSearched={hasSearched}
-              page={page}
-              hasMore={hasMore}
-              total={total}
-              onLoadMore={loadMore}
-            />
           </main>
         </div>
       </div>

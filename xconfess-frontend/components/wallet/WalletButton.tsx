@@ -118,6 +118,9 @@ export const WalletButton: React.FC<WalletButtonProps> = ({ className = '' }) =>
       <div className={`relative ${className}`}>
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          aria-haspopup="menu"
+          aria-expanded={isDropdownOpen}
+          aria-label="Wallet menu"
           className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-lg transition font-medium text-sm flex items-center gap-2 whitespace-nowrap"
         >
           <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
@@ -134,7 +137,11 @@ export const WalletButton: React.FC<WalletButtonProps> = ({ className = '' }) =>
 
         {/* Dropdown Menu */}
         {isDropdownOpen && (
-          <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl z-50 overflow-hidden border border-gray-200">
+          <div
+            role="menu"
+            aria-label="Wallet actions"
+            className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl z-50 overflow-hidden border border-gray-200"
+          >
             {/* Network Info */}
             <div className="p-4 border-b border-gray-200">
               <div className="text-xs text-gray-500 font-semibold mb-2">NETWORK</div>

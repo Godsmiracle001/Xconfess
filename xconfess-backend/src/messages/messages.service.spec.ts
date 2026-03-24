@@ -5,9 +5,11 @@ import { Message } from './entities/message.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { UserAnonymousUser } from '../user/entities/user-anonymous-link.entity';
 import { AnonymousUserService } from '../user/anonymous-user.service';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { User } from '../user/entities/user.entity';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
+import { MessageRepository } from './repository/message.repository';
 
 describe('MessagesService', () => {
   let service: MessagesService;
@@ -15,6 +17,7 @@ describe('MessagesService', () => {
   let confessionRepo: Repository<AnonymousConfession>;
   let userAnonRepo: Repository<UserAnonymousUser>;
   let anonUserService: AnonymousUserService;
+  let customMessageRepository: MessageRepository;
 
   const mockUser: User = { id: 1 } as User;
   const mockAnonId = 'anon-123';
@@ -55,6 +58,20 @@ describe('MessagesService', () => {
             getOrCreateForUserSession: jest.fn(),
           },
         },
+        {
+          provide: getRepositoryToken(OutboxEvent),
+          useValue: {
+            save: jest.fn(),
+            create: jest.fn(),
+          },
+        },
+        {
+          provide: MessageRepository,
+          useValue: {
+            markThreadRead: jest.fn(),
+          },
+        },
+        { provide: DataSource, useValue: { transaction: jest.fn() } },
       ],
     }).compile();
 
@@ -67,6 +84,7 @@ describe('MessagesService', () => {
       getRepositoryToken(UserAnonymousUser),
     );
     anonUserService = module.get<AnonymousUserService>(AnonymousUserService);
+    customMessageRepository = module.get<MessageRepository>(MessageRepository);
   });
 
   describe('findForConfessionThread', () => {
@@ -83,6 +101,11 @@ describe('MessagesService', () => {
 
       const result = await service.findForConfessionThread(mockConfessionId, mockSenderId, mockUser);
       expect(result).toEqual(mockMessages);
+      expect(customMessageRepository.markThreadRead).toHaveBeenCalledWith(
+        mockConfessionId,
+        mockSenderId,
+        'AUTHOR',
+      );
       expect(messageRepo.find).toHaveBeenCalledWith({
         where: { confession: { id: mockConfessionId }, sender: { id: mockSenderId } },
         order: { createdAt: 'ASC' },
@@ -102,6 +125,11 @@ describe('MessagesService', () => {
 
       const result = await service.findForConfessionThread(mockConfessionId, mockSenderId, mockUser);
       expect(result).toEqual(mockMessages);
+      expect(customMessageRepository.markThreadRead).toHaveBeenCalledWith(
+        mockConfessionId,
+        mockSenderId,
+        'SENDER',
+      );
     });
 
     it('should throw ForbiddenException if user is neither author nor sender', async () => {

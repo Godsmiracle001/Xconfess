@@ -79,6 +79,9 @@ export class Report {
   @Column({ name: 'resolution_reason', type: 'text', nullable: true })
   resolutionNotes: string | null;
 
+  @Column({ name: 'template_id', nullable: true })
+  templateId: number | null;
+
   @Column({ name: 'idempotency_key', type: 'varchar', length: 255, nullable: true })
   @Index(['idempotency_key'])
   idempotencyKey: string | null;

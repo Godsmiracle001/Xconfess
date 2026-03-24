@@ -7,7 +7,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { TippingService } from './tipping.service';
+import { TippingService, TipVerificationResult } from './tipping.service';
 import { VerifyTipDto } from './dto/verify-tip.dto';
 
 @Controller('confessions/:id/tips')
@@ -29,7 +29,7 @@ export class TippingController {
   verifyTip(
     @Param('id') confessionId: string,
     @Body() dto: VerifyTipDto,
-  ) {
+  ): TipVerificationResult {
     return this.tippingService.verifyAndRecordTip(confessionId, dto);
   }
 }

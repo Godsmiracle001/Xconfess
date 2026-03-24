@@ -11,8 +11,7 @@ import {
     Users,
     Heart,
     Activity,
-    TrendingUp,
-    AlertCircle
+    TrendingUp
 } from 'lucide-react';
 
 const ActivityChart = dynamic(
@@ -31,15 +30,41 @@ const TrendingConfessions = dynamic(
 );
 
 interface AnalyticsData {
+    comparison: {
+        enabled: boolean;
+        availability: 'available' | 'estimated' | 'unavailable';
+        source: 'backend' | 'estimated' | 'none';
+        note?: string;
+    };
     metrics: {
         totalConfessions: number;
         totalUsers: number;
         totalReactions: number;
         activeUsers: number;
-        confessionsChange: number;
-        usersChange: number;
-        reactionsChange: number;
-        activeChange: number;
+        confessionsDelta: {
+            percentage: number | null;
+            direction: 'up' | 'down' | 'flat' | 'unknown';
+            availability: 'available' | 'estimated' | 'unavailable';
+            note?: string;
+        };
+        usersDelta: {
+            percentage: number | null;
+            direction: 'up' | 'down' | 'flat' | 'unknown';
+            availability: 'available' | 'estimated' | 'unavailable';
+            note?: string;
+        };
+        reactionsDelta: {
+            percentage: number | null;
+            direction: 'up' | 'down' | 'flat' | 'unknown';
+            availability: 'available' | 'estimated' | 'unavailable';
+            note?: string;
+        };
+        activeDelta: {
+            percentage: number | null;
+            direction: 'up' | 'down' | 'flat' | 'unknown';
+            availability: 'available' | 'estimated' | 'unavailable';
+            note?: string;
+        };
     };
     trendingConfessions: Array<{
         id: string;
@@ -59,11 +84,14 @@ interface AnalyticsData {
         confessions: number;
         users: number;
         reactions: number;
+        previousConfessions?: number | null;
+        previousReactions?: number | null;
     }>;
 }
 
 export default function AnalyticsPage() {
     const [period, setPeriod] = useState<'7d' | '30d'>('7d');
+    const [comparisonEnabled, setComparisonEnabled] = useState(false);
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -76,7 +104,8 @@ export default function AnalyticsPage() {
                 setError(null);
 
                 const token = localStorage.getItem(AUTH_TOKEN_KEY);
-                const response = await fetch(`/api/analytics?period=${period}`, {
+                const compare = comparisonEnabled ? 'previous' : 'none';
+                const response = await fetch(`/api/analytics?period=${period}&compare=${compare}`, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
 
@@ -94,7 +123,9 @@ export default function AnalyticsPage() {
         };
 
         fetchAnalytics();
-    }, [period, refreshKey]);
+    }, [period, comparisonEnabled, refreshKey]);
+
+    const comparisonNote = comparisonEnabled ? (data?.comparison?.note ?? null) : null;
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black">
@@ -111,7 +142,13 @@ export default function AnalyticsPage() {
                         </p>
                     </div>
 
-                    <TimePeriodSelector selected={period} onChange={setPeriod} />
+                    <TimePeriodSelector
+                        selected={period}
+                        onChange={setPeriod}
+                        comparisonEnabled={comparisonEnabled}
+                        onComparisonChange={setComparisonEnabled}
+                        comparisonNote={comparisonNote}
+                    />
                 </div>
 
                 {/* Error State */}
@@ -126,39 +163,56 @@ export default function AnalyticsPage() {
                     </div>
                 )}
 
+                {/* Comparison state message */}
+                {comparisonEnabled && !loading && data?.comparison?.availability !== 'available' && (
+                    <div
+                        className={`mb-6 rounded-xl border px-4 py-3 text-sm ${data?.comparison?.availability === 'estimated'
+                            ? 'border-amber-700/70 bg-amber-950/20 text-amber-200'
+                            : 'border-zinc-700 bg-zinc-900/60 text-zinc-300'
+                            }`}
+                        role="status"
+                    >
+                        {data?.comparison?.note ?? 'Comparison data is currently unavailable for this selection.'}
+                    </div>
+                )}
+
                 {/* Metrics Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                     <MetricsCard
                         title="Total Confessions"
                         value={data?.metrics.totalConfessions ?? 0}
-                        change={data?.metrics.confessionsChange}
+                        delta={data?.metrics.confessionsDelta}
                         icon={MessageSquare}
                         color="text-blue-500"
                         loading={loading}
+                        comparisonEnabled={comparisonEnabled}
                     />
                     <MetricsCard
                         title="Total Users"
                         value={data?.metrics.totalUsers ?? 0}
-                        change={data?.metrics.usersChange}
+                        delta={data?.metrics.usersDelta}
                         icon={Users}
                         color="text-emerald-500"
                         loading={loading}
+                        comparisonEnabled={comparisonEnabled}
                     />
                     <MetricsCard
                         title="Total Reactions"
                         value={data?.metrics.totalReactions ?? 0}
-                        change={data?.metrics.reactionsChange}
+                        delta={data?.metrics.reactionsDelta}
                         icon={Heart}
                         color="text-rose-500"
                         loading={loading}
+                        comparisonEnabled={comparisonEnabled}
                     />
                     <MetricsCard
                         title="Active Users"
                         value={data?.metrics.activeUsers ?? 0}
-                        change={data?.metrics.activeChange}
+                        delta={data?.metrics.activeDelta}
                         icon={Activity}
                         color="text-purple-500"
                         loading={loading}
+                        comparisonEnabled={comparisonEnabled}
                     />
                 </div>
 
@@ -168,6 +222,11 @@ export default function AnalyticsPage() {
                         <ActivityChart
                             data={data?.activityData ?? []}
                             loading={loading}
+                            comparisonEnabled={comparisonEnabled}
+                            comparisonAvailability={data?.comparison?.availability ?? 'unavailable'}
+                            comparisonNote={data?.comparison?.note}
+                            confessionsDelta={data?.metrics.confessionsDelta}
+                            reactionsDelta={data?.metrics.reactionsDelta}
                         />
                     </div>
                     <div>

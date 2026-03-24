@@ -10,6 +10,7 @@ import { Report, ReportStatus, ReportType } from '../entities/report.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
 import { User, UserRole } from '../../user/entities/user.entity';
 import { ModerationService } from './moderation.service';
+import { ModerationTemplateService } from '../../comment/moderation-template.service';
 import { AuditAction } from '../entities/audit-log.entity';
 import { Request } from 'express';
 import { decryptConfession } from '../../utils/confession-encryption';
@@ -42,6 +43,7 @@ export class AdminService {
     @InjectRepository(UserAnonymousUser)
     private readonly userAnonRepository: Repository<UserAnonymousUser>,
     private readonly moderationService: ModerationService,
+    private readonly moderationTemplateService: ModerationTemplateService,
     private readonly configService: ConfigService,
   ) { }
 
@@ -113,6 +115,7 @@ export class AdminService {
     id: string,
     adminId: number,
     resolutionNotes: string | null,
+    templateId?: number | null,
     request?: Request,
   ): Promise<Report> {
     const report = await this.getReportById(id);
@@ -125,15 +128,18 @@ export class AdminService {
     report.resolvedBy = adminId;
     report.resolvedAt = new Date();
     report.resolutionNotes = resolutionNotes;
+    report.templateId = templateId ?? null;
 
     const saved = await this.reportRepository.save(report);
+
+    const templateUsed = templateId ? await this.moderationTemplateService.findById(templateId).catch(() => null) : null;
 
     await this.moderationService.logAction(
       adminId,
       AuditAction.REPORT_RESOLVED,
       'report',
       id,
-      { reportType: report.type, confessionId: report.confessionId },
+      { reportType: report.type, confessionId: report.confessionId, templateId, templateName: templateUsed?.name ?? null },
       resolutionNotes,
       request,
     );

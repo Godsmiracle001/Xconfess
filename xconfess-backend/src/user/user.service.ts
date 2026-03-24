@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole } from './entities/user.entity';
+import { User, UserRole, PrivacySettings } from './entities/user.entity';
 import * as bcrypt from 'bcryptjs';
 import { UpdateUserProfileDto } from './dto/updateProfile.dto';
+import { UpdatePrivacySettingsDto } from './dto/update-privacy-settings.dto';
 import { EmailService } from '../email/email.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { maskUserId } from '../utils/mask-user-id';
@@ -304,6 +305,52 @@ export class UserService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to save user: ${errorMessage}`);
       throw new InternalServerErrorException(`Failed to save user: ${errorMessage}`);
+    }
+  }
+
+  async updatePrivacySettings(userId: number, dto: UpdatePrivacySettingsDto): Promise<PrivacySettings> {
+    try {
+      this.logger.log(`Updating privacy settings for masked user ID: ${maskUserId(userId)}`);
+
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      user.privacySettings = {
+        isDiscoverable: dto.isDiscoverable ?? user.privacySettings?.isDiscoverable ?? true,
+        canReceiveReplies: dto.canReceiveReplies ?? user.privacySettings?.canReceiveReplies ?? true,
+        showReactions: dto.showReactions ?? user.privacySettings?.showReactions ?? true,
+      };
+
+      await this.userRepository.save(user);
+      this.logger.log(`Privacy settings updated successfully for masked user ID: ${maskUserId(userId)}`);
+
+      return user.privacySettings;
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to update privacy settings: ${errorMessage}`);
+      throw new InternalServerErrorException(`Failed to update privacy settings: ${errorMessage}`);
+    }
+  }
+
+  async getPrivacySettings(userId: number): Promise<PrivacySettings> {
+    try {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      return {
+        isDiscoverable: user.isDiscoverable(),
+        canReceiveReplies: user.canReceiveReplies(),
+        showReactions: user.shouldShowReactions(),
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to get privacy settings: ${errorMessage}`);
+      throw new InternalServerErrorException(`Failed to get privacy settings: ${errorMessage}`);
     }
   }
 }

@@ -208,11 +208,17 @@ export class ConfessionService {
     const skip = (page - 1) * limit;
     const qb = this.confessionRepo
       .createQueryBuilder('confession')
+      .leftJoinAndSelect('confession.anonymousUser', 'anonymousUser')
+      .leftJoinAndSelect('anonymousUser.userLinks', 'userLinks')
+      .leftJoinAndSelect('userLinks.user', 'user')
       .andWhere('confession.isDeleted = false')
       .andWhere('confession.isHidden = false')
       .andWhere('confession.moderationStatus IN (:...statuses)', {
         statuses: [ModerationStatus.APPROVED, ModerationStatus.PENDING],
       })
+      .andWhere(
+        '(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = \'{}\' OR user.privacy_settings IS NULL OR user.privacy_settings->>\'isDiscoverable\' = \'true\' OR JSON_TYPE(user.privacy_settings, \'$.isDiscoverable\') IS NULL)',
+      )
       .leftJoinAndSelect('confession.reactions', 'reactions')
       .leftJoinAndSelect('reactions.anonymousUser', 'reactionUser')
       .select([
@@ -408,7 +414,7 @@ export class ConfessionService {
   async getConfessionByIdWithViewCount(id: string, req: Request) {
     const conf = await this.confessionRepo.findOne({
       where: { id, isDeleted: false, isHidden: false },
-      relations: ['reactions', 'reactions.anonymousUser'],
+      relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user', 'reactions', 'reactions.anonymousUser'],
       select: {
         id: true,
         message: true,
@@ -428,6 +434,12 @@ export class ConfessionService {
     });
     if (!conf) throw new NotFoundException('Confession not found');
 
+    const authorUser = conf.anonymousUser?.userLinks?.[0]?.user;
+    const hideReactions = authorUser && !authorUser.shouldShowReactions();
+    if (hideReactions) {
+      conf.reactions = [];
+    }
+
     type AuthenticatedRequest = Request & { user?: { id?: string } };
     const authReq = req as AuthenticatedRequest;
     const userId = authReq.user?.id;
@@ -440,12 +452,17 @@ export class ConfessionService {
 
     if (await this.viewCache.checkAndMarkView(id, userOrIp)) {
       await this.confessionRepo.incrementViewCountAtomically(id);
-      // Reload the confession to get updated view_count
       const updated = await this.confessionRepo.findOne({
         where: { id },
-        relations: ['reactions', 'reactions.anonymousUser'],
+        relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user', 'reactions', 'reactions.anonymousUser'],
       });
-      if (updated) updated.message = decryptConfession(updated.message, this.aesKey);
+      if (updated) {
+        const updatedAuthor = updated.anonymousUser?.userLinks?.[0]?.user;
+        if (updatedAuthor && !updatedAuthor.shouldShowReactions()) {
+          updated.reactions = [];
+        }
+        updated.message = decryptConfession(updated.message, this.aesKey);
+      }
       return updated;
     }
 

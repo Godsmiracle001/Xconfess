@@ -1,14 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { ReactionService } from './reaction.service';
 import { Reaction } from './entities/reaction.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 // ─── Factories ───────────────────────────────────────────────────────────────
 
-const makeConfession = (overrides: Partial<AnonymousConfession> = {}): AnonymousConfession =>
+const makeConfession = (
+  overrides: Partial<AnonymousConfession> = {},
+): AnonymousConfession =>
   ({
     id: 'conf-uuid-1',
     message: 'Test confession',
@@ -19,7 +24,9 @@ const makeConfession = (overrides: Partial<AnonymousConfession> = {}): Anonymous
     ...overrides,
   }) as AnonymousConfession;
 
-const makeAnonymousUser = (overrides: Partial<AnonymousUser> = {}): AnonymousUser =>
+const makeAnonymousUser = (
+  overrides: Partial<AnonymousUser> = {},
+): AnonymousUser =>
   ({
     id: 'anon-uuid-1',
     ...overrides,
@@ -51,14 +58,46 @@ describe('ReactionService', () => {
   let reactionRepo: ReturnType<typeof repoMock>;
   let confessionRepo: ReturnType<typeof repoMock>;
   let anonymousUserRepo: ReturnType<typeof repoMock>;
+  // inner manager repo shared so transaction-based calls can be asserted
+  let managerReactionRepo: ReturnType<typeof repoMock>;
+  let managerOutboxRepo: ReturnType<typeof repoMock>;
 
   beforeEach(async () => {
+    managerReactionRepo = repoMock();
+    managerOutboxRepo = repoMock();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReactionService,
         { provide: getRepositoryToken(Reaction), useFactory: repoMock },
-        { provide: getRepositoryToken(AnonymousConfession), useFactory: repoMock },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useFactory: repoMock,
+        },
         { provide: getRepositoryToken(AnonymousUser), useFactory: repoMock },
+        { provide: getRepositoryToken(OutboxEvent), useFactory: repoMock },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn().mockImplementation((cb: any) =>
+              cb({
+                getRepository: jest.fn().mockImplementation((entity: any) => {
+                  if (entity === Reaction) return managerReactionRepo;
+                  return managerOutboxRepo;
+                }),
+              }),
+            ),
+          },
+        },
+        {
+          provide: AnalyticsService,
+          useValue: {
+            invalidateTrendingCache: jest.fn().mockResolvedValue(undefined),
+            invalidateReactionDistributionCache: jest
+              .fn()
+              .mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -86,27 +125,24 @@ describe('ReactionService', () => {
 
       confessionRepo.findOne.mockResolvedValue(confession);
       anonymousUserRepo.findOne.mockResolvedValue(user);
-      reactionRepo.findOne.mockResolvedValue(null);
-      reactionRepo.create.mockReturnValue(reaction);
-      reactionRepo.save.mockResolvedValue(reaction);
+      // Duplicate check and save are inside the transaction (manager repo)
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
 
       const result = await service.createReaction(dto);
 
-      // Confession loaded WITHOUT invalid relations
-      expect(confessionRepo.findOne).toHaveBeenCalledWith({
-        where: { id: dto.confessionId },
-      });
-      // No 'relations: [user]' or 'relations: [anonymousUser]' on confession lookup
-      expect(confessionRepo.findOne).not.toHaveBeenCalledWith(
-        expect.objectContaining({ relations: expect.anything() }),
+      // Confession loaded with relations for notification lookup
+      expect(confessionRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: dto.confessionId } }),
       );
 
-      expect(reactionRepo.create).toHaveBeenCalledWith({
+      expect(managerReactionRepo.create).toHaveBeenCalledWith({
         emoji: dto.emoji,
         confession,
         anonymousUser: user,
       });
-      expect(reactionRepo.save).toHaveBeenCalledWith(reaction);
+      expect(managerReactionRepo.save).toHaveBeenCalledWith(reaction);
       expect(result).toEqual(reaction);
     });
 
@@ -115,12 +151,12 @@ describe('ReactionService', () => {
 
       confessionRepo.findOne.mockResolvedValue(makeConfession());
       anonymousUserRepo.findOne.mockResolvedValue(makeAnonymousUser());
-      reactionRepo.findOne.mockResolvedValue(existing);
+      managerReactionRepo.findOne.mockResolvedValue(existing);
 
       const result = await service.createReaction(dto);
 
-      expect(reactionRepo.create).not.toHaveBeenCalled();
-      expect(reactionRepo.save).not.toHaveBeenCalled();
+      expect(managerReactionRepo.create).not.toHaveBeenCalled();
+      expect(managerReactionRepo.save).not.toHaveBeenCalled();
       expect(result).toBe(existing);
     });
 
@@ -130,12 +166,12 @@ describe('ReactionService', () => {
 
       confessionRepo.findOne.mockResolvedValue(makeConfession());
       anonymousUserRepo.findOne.mockResolvedValue(makeAnonymousUser());
-      reactionRepo.findOne.mockResolvedValue(existing);
-      reactionRepo.save.mockResolvedValue(updated);
+      managerReactionRepo.findOne.mockResolvedValue(existing);
+      managerReactionRepo.save.mockResolvedValue(updated);
 
       const result = await service.createReaction({ ...dto, emoji: '❤️' });
 
-      expect(reactionRepo.save).toHaveBeenCalledWith(
+      expect(managerReactionRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ emoji: '❤️' }),
       );
       expect(result.emoji).toBe('❤️');
@@ -146,8 +182,12 @@ describe('ReactionService', () => {
     it('throws NotFoundException when confession does not exist', async () => {
       confessionRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.createReaction(dto)).rejects.toThrow(NotFoundException);
-      await expect(service.createReaction(dto)).rejects.toThrow('Confession not found');
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        'Confession not found',
+      );
 
       // Must not proceed to user/reaction lookup
       expect(anonymousUserRepo.findOne).not.toHaveBeenCalled();
@@ -158,8 +198,12 @@ describe('ReactionService', () => {
       confessionRepo.findOne.mockResolvedValue(makeConfession());
       anonymousUserRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.createReaction(dto)).rejects.toThrow(NotFoundException);
-      await expect(service.createReaction(dto)).rejects.toThrow('Anonymous user not found');
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        'Anonymous user not found',
+      );
 
       expect(reactionRepo.create).not.toHaveBeenCalled();
     });
@@ -178,9 +222,9 @@ describe('ReactionService', () => {
 
       confessionRepo.findOne.mockResolvedValue(confession);
       anonymousUserRepo.findOne.mockResolvedValue(makeAnonymousUser());
-      reactionRepo.findOne.mockResolvedValue(null);
-      reactionRepo.create.mockReturnValue(makeReaction());
-      reactionRepo.save.mockResolvedValue(makeReaction());
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(makeReaction());
+      managerReactionRepo.save.mockResolvedValue(makeReaction());
 
       await service.createReaction(dto);
 
@@ -194,19 +238,146 @@ describe('ReactionService', () => {
 
       confessionRepo.findOne.mockResolvedValue(confession);
       anonymousUserRepo.findOne.mockResolvedValue(user);
-      reactionRepo.findOne.mockResolvedValue(null);
-      reactionRepo.create.mockReturnValue(reaction);
-      reactionRepo.save.mockResolvedValue(reaction);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
 
       await service.createReaction(dto);
 
       // Confirm create() was called with `anonymousUser`, NOT `user`
-      expect(reactionRepo.create).toHaveBeenCalledWith(
+      expect(managerReactionRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ anonymousUser: user }),
       );
-      expect(reactionRepo.create).not.toHaveBeenCalledWith(
+      expect(managerReactionRepo.create).not.toHaveBeenCalledWith(
         expect.objectContaining({ user: expect.anything() }),
       );
     });
+  });
+});
+
+// ─── Analytics cache invalidation ────────────────────────────────────────────
+
+describe('ReactionService – analytics cache invalidation', () => {
+  let service: ReactionService;
+  let analyticsService: jest.Mocked<
+    Pick<
+      AnalyticsService,
+      'invalidateTrendingCache' | 'invalidateReactionDistributionCache'
+    >
+  >;
+
+  const makeManagerRepo = () => ({
+    findOne: jest.fn().mockResolvedValue(null),
+    create: jest.fn().mockReturnValue({ id: 'r1', emoji: '❤️' }),
+    save: jest.fn().mockResolvedValue({ id: 'r1', emoji: '❤️' }),
+  });
+
+  const confession = {
+    id: 'conf-1',
+    anonymousUser: null,
+  } as any;
+
+  const anonUser = { id: 'anon-1' } as any;
+
+  const dto = {
+    confessionId: 'conf-1',
+    anonymousUserId: 'anon-1',
+    emoji: '❤️',
+  };
+
+  beforeEach(async () => {
+    analyticsService = {
+      invalidateTrendingCache: jest.fn().mockResolvedValue(undefined),
+      invalidateReactionDistributionCache: jest
+        .fn()
+        .mockResolvedValue(undefined),
+    };
+
+    const managerRepo = makeManagerRepo();
+    const dataSourceMock = {
+      transaction: jest
+        .fn()
+        .mockImplementation((cb: any) =>
+          cb({ getRepository: jest.fn().mockReturnValue(managerRepo) }),
+        ),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ReactionService,
+        {
+          provide: getRepositoryToken(Reaction),
+          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useValue: { findOne: jest.fn().mockResolvedValue(confession) },
+        },
+        {
+          provide: getRepositoryToken(AnonymousUser),
+          useValue: { findOne: jest.fn().mockResolvedValue(anonUser) },
+        },
+        {
+          provide: getRepositoryToken(OutboxEvent),
+          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
+        },
+        { provide: DataSource, useValue: dataSourceMock },
+        { provide: AnalyticsService, useValue: analyticsService },
+      ],
+    }).compile();
+
+    service = module.get<ReactionService>(ReactionService);
+  });
+
+  afterEach(() => jest.clearAllMocks());
+
+  it('invalidates trending cache after a new reaction is persisted', async () => {
+    await service.createReaction(dto);
+    // Allow the fire-and-forget promises to settle
+    await Promise.resolve();
+    expect(analyticsService.invalidateTrendingCache).toHaveBeenCalledWith(
+      'reaction-mutation',
+    );
+  });
+
+  it('invalidates reaction distribution cache after a new reaction is persisted', async () => {
+    await service.createReaction(dto);
+    await Promise.resolve();
+    expect(
+      analyticsService.invalidateReactionDistributionCache,
+    ).toHaveBeenCalledWith('reaction-mutation');
+  });
+
+  it('does NOT call analytics invalidation when confession is not found', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        ReactionService,
+        {
+          provide: getRepositoryToken(Reaction),
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: getRepositoryToken(AnonymousUser),
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(OutboxEvent),
+          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
+        },
+        { provide: DataSource, useValue: { transaction: jest.fn() } },
+        { provide: AnalyticsService, useValue: analyticsService },
+      ],
+    }).compile();
+
+    const svc = module.get<ReactionService>(ReactionService);
+    await expect(svc.createReaction(dto)).rejects.toThrow(NotFoundException);
+    expect(analyticsService.invalidateTrendingCache).not.toHaveBeenCalled();
+    expect(
+      analyticsService.invalidateReactionDistributionCache,
+    ).not.toHaveBeenCalled();
   });
 });

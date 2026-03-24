@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import * as WalletService from '../services/wallet.service';
 
 export interface WalletState {
@@ -21,7 +22,7 @@ export interface UseWalletReturn extends WalletState {
   clearError: () => void;
 }
 
-const WALLET_STORAGE_KEY = 'xconfess_wallet';
+const WALLET_STORAGE_KEY = 'xconfess_wallet_session';
 const NETWORK_STORAGE_KEY = 'xconfess_network';
 
 /**
@@ -41,6 +42,33 @@ export const useWallet = (): UseWalletReturn => {
   const hasInitialized = useRef(false);
 
   /**
+   * Store session in localStorage
+   */
+  const storeSession = useCallback((publicKey: string, network: string) => {
+    localStorage.setItem(WALLET_STORAGE_KEY, JSON.stringify({ publicKey, network }));
+    localStorage.setItem(NETWORK_STORAGE_KEY, network);
+  }, []);
+
+  /**
+   * Clear session from localStorage
+   */
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(WALLET_STORAGE_KEY);
+  }, []);
+
+  /**
+   * Get stored session from localStorage
+   */
+  const getStoredSession = useCallback((): { publicKey: string; network: string } | null => {
+    try {
+      const stored = localStorage.getItem(WALLET_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  /**
    * Initialize wallet on mount
    */
   useEffect(() => {
@@ -48,7 +76,40 @@ export const useWallet = (): UseWalletReturn => {
       hasInitialized.current = true;
       initializeWallet();
     }
-  }, []);
+  }, [initializeWallet]);
+
+  /**
+   * Revalidate wallet connection on route changes
+   */
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (hasInitialized.current && state.publicKey) {
+      const revalidateConnection = async () => {
+        const walletInfo = await WalletService.getWalletInfo();
+        if (!walletInfo) {
+          setState((prev) => ({
+            ...prev,
+            publicKey: null,
+            isConnected: false,
+            error: 'Wallet disconnected. Please reconnect.',
+          }));
+          clearSession();
+        } else if (walletInfo.publicKey !== state.publicKey) {
+          setState((prev) => ({
+            ...prev,
+            publicKey: walletInfo.publicKey,
+            network: walletInfo.network,
+            isConnected: true,
+            error: null,
+          }));
+          storeSession(walletInfo.publicKey, walletInfo.network);
+        }
+      };
+      revalidateConnection();
+    }
+  }, [pathname, searchParams, state.publicKey, clearSession, storeSession]);
 
   /**
    * Initialize wallet state from storage and current wallet connection
@@ -69,13 +130,11 @@ export const useWallet = (): UseWalletReturn => {
         return;
       }
 
-      // Check if wallet was previously connected
       const storedNetwork = localStorage.getItem(NETWORK_STORAGE_KEY);
       if (storedNetwork) {
         setState((prev) => ({ ...prev, network: storedNetwork }));
       }
 
-      // Try to reconnect to wallet
       const walletInfo = await WalletService.getWalletInfo();
 
       if (walletInfo) {
@@ -87,15 +146,25 @@ export const useWallet = (): UseWalletReturn => {
           isLoading: false,
           error: null,
         }));
-
-        // Store the network
-        localStorage.setItem(NETWORK_STORAGE_KEY, walletInfo.network);
+        storeSession(walletInfo.publicKey, walletInfo.network);
       } else {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: null,
-        }));
+        const stored = getStoredSession();
+        if (stored) {
+          setState((prev) => ({
+            ...prev,
+            publicKey: stored.publicKey,
+            network: stored.network,
+            isConnected: false,
+            isLoading: false,
+            error: 'Wallet disconnected. Please reconnect.',
+          }));
+        } else {
+          setState((prev) => ({
+            ...prev,
+            isLoading: false,
+            error: null,
+          }));
+        }
       }
     } catch (error) {
       const errorMessage =
@@ -106,7 +175,7 @@ export const useWallet = (): UseWalletReturn => {
         error: errorMessage,
       }));
     }
-  }, []);
+  }, [storeSession, getStoredSession]);
 
   /**
    * Connect to wallet
@@ -126,8 +195,7 @@ export const useWallet = (): UseWalletReturn => {
         error: null,
       }));
 
-      // Store the network
-      localStorage.setItem(NETWORK_STORAGE_KEY, walletInfo.network);
+      storeSession(walletInfo.publicKey, walletInfo.network);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to connect wallet';
@@ -139,7 +207,7 @@ export const useWallet = (): UseWalletReturn => {
       }));
       throw error;
     }
-  }, []);
+  }, [storeSession]);
 
   /**
    * Disconnect from wallet
@@ -155,8 +223,7 @@ export const useWallet = (): UseWalletReturn => {
         error: null,
       }));
 
-      // Clear stored wallet data
-      localStorage.removeItem(WALLET_STORAGE_KEY);
+      clearSession();
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to disconnect wallet';
@@ -165,7 +232,7 @@ export const useWallet = (): UseWalletReturn => {
         error: errorMessage,
       }));
     }
-  }, []);
+  }, [clearSession]);
 
   /**
    * Sign a transaction

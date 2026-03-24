@@ -6,6 +6,7 @@ import {
   Res,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
   Post,
   Req,
   UseGuards,
@@ -57,6 +58,7 @@ export class DataExportController {
     @Query('userId') userId: string,
     @Query('expires') expires: string,
     @Query('signature') signature: string,
+    @Query('chunk') chunk?: string,
     @Res() res: Response,
   ) {
     // 1. Check Expiration
@@ -66,7 +68,12 @@ export class DataExportController {
 
     // 2. Verify Signature
     const secret = this.configService.get<string>('app.appSecret', '');
-    const dataToVerify = `${id}:${userId}:${expires}`;
+    const chunkIndex = chunk !== undefined ? parseInt(chunk) : undefined;
+
+    const dataToVerify = chunkIndex !== undefined
+      ? `${id}:${userId}:${chunkIndex}:${expires}`
+      : `${id}:${userId}:${expires}`;
+
     const expectedSignature = crypto
       .createHmac('sha256', secret || 'APP_SECRET_NOT_SET')
       .update(dataToVerify)
@@ -77,13 +84,39 @@ export class DataExportController {
     }
 
     // 3. Fetch from Service (Only if signature is valid)
+    if (chunkIndex !== undefined) {
+      const exportChunk = await this.exportService.getExportChunk(id, userId, chunkIndex);
+      if (!exportChunk) throw new NotFoundException('Chunk not found.');
+
+      res.set({
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="xconfess-data-${userId}-part${chunkIndex + 1}.zip"`,
+        'Content-Length': exportChunk.chunkSize,
+        'X-Chunk-Checksum': exportChunk.checksum,
+      });
+      return res.send(exportChunk.fileData);
+    }
+
     const exportReq = await this.exportService.getExportFile(id, userId);
 
-    if (!exportReq || !exportReq.fileData) {
+    if (!exportReq || (!exportReq.fileData && !exportReq.isChunked)) {
       throw new BadRequestException('File not found or expired.');
     }
 
-    // 4. Stream to User
+    if (exportReq.isChunked) {
+      // Return metadata and links for chunked export
+      return res.json({
+        message: 'This export is multi-part.',
+        chunkCount: exportReq.chunkCount,
+        totalSize: exportReq.totalSize,
+        checksum: exportReq.combinedChecksum,
+        downloadUrls: Array.from({ length: exportReq.chunkCount }, (_, i) =>
+          this.exportService.generateSignedDownloadUrl(id, userId, i)
+        ),
+      });
+    }
+
+    // 4. Stream to User (Single file)
     res.set({
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="xconfess-data-${userId}.zip"`,

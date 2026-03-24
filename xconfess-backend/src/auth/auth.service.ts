@@ -34,10 +34,24 @@ export class AuthService {
       if (!user.is_active) {
         throw new UnauthorizedException('Account is deactivated. Please reactivate your account to continue.');
       }
-      // Decrypt email for login response
       const decryptedEmail = CryptoUtil.decrypt(user.emailEncrypted, user.emailIv, user.emailTag);
-      const { password: _, emailEncrypted, emailIv, emailTag, emailHash, ...result } = user;
-      return { ...result, email: decryptedEmail };
+      return {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        is_active: user.is_active,
+        email: decryptedEmail,
+        resetPasswordToken: user.resetPasswordToken,
+        resetPasswordExpires: user.resetPasswordExpires,
+        notificationPreferences: user.notificationPreferences || {},
+        privacy: {
+          isDiscoverable: user.isDiscoverable(),
+          canReceiveReplies: user.canReceiveReplies(),
+          showReactions: user.shouldShowReactions(),
+        },
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
     }
     return null;
   }
@@ -120,10 +134,24 @@ export class AuthService {
   async validateUserById(userId: number): Promise<UserResponse | null> {
     const user = await this.userService.findById(userId);
     if (user && user.is_active) {
-      // Decrypt email for response
       const decryptedEmail = CryptoUtil.decrypt(user.emailEncrypted, user.emailIv, user.emailTag);
-      const { password: _, emailEncrypted, emailIv, emailTag, emailHash, ...result } = user;
-      return { ...result, email: decryptedEmail };
+      return {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        is_active: user.is_active,
+        email: decryptedEmail,
+        resetPasswordToken: user.resetPasswordToken,
+        resetPasswordExpires: user.resetPasswordExpires,
+        notificationPreferences: user.notificationPreferences || {},
+        privacy: {
+          isDiscoverable: user.isDiscoverable(),
+          canReceiveReplies: user.canReceiveReplies(),
+          showReactions: user.shouldShowReactions(),
+        },
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
     }
     return null;
   }

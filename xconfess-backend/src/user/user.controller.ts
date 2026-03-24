@@ -17,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -25,12 +25,22 @@ import { GetUser } from '../auth/get-user.decorator';
 import { UpdateUserProfileDto } from './dto/updateProfile.dto';
 import { CryptoUtil } from '../common/crypto.util';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
+import { UpdatePrivacySettingsDto, PrivacySettingsResponseDto } from './dto/update-privacy-settings.dto';
 
-// Add decrypted email to the response type for API output
-export type UserResponse = Omit<
-  User,
-  'password' | 'emailEncrypted' | 'emailIv' | 'emailTag' | 'emailHash'
-> & { email: string };
+// Add decrypted email and privacy metadata to the response type for API output
+export interface UserResponse {
+  id: number;
+  username: string;
+  role: UserRole;
+  is_active: boolean;
+  email: string;
+  resetPasswordToken: string | null;
+  resetPasswordExpires: Date | null;
+  notificationPreferences: Record<string, boolean>;
+  privacy: { isDiscoverable: boolean; canReceiveReplies: boolean; showReactions: boolean };
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 @Controller('users')
 export class UserController {
@@ -41,16 +51,24 @@ export class UserController {
 
   // Helper method to keep DRY (Don't Repeat Yourself)
   private formatUserResponse(user: User): UserResponse {
-    const {
-      password,
-      emailEncrypted,
-      emailIv,
-      emailTag,
-      emailHash,
-      ...result
-    } = user;
-    const email = CryptoUtil.decrypt(emailEncrypted, emailIv, emailTag);
-    return { ...result, email } as unknown as UserResponse;
+    const email = CryptoUtil.decrypt(user.emailEncrypted, user.emailIv, user.emailTag);
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      is_active: user.is_active,
+      email,
+      resetPasswordToken: user.resetPasswordToken,
+      resetPasswordExpires: user.resetPasswordExpires,
+      notificationPreferences: user.notificationPreferences || {},
+      privacy: {
+        isDiscoverable: user.isDiscoverable(),
+        canReceiveReplies: user.canReceiveReplies(),
+        showReactions: user.shouldShowReactions(),
+      },
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 
   @Post('register')
@@ -169,5 +187,22 @@ export class UserController {
       updateUserProfileDto,
     );
     return this.formatUserResponse(updatedUser);
+  }
+
+  @Get('privacy-settings')
+  @UseGuards(JwtAuthGuard)
+  async getPrivacySettings(
+    @GetUser('id') userId: number,
+  ): Promise<PrivacySettingsResponseDto> {
+    return this.userService.getPrivacySettings(userId);
+  }
+
+  @Patch('privacy-settings')
+  @UseGuards(JwtAuthGuard)
+  async updatePrivacySettings(
+    @GetUser('id') userId: number,
+    @Body() dto: UpdatePrivacySettingsDto,
+  ): Promise<PrivacySettingsResponseDto> {
+    return this.userService.updatePrivacySettings(userId, dto);
   }
 }

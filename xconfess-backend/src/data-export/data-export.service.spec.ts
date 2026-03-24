@@ -5,6 +5,7 @@ import { getQueueToken } from '@nestjs/bull';
 import { ConfigService } from '@nestjs/config';
 import { DataExportService } from './data-export.service';
 import { ExportRequest } from './entities/export-request.entity';
+import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('DataExportService', () => {
@@ -12,9 +13,14 @@ describe('DataExportService', () => {
 
   const mockExportRepository = {
     findOne: jest.fn(),
+    find: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
+  };
+
+  const mockChunkRepository = {
+    findOne: jest.fn(),
   };
 
   const mockExportQueue = {
@@ -22,11 +28,15 @@ describe('DataExportService', () => {
   };
 
   const mockConfigService = {
-    get: jest.fn(),
+    get: jest.fn((key: string, fallback?: string) => {
+      if (key === 'app.appSecret') return 'test-secret';
+      if (key === 'app.backendUrl') return 'https://backend.example.com';
+      return fallback;
+    }),
   };
 
   const mockAuditLogService = {
-    logExportLifecycleEvent: jest.fn(),
+    logExportLifecycleEvent: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -38,6 +48,10 @@ describe('DataExportService', () => {
         {
           provide: getRepositoryToken(ExportRequest),
           useValue: mockExportRepository,
+        },
+        {
+          provide: getRepositoryToken(ExportChunk),
+          useValue: mockChunkRepository,
         },
         {
           provide: getQueueToken('export-queue'),
@@ -68,7 +82,6 @@ describe('DataExportService', () => {
     mockExportRepository.create.mockReturnValue(created);
     mockExportRepository.save.mockResolvedValue(created);
     mockExportQueue.add.mockResolvedValue({ id: 'job-1' });
-    mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
 
     const result = await service.requestExport('42');
 
@@ -107,17 +120,6 @@ describe('DataExportService', () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-03-24T10:00:00.000Z'));
 
     try {
-      mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
-      mockConfigService.get.mockImplementation((key: string, fallback: string) => {
-        if (key === 'app.appSecret') {
-          return 'test-secret';
-        }
-        if (key === 'app.backendUrl') {
-          return 'https://backend.example.com';
-        }
-        return fallback;
-      });
-
       const url = service.generateSignedDownloadUrl('req-2', '77');
 
       const parsed = new URL(url);
@@ -149,7 +151,6 @@ describe('DataExportService', () => {
   it('logs download access when export file is retrieved', async () => {
     const exportFile = { fileData: Buffer.from('zip'), status: 'READY' };
     mockExportRepository.findOne.mockResolvedValue(exportFile);
-    mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
 
     const result = await service.getExportFile('req-3', '11');
 
@@ -175,7 +176,6 @@ describe('DataExportService', () => {
 
   it('marks export as ready and emits system generation-completed audit entry', async () => {
     mockExportRepository.update.mockResolvedValue({ affected: 1 });
-    mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
 
     await service.markExportGenerated('req-5', '12', Buffer.from('payload'), {
       jobId: 'job-22',
@@ -199,5 +199,42 @@ describe('DataExportService', () => {
         }),
       }),
     );
+  });
+
+  // --- Chunked export tests ---
+  describe('generateSignedDownloadUrl', () => {
+    it('should generate a valid URL for non-chunked export', () => {
+      const url = service.generateSignedDownloadUrl('req-123', 'user-456');
+      expect(url).toContain('/api/data-export/download/req-123');
+      expect(url).toContain('userId=user-456');
+      expect(url).toContain('signature=');
+      expect(url).not.toContain('chunk=');
+    });
+
+    it('should generate a valid URL for a specific chunk', () => {
+      const url = service.generateSignedDownloadUrl('req-123', 'user-456', 5);
+      expect(url).toContain('/api/data-export/download/req-123');
+      expect(url).toContain('userId=user-456');
+      expect(url).toContain('chunk=5');
+      expect(url).toContain('signature=');
+    });
+  });
+
+  describe('getExportChunk', () => {
+    it('should throw NotFoundException if request does not exist', async () => {
+      mockExportRepository.findOne.mockResolvedValue(null);
+      await expect(service.getExportChunk('req-1', 'user-1', 0)).rejects.toThrow('Export request not found or unauthorized');
+    });
+
+    it('should return the chunk if it exists and user owns the request', async () => {
+      mockExportRepository.findOne.mockResolvedValue({ id: 'req-1', userId: 'user-1' });
+      const mockChunk = { id: 'chunk-1', chunkIndex: 0 };
+      mockChunkRepository.findOne.mockResolvedValue(mockChunk);
+
+      const result = await service.getExportChunk('req-1', 'user-1', 0);
+      expect(result).toEqual(mockChunk);
+      expect(mockExportRepository.findOne).toHaveBeenCalledWith({ where: { id: 'req-1', userId: 'user-1' } });
+      expect(mockChunkRepository.findOne).toHaveBeenCalledWith({ where: { exportRequestId: 'req-1', chunkIndex: 0 } });
+    });
   });
 });

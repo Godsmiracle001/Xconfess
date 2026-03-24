@@ -1,15 +1,15 @@
 // src/analytics/analytics.service.ts
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Cache } from 'cache-manager';
+import { Repository } from 'typeorm';
 import { Reaction } from 'src/reaction/entities/reaction.entity';
 import { User } from 'src/user/entities/user.entity';
 import { AnonymousConfession } from 'src/confession/entities/confession.entity';
+import { CacheService } from 'src/cache/cache.service';
 
 @Injectable()
 export class AnalyticsService {
+  private readonly logger = new Logger(AnalyticsService.name);
   private readonly CACHE_TTL = 900; // 15 minutes in seconds
 
   constructor(
@@ -19,15 +19,14 @@ export class AnalyticsService {
     private reactionRepository: Repository<Reaction>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    @Inject(CACHE_MANAGER)
-    private cacheManager: Cache,
+    private readonly cacheService: CacheService,
   ) {}
 
   async getTrendingConfessions(days: number = 7) {
     const cacheKey = `analytics:trending:${days}d`;
 
     // Try to get from cache
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await this.cacheService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -57,7 +56,7 @@ export class AnalyticsService {
     }));
 
     // Cache the result
-    await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
+    await this.cacheService.set(cacheKey, result, this.CACHE_TTL);
 
     return result;
   }
@@ -65,7 +64,7 @@ export class AnalyticsService {
   async getReactionDistribution(days: number = 7) {
     const cacheKey = `analytics:reactions:${days}d`;
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await this.cacheService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -96,7 +95,7 @@ export class AnalyticsService {
       period: `${days} days`,
     };
 
-    await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
+    await this.cacheService.set(cacheKey, result, this.CACHE_TTL);
 
     return result;
   }
@@ -104,7 +103,7 @@ export class AnalyticsService {
   async getDailyActiveUsers(days: number = 7) {
     const cacheKey = `analytics:users:${days}d`;
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await this.cacheService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -151,7 +150,7 @@ export class AnalyticsService {
           activityMap.size || 0,
     };
 
-    await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
+    await this.cacheService.set(cacheKey, result, this.CACHE_TTL);
 
     return result;
   }
@@ -159,7 +158,7 @@ export class AnalyticsService {
   async getPlatformStats() {
     const cacheKey = 'analytics:stats';
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await this.cacheService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -198,7 +197,7 @@ export class AnalyticsService {
       lastUpdated: new Date(),
     };
 
-    await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
+    await this.cacheService.set(cacheKey, result, this.CACHE_TTL);
 
     return result;
   }
@@ -206,7 +205,7 @@ export class AnalyticsService {
   async getConfessionGrowth(days: number = 7) {
     const cacheKey = `analytics:growth:${days}d`;
 
-    const cached = await this.cacheManager.get(cacheKey);
+    const cached = await this.cacheService.get(cacheKey);
     if (cached) {
       return cached;
     }
@@ -240,7 +239,7 @@ export class AnalyticsService {
       trend: this.calculateTrend(dailyGrowth),
     };
 
-    await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
+    await this.cacheService.set(cacheKey, result, this.CACHE_TTL);
 
     return result;
   }
@@ -266,20 +265,56 @@ export class AnalyticsService {
     return 'stable';
   }
 
-  // Method to invalidate all analytics caches
-  async invalidateCache() {
-    const keys = [
-      'analytics:trending:7d',
-      'analytics:trending:30d',
-      'analytics:reactions:7d',
-      'analytics:reactions:30d',
-      'analytics:users:7d',
-      'analytics:users:30d',
-      'analytics:stats',
-      'analytics:growth:7d',
-      'analytics:growth:30d',
-    ];
+  // ─── Targeted cache invalidation ───────────────────────────────────────────
+  //
+  // Each method invalidates only the segment that is affected by a given type
+  // of mutation. Callers should prefer these over the full-flush invalidateCache().
+  // All methods are fire-and-forget safe (errors are absorbed and logged by
+  // CacheService.invalidateSegment).
 
-    await Promise.all(keys.map((key) => this.cacheManager.del(key)));
+  async invalidateTrendingCache(reason = 'mutation'): Promise<void> {
+    this.logger.log(
+      `Invalidating trending analytics cache (reason: ${reason})`,
+    );
+    await this.cacheService.invalidateSegment('analytics:trending', reason);
+  }
+
+  async invalidateReactionDistributionCache(
+    reason = 'mutation',
+  ): Promise<void> {
+    this.logger.log(
+      `Invalidating reaction distribution cache (reason: ${reason})`,
+    );
+    await this.cacheService.invalidateSegment('analytics:reactions', reason);
+  }
+
+  async invalidateGrowthCache(reason = 'mutation'): Promise<void> {
+    this.logger.log(`Invalidating growth metrics cache (reason: ${reason})`);
+    await this.cacheService.invalidateSegment('analytics:growth', reason);
+  }
+
+  async invalidateUserActivityCache(reason = 'mutation'): Promise<void> {
+    this.logger.log(`Invalidating user activity cache (reason: ${reason})`);
+    await this.cacheService.invalidateSegment('analytics:users', reason);
+  }
+
+  async invalidateStatsCache(reason = 'mutation'): Promise<void> {
+    this.logger.log(`Invalidating platform stats cache (reason: ${reason})`);
+    await this.cacheService.del('analytics:stats');
+  }
+
+  /**
+   * Full-flush fallback retained for backward compatibility and admin use.
+   * Prefer the targeted methods above for routine mutation-driven invalidation.
+   */
+  async invalidateCache(): Promise<void> {
+    this.logger.warn('Full analytics cache flush requested');
+    await Promise.all([
+      this.invalidateTrendingCache('full-flush'),
+      this.invalidateReactionDistributionCache('full-flush'),
+      this.invalidateGrowthCache('full-flush'),
+      this.invalidateUserActivityCache('full-flush'),
+      this.invalidateStatsCache('full-flush'),
+    ]);
   }
 }
