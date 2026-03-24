@@ -56,7 +56,7 @@ export const HelpButton = () => {
           <div className="p-4 bg-linear-to-r from-purple-900 to-blue-900">
             <h3 className="font-semibold text-white">Need Help?</h3>
             <p className="text-sm text-gray-300 mt-1">
-              We're here to help you get started
+              We&apos;re here to help you get started
             </p>
           </div>
 
