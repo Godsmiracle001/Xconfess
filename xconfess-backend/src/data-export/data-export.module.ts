@@ -1,14 +1,25 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bull';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataExportController } from './data-export.controller';
-import { DataExportService } from './data-export.service';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { ExportRequest } from './entities/export-request.entity';
 import { ExportChunk } from './entities/export-chunk.entity';
+import { DataCleanupService } from './data-export-cleanup';
+import { DataExportService } from './data-export.service';
 import { ExportProcessor } from './export.processor';
+import { User } from '../user/entities/user.entity';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ExportRequest, ExportChunk])],
+  imports: [
+    BullModule.registerQueue({ name: 'export-queue' }),
+    TypeOrmModule.forFeature([ExportRequest, ExportChunk, User]),
+    AuditLogModule,
+    EmailModule,
+  ],
   controllers: [DataExportController],
-  providers: [DataExportService, ExportProcessor]
+  providers: [DataExportService, ExportProcessor, DataCleanupService],
+  exports: [DataExportService],
 })
 export class DataExportModule {}

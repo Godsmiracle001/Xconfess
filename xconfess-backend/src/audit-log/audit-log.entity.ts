@@ -49,6 +49,11 @@ export enum AuditActionType {
   EXPORT_GENERATION_COMPLETED = 'export_generation_completed',
   EXPORT_LINK_REFRESHED = 'export_link_refreshed',
   EXPORT_DOWNLOADED = 'export_downloaded',
+  EXPORT_CLEANUP_EXPIRED = 'export_cleanup_expired',
+
+  // Background delivery / fanout actions
+  NOTIFICATION_OUTBOX_DISPATCHED = 'notification_outbox_dispatched',
+  REPORT_REALTIME_FANOUT = 'report_realtime_fanout',
 }
 
 @Entity('audit_logs')

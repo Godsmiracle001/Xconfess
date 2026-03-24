@@ -3,8 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog, AuditActionType } from './audit-log.entity';
 
+export type AuditActorType = 'user' | 'admin' | 'system' | 'webhook';
+
 export interface AuditLogContext {
   userId?: string | null;
+  actorType?: AuditActorType;
+  actorId?: string | null;
   ipAddress?: string;
   userAgent?: string;
   requestId?: string;
@@ -33,6 +37,7 @@ export interface TemplateRolloutDiffRecord {
     | 'kill_switch_toggle'
     | 'fallback_activation';
   actorId: string;
+  actorType?: AuditActorType;
   before: Record<string, any>;
   after: Record<string, any>;
   source?: TemplateRolloutSourceMetadata;
@@ -68,20 +73,84 @@ export class AuditLogService {
     private readonly auditLogRepository: Repository<AuditLog>,
   ) {}
 
+  private isHumanActorType(
+    actorType?: AuditActorType,
+  ): actorType is 'user' | 'admin' {
+    return actorType === 'user' || actorType === 'admin';
+  }
+
+  private normalizeActorType(value?: string | null): AuditActorType | undefined {
+    if (
+      value === 'user' ||
+      value === 'admin' ||
+      value === 'system' ||
+      value === 'webhook'
+    ) {
+      return value;
+    }
+
+    return undefined;
+  }
+
+  private normalizeActorId(value?: string | null): string | null | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return value === null ? null : String(value);
+  }
+
+  private resolveActor(
+    metadata?: Record<string, any>,
+    context?: AuditLogContext,
+  ): { userId: string | null; actorType?: AuditActorType; actorId?: string | null } {
+    const metadataActorType = this.normalizeActorType(metadata?.actorType);
+    const contextActorType = this.normalizeActorType(context?.actorType);
+    const actorType = contextActorType || metadataActorType;
+
+    const metadataActorId = this.normalizeActorId(metadata?.actorId);
+    const contextActorId = this.normalizeActorId(context?.actorId);
+    let actorId = contextActorId ?? metadataActorId;
+    let userId = context?.userId ?? null;
+
+    if (this.isHumanActorType(actorType)) {
+      actorId = actorId ?? userId;
+      userId = userId ?? actorId ?? null;
+    } else if (actorType) {
+      userId = null;
+    } else if (userId) {
+      actorId = actorId ?? userId;
+      return {
+        userId,
+        actorType: 'user',
+        actorId,
+      };
+    }
+
+    return {
+      userId,
+      actorType,
+      actorId,
+    };
+  }
+
   /**
    * Log a sensitive action to the audit log
    * Includes error handling to prevent logging failures from breaking the application
    */
   async log(dto: CreateAuditLogDto): Promise<void> {
     try {
+      const actor = this.resolveActor(dto.metadata, dto.context);
       const auditLog = this.auditLogRepository.create({
-        userId: dto.context?.userId || null,
+        userId: actor.userId,
         actionType: dto.actionType,
         metadata: {
           ...(dto.metadata || {}),
           ...(dto.context?.requestId
             ? { requestId: dto.context.requestId }
             : {}),
+          ...(actor.actorType ? { actorType: actor.actorType } : {}),
+          ...(actor.actorId !== undefined ? { actorId: actor.actorId } : {}),
           ...(dto.metadata?.templateKey && dto.metadata?.templateVersion
             ? {
                 templateKey: dto.metadata.templateKey,
@@ -95,8 +164,11 @@ export class AuditLogService {
 
       await this.auditLogRepository.save(auditLog);
 
+      const actorLabel = actor.actorType
+        ? `${actor.actorType}:${actor.actorId ?? 'unknown'}`
+        : dto.context?.userId || 'anonymous';
       this.logger.log(
-        `Audit log created: ${dto.actionType} by user ${dto.context?.userId || 'anonymous'}`,
+        `Audit log created: ${dto.actionType} by ${actorLabel}`,
       );
     } catch (error) {
       // Log the error but don't throw to prevent disrupting the main operation
@@ -190,7 +262,12 @@ export class AuditLogService {
         reason,
         reportedAt: new Date().toISOString(),
       },
-      context: { ...context, userId: reporterId },
+      context: {
+        ...context,
+        userId: reporterId,
+        actorType: 'user',
+        actorId: reporterId,
+      },
     });
   }
 
@@ -217,7 +294,12 @@ export class AuditLogService {
         ...metadata,
         resolvedAt: new Date().toISOString(),
       },
-      context: { ...context, userId: adminId },
+      context: {
+        ...context,
+        userId: adminId,
+        actorType: 'admin',
+        actorId: adminId,
+      },
     });
   }
 
@@ -244,7 +326,12 @@ export class AuditLogService {
         ...metadata,
         dismissedAt: new Date().toISOString(),
       },
-      context: { ...context, userId: adminId },
+      context: {
+        ...context,
+        userId: adminId,
+        actorType: 'admin',
+        actorId: adminId,
+      },
     });
   }
 
@@ -275,7 +362,12 @@ export class AuditLogService {
         ...metadata,
         replayedAt: metadata.replayedAt || new Date().toISOString(),
       },
-      context: { ...context, userId: adminId },
+      context: {
+        ...context,
+        userId: adminId,
+        actorType: 'admin',
+        actorId: adminId,
+      },
     });
   }
 
@@ -315,7 +407,13 @@ export class AuditLogService {
       },
       context: {
         ...record.context,
-        userId: this.toNullableUuid(record.context?.userId || null),
+        userId:
+          record.context?.userId ||
+          (this.isHumanActorType(record.actorType)
+            ? record.actorId || null
+            : null),
+        actorType: record.actorType,
+        actorId: record.actorId || null,
       },
     });
   }
@@ -368,7 +466,6 @@ export class AuditLogService {
         templateKey: record.templateKey,
         templateVersion: record.templateVersion || null,
         changeType: record.changeType,
-        actorId: record.actorId,
         reason: record.source?.reason || null,
         correlationId: correlationId || null,
         sourceEndpoint: record.source?.sourceEndpoint || null,
@@ -378,7 +475,18 @@ export class AuditLogService {
         diff,
         changedAt: new Date().toISOString(),
       },
-      context: { ...context, userId: this.toNullableUuid(record.actorId) },
+      context: {
+        ...context,
+        userId:
+          context?.userId ||
+          (this.isHumanActorType(record.actorType)
+            ? this.toNullableUuid(record.actorId)
+            : null),
+        actorType:
+          record.actorType ||
+          (record.actorId === 'system' ? 'system' : 'admin'),
+        actorId: record.actorId,
+      },
     });
   }
 
@@ -407,7 +515,12 @@ export class AuditLogService {
         entityId: `${templateKey}:${version}`,
         transitionedAt: new Date().toISOString(),
       },
-      context: { ...context, userId: adminId },
+      context: {
+        ...context,
+        userId: adminId,
+        actorType: 'admin',
+        actorId: adminId,
+      },
     });
 
     await this.logTemplateRolloutDiff(
@@ -416,6 +529,7 @@ export class AuditLogService {
         templateVersion: version,
         changeType: 'state_transition',
         actorId: adminId,
+        actorType: 'admin',
         before: { lifecycleState: from },
         after: { lifecycleState: to },
         source: {
@@ -450,7 +564,12 @@ export class AuditLogService {
         entityId: templateKey || 'global',
         toggledAt: new Date().toISOString(),
       },
-      context: { ...context, userId: adminId },
+      context: {
+        ...context,
+        userId: adminId,
+        actorType: 'admin',
+        actorId: adminId,
+      },
     });
 
     await this.logTemplateRolloutDiff(
@@ -458,6 +577,7 @@ export class AuditLogService {
         templateKey: templateKey || 'global',
         changeType: 'kill_switch_toggle',
         actorId: adminId,
+        actorType: 'admin',
         before: { killSwitchEnabled: !enabled },
         after: { killSwitchEnabled: enabled },
         source: {
@@ -493,7 +613,11 @@ export class AuditLogService {
         entityId: `${templateKey}:${failedVersion}`,
         activatedAt: new Date().toISOString(),
       },
-      context,
+      context: {
+        ...context,
+        actorType: context?.actorType || (context?.userId ? 'admin' : 'system'),
+        actorId: context?.actorId || context?.userId || 'system',
+      },
     });
 
     await this.logTemplateRolloutDiff(
@@ -501,7 +625,8 @@ export class AuditLogService {
         templateKey,
         templateVersion: failedVersion,
         changeType: 'fallback_activation',
-        actorId: context?.userId || 'system',
+        actorId: context?.actorId || context?.userId || 'system',
+        actorType: context?.actorType || (context?.userId ? 'admin' : 'system'),
         before: { activeVersion: failedVersion },
         after: { activeVersion: fallbackVersion },
         source: {

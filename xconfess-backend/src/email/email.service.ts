@@ -13,12 +13,13 @@ import {
   EmailProviderConfig,
   MailConfig,
   EmailTemplateVersion,
+  EmailTemplateRegistry,
   EmailTemplateSloConfig,
   TemplateVariablePrimitiveType,
-  TemplateRegistry,
-  TemplateRolloutMap,
-  resolveTemplate,
 } from '../config/email.config';
+import {
+  TemplateRolloutMap,
+} from './email.config';
 
 // ── Template variable validation ──────────────────────────────────────────────
 
@@ -241,7 +242,7 @@ export class EmailService implements OnModuleInit {
 
   private readonly templateSloSeries = new Map<string, TemplateSloSeries>();
 
-  private templateRegistry: TemplateRegistry = {};
+  private templateRegistry: EmailTemplateRegistry = {};
   private rolloutMap: TemplateRolloutMap = {};
 
   constructor(
@@ -260,7 +261,7 @@ export class EmailService implements OnModuleInit {
     if (cbConfig) this.cbConfig = cbConfig;
 
     const registry =
-      this.configService.get<TemplateRegistry>('templateRegistry');
+      this.configService.get<EmailTemplateRegistry>('mail.templateRegistry');
     const rollout =
       this.configService.get<TemplateRolloutMap>('templateRolloutMap');
     if (registry) this.templateRegistry = registry;
@@ -567,15 +568,14 @@ export class EmailService implements OnModuleInit {
 
   resolveAndRender(
     templateKey: string,
-    recipientEmail: string,
+    _recipientEmail: string,
     vars: Record<string, unknown>,
   ): { subject: string; html: string; text: string; meta: TemplateMeta } {
-    const { template, isCanary } = resolveTemplate(
-      this.templateRegistry,
-      this.rolloutMap,
-      templateKey,
-      recipientEmail,
-    );
+    const resolved = this.resolveActiveTemplate(templateKey);
+    if (!resolved) {
+      throw new Error(`No valid template for ${templateKey}`);
+    }
+    const { template, isCanary } = resolved;
     const rendered = renderTemplate(templateKey, template, vars);
     return {
       ...rendered,
@@ -1149,6 +1149,23 @@ export class EmailService implements OnModuleInit {
         templateMeta,
       );
     }
+  }
+
+  async sendGenericNotification(
+    to: string,
+    templateKey: string,
+    vars: Record<string, unknown>,
+  ): Promise<void> {
+    const rendered = this.resolveAndRender(templateKey, to, vars);
+
+    await this.sendEmail(
+      to,
+      rendered.subject,
+      rendered.html,
+      rendered.text,
+      `email_${templateKey}`,
+      rendered.meta,
+    );
   }
 
   // ── Legacy template generators ────────────────────────────────────────────

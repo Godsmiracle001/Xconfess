@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { Repository } from 'typeorm';
 import {
   NotificationQueue,
   CommentNotificationPayload,
@@ -10,6 +11,7 @@ import {
 } from '../email/email.service';
 import { AppLogger } from '../logger/logger.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { UserService } from '../user/user.service';
 
 // ── Redis mock ────────────────────────────────────────────────────────────────
 const mockRedisSet = jest.fn();
@@ -58,12 +60,16 @@ const makePayload = (
 describe('NotificationQueue', () => {
   let service: NotificationQueue;
   let logger: jest.Mocked<AppLogger>;
-  let emailServiceMock: { sendCommentNotification: jest.Mock };
+  let emailServiceMock: {
+    sendCommentNotification: jest.Mock;
+    sendGenericNotification: jest.Mock;
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     emailServiceMock = {
       sendCommentNotification: jest.fn().mockResolvedValue(undefined),
+      sendGenericNotification: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -94,7 +100,19 @@ describe('NotificationQueue', () => {
         },
         {
           provide: AuditLogService,
-          useValue: { logNotificationDlqReplay: jest.fn() },
+          useValue: { logNotificationDlqReplay: jest.fn(), log: jest.fn() },
+        },
+        {
+          provide: UserService,
+          useValue: { findById: jest.fn() },
+        },
+        {
+          provide: Repository,
+          useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: 'DLQ_RETENTION_CONFIG',
+          useValue: { retentionDays: 7, cleanupBatchSize: 100, dryRun: false },
         },
       ],
     }).compile();
@@ -288,7 +306,7 @@ describe('NotificationQueue', () => {
         isCanary: true,
       };
 
-      emailServiceMock.sendCommentNotification.mockRejectedValue(validationError);
+      emailServiceMock.sendGenericNotification.mockRejectedValue(validationError);
 
       await expect(
         (service as any).processCommentNotification(makePayload()),

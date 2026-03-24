@@ -1,3 +1,4 @@
+import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useReactions } from '../useReactions';
@@ -33,12 +34,13 @@ const createWrapper = () => {
       },
     },
   });
-  
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  );
+
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
 };
 
 describe('useReactions', () => {

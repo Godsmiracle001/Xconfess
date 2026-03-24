@@ -79,6 +79,57 @@ describe('AuditLogService', () => {
     expect(mockRepository.save).toHaveBeenCalled();
   });
 
+  it('normalizes system actors into metadata without populating the user column', async () => {
+    mockRepository.create.mockReturnValue({} as AuditLog);
+    mockRepository.save.mockResolvedValue({} as AuditLog);
+
+    await service.log({
+      actionType: AuditActionType.NOTIFICATION_DLQ_CLEANUP,
+      metadata: { batchSize: 25 },
+      context: {
+        actorType: 'system',
+        actorId: 'notification-queue',
+        userId: 'admin-123',
+      },
+    });
+
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: null,
+        metadata: expect.objectContaining({
+          actorType: 'system',
+          actorId: 'notification-queue',
+          batchSize: 25,
+        }),
+      }),
+    );
+  });
+
+  it('annotates admin report actions with explicit actor metadata', async () => {
+    mockRepository.create.mockReturnValue({} as AuditLog);
+    mockRepository.save.mockResolvedValue({} as AuditLog);
+
+    await service.logReportResolved(
+      'report-1',
+      'admin-42',
+      { previousStatus: 'OPEN' },
+      { requestId: 'req-admin-1' },
+    );
+
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'admin-42',
+        actionType: AuditActionType.REPORT_RESOLVED,
+        metadata: expect.objectContaining({
+          actorType: 'admin',
+          actorId: 'admin-42',
+          requestId: 'req-admin-1',
+          previousStatus: 'OPEN',
+        }),
+      }),
+    );
+  });
+
   it('records rollout before/after diff snapshots', async () => {
     mockRepository.create.mockReturnValue({} as AuditLog);
     mockRepository.save.mockResolvedValue({} as AuditLog);

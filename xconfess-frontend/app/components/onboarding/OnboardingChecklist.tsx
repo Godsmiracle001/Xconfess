@@ -85,7 +85,7 @@ export const OnboardingChecklist = () => {
             {/* Completion message */}
             {isComplete && (
               <div className="flex items-center gap-2 mt-3 p-3 bg-green-500/20 rounded-lg text-green-400 font-semibold">
-                <Trophy className="w-5 h-5" /> 🎉 Congratulations! You've
+                <Trophy className="w-5 h-5" /> 🎉 Congratulations! You&apos;ve
                 completed all onboarding steps
               </div>
             )}
