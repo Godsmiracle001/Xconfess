@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { CommentItem } from "./CommentItem";
 import { Button } from "@/app/components/ui/button";
 import { type Comment } from "@/app/lib/types/confession";
 import { AUTH_TOKEN_KEY } from "@/app/lib/api/constants";
+import { ArrowDown, MessageCircle } from "lucide-react";
 
 const COMMENTS_PAGE_SIZE = 10;
+const UNREAD_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 interface CommentSectionProps {
   confessionId: string;
@@ -28,6 +30,10 @@ export function CommentSection({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const [collapsedThreads, setCollapsedThreads] = useState<Set<number>>(new Set());
+  const [lastVisit, setLastVisit] = useState<Date>(new Date());
+  const [hasUnread, setHasUnread] = useState(false);
+  const unreadButtonRef = useRef<HTMLButtonElement>(null);
 
   const fetchComments = useCallback(
     async (pageToLoad = 1) => {
@@ -56,20 +62,77 @@ export function CommentSection({
   );
 
   useEffect(() => {
-    // load first page
     fetchComments(1);
-  }, [fetchComments]);
+    const stored = localStorage.getItem(`comment_visit_${confessionId}`);
+    if (stored) {
+      setLastVisit(new Date(stored));
+    } else {
+      const now = new Date();
+      setLastVisit(now);
+      localStorage.setItem(`comment_visit_${confessionId}`, now.toISOString());
+    }
+  }, [fetchComments, confessionId]);
 
-  // Render top-level comments (parentId === null) with client-side pagination
+  useEffect(() => {
+    if (comments.length > 0) {
+      const unreadExists = comments.some((c) => {
+        const createdAt = new Date(c.createdAt);
+        return createdAt > lastVisit;
+      });
+      setHasUnread(unreadExists);
+    }
+  }, [comments, lastVisit]);
+
+  const toggleCollapse = useCallback((commentId: number) => {
+    setCollapsedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(commentId)) {
+        next.delete(commentId);
+      } else {
+        next.add(commentId);
+      }
+      return next;
+    });
+  }, []);
+
+  const jumpToUnread = useCallback(() => {
+    const unreadElement = document.querySelector('[data-unread="true"]');
+    if (unreadElement) {
+      unreadElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHasUnread(false);
+    }
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    const now = new Date();
+    setLastVisit(now);
+    localStorage.setItem(`comment_visit_${confessionId}`, now.toISOString());
+    setHasUnread(false);
+  }, [confessionId]);
+
   const topLevelComments = comments.filter((c) => c.parentId == null);
   const displayedComments = topLevelComments;
   const canLoadMore = hasMore;
 
-  // Recursive replies renderer (supports nested replies)
-  function renderReplies(parentId: number, depth = 1) {
-    if (depth > 6) return null; // prevent excessive nesting
+  const hasReplies = useCallback(
+    (commentId: number) => {
+      return comments.some((c) => c.parentId === commentId);
+    },
+    [comments],
+  );
 
-    // First, try to find replies attached directly to the parent comment (backend returns `replies` relation)
+  const isUnread = useCallback(
+    (comment: Comment) => {
+      const createdAt = new Date(comment.createdAt);
+      return createdAt > lastVisit;
+    },
+    [lastVisit],
+  );
+
+  function renderReplies(parentId: number, depth = 1) {
+    if (depth > 6) return null;
+    if (collapsedThreads.has(parentId)) return null;
+
     const parent = comments.find((c) => c.id === parentId) as
       | Comment
       | undefined;
@@ -85,7 +148,17 @@ export function CommentSection({
       <ul className="mt-3 space-y-3 list-none p-0 m-0">
         {children.map((child: Comment) => (
           <li key={child.id}>
-            <CommentItem comment={child} onReply={handleReply} isReply={true} />
+            <CommentItem
+              comment={child}
+              onReply={handleReply}
+              isReply={true}
+              hasReplies={hasReplies(child.id)}
+              isCollapsed={collapsedThreads.has(child.id)}
+              onToggleCollapse={
+                hasReplies(child.id) ? () => toggleCollapse(child.id) : undefined
+              }
+              isUnread={isUnread(child)}
+            />
             {renderReplies(child.id, depth + 1)}
           </li>
         ))}
@@ -133,13 +206,9 @@ export function CommentSection({
       }
 
       const newComment = await res.json();
-      // If this is a reply, we need to add it to the comments list with its parentId
-      // The rendering function will handle nesting based on parentId
       if (newComment.parentId != null) {
-        // Add the reply to the flat comments list - it will be nested during rendering
         setComments((prev) => [...prev, newComment]);
       } else {
-        // Top-level comment — prepend to current page's list
         setComments((prev) => [newComment, ...prev]);
       }
       setContent("");
@@ -173,7 +242,6 @@ export function CommentSection({
         Comments ({comments.length})
       </h2>
 
-      {/* Add comment form */}
       <form
         id="comment-form"
         onSubmit={handleSubmit}
@@ -225,7 +293,6 @@ export function CommentSection({
         )}
       </form>
 
-      {/* Loading */}
       {loading && (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => (
@@ -238,7 +305,6 @@ export function CommentSection({
         </div>
       )}
 
-      {/* Error */}
       {!loading && error && (
         <div className="rounded-lg border border-red-900/50 bg-red-900/10 p-4 text-red-300 text-sm">
           {error}
@@ -253,9 +319,35 @@ export function CommentSection({
         </div>
       )}
 
-      {/* Comment list */}
       {!loading && !error && (
         <>
+          {hasUnread && (
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-blue-400">
+                New comments available
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={markAllRead}
+                  className="text-xs"
+                >
+                  Mark all read
+                </Button>
+                <Button
+                  ref={unreadButtonRef}
+                  variant="default"
+                  size="sm"
+                  onClick={jumpToUnread}
+                  className="flex items-center gap-1 text-xs"
+                >
+                  <ArrowDown className="h-3 w-3" />
+                  Jump to new
+                </Button>
+              </div>
+            </div>
+          )}
           <ul className="space-y-3 list-none p-0 m-0">
             {displayedComments.map((comment) => (
               <li key={comment.id}>
@@ -263,9 +355,16 @@ export function CommentSection({
                   comment={comment}
                   onReply={handleReply}
                   isReply={false}
+                  hasReplies={hasReplies(comment.id)}
+                  isCollapsed={collapsedThreads.has(comment.id)}
+                  onToggleCollapse={
+                    hasReplies(comment.id)
+                      ? () => toggleCollapse(comment.id)
+                      : undefined
+                  }
+                  isUnread={isUnread(comment)}
                 />
-                {/* Render nested replies recursively */}
-                {renderReplies(comment.id, 1)}
+                {!collapsedThreads.has(comment.id) && renderReplies(comment.id, 1)}
               </li>
             ))}
           </ul>
