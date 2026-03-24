@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, In } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import { OutboxEvent, OutboxStatus } from '../common/entities/outbox-event.entity';
 import { NotificationQueue } from './notification.queue';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditActionType } from '../audit-log/audit-log.entity';
 
 @Injectable()
 export class OutboxDispatcherService {
@@ -14,6 +16,7 @@ export class OutboxDispatcherService {
         @InjectRepository(OutboxEvent)
         private readonly outboxRepo: Repository<OutboxEvent>,
         private readonly notificationQueue: NotificationQueue,
+        private readonly auditLogService: AuditLogService,
     ) { }
 
     @Cron(CronExpression.EVERY_10_SECONDS)
@@ -78,6 +81,7 @@ export class OutboxDispatcherService {
                     event.status = OutboxStatus.COMPLETED; // Mark as completed to stop retrying unknown types
                     event.processedAt = new Date();
                     await this.outboxRepo.save(event);
+                    await this.auditDispatch(event, 'unknown_type');
                     return;
             }
 
@@ -85,12 +89,38 @@ export class OutboxDispatcherService {
             event.status = OutboxStatus.COMPLETED;
             event.processedAt = new Date();
             await this.outboxRepo.save(event);
+            await this.auditDispatch(event, 'completed');
         } catch (error) {
             this.logger.error(`Failed to dispatch event ${event.id}: ${error.message}`);
             event.status = OutboxStatus.FAILED;
             event.retryCount += 1;
             event.lastError = error.message;
             await this.outboxRepo.save(event);
+            await this.auditDispatch(event, 'failed', error.message);
         }
+    }
+
+    private async auditDispatch(
+        event: OutboxEvent,
+        deliveryStatus: 'completed' | 'failed' | 'unknown_type',
+        error?: string,
+    ): Promise<void> {
+        await this.auditLogService.log({
+            actionType: AuditActionType.NOTIFICATION_OUTBOX_DISPATCHED,
+            metadata: {
+                entityType: 'notification_outbox',
+                entityId: event.id,
+                outboxEventId: event.id,
+                outboxEventType: event.type,
+                deliveryStatus,
+                retryCount: event.retryCount,
+                processedAt: event.processedAt?.toISOString() || null,
+                error: error || null,
+            },
+            context: {
+                actorType: 'system',
+                actorId: 'notification-outbox',
+            },
+        });
     }
 }

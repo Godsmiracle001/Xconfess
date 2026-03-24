@@ -84,6 +84,7 @@ export class NotificationQueue implements OnModuleDestroy {
   private queue: Queue;
   private worker: Worker;
   private redisClient: Redis;
+  private cleanupTimer?: NodeJS.Timeout;
   private readonly dedupeTtl: number;
   private readonly dlqConfig: DlqRetentionConfig;
 
@@ -101,7 +102,7 @@ export class NotificationQueue implements OnModuleDestroy {
     this.dlqConfig = dlqConfig;
     this.initializeWorkers();
     // Schedule periodic cleanup (every 6 hours)
-    setInterval(
+    this.cleanupTimer = setInterval(
       () => {
         this.cleanupDlq().catch((err) =>
           this.appLogger.error(`DLQ cleanup failed: ${err.message}`),
@@ -109,6 +110,7 @@ export class NotificationQueue implements OnModuleDestroy {
       },
       6 * 60 * 60 * 1000,
     );
+    this.cleanupTimer.unref?.();
   }
 
   /**
@@ -133,6 +135,7 @@ export class NotificationQueue implements OnModuleDestroy {
     const dryRun = options?.dryRun ?? this.dlqConfig.dryRun;
     const batchSize = options?.batchSize ?? this.dlqConfig.cleanupBatchSize;
     const actorId = options?.actorId ?? 'system';
+    const actorType = actorId === 'system' ? 'system' : 'admin';
 
     const failedJobs = await this.queue.getJobs(['failed'], 0, -1, false);
     const candidates = failedJobs.filter((job) => {
@@ -178,7 +181,11 @@ export class NotificationQueue implements OnModuleDestroy {
         jobIds: toProcess.map((j) => j.id),
         cleanedAt: new Date().toISOString(),
       },
-      context: { userId: actorId },
+      context: {
+        userId: actorType === 'admin' ? actorId : null,
+        actorType,
+        actorId,
+      },
     });
 
     return {
@@ -342,6 +349,14 @@ export class NotificationQueue implements OnModuleDestroy {
       const claimed = await this.claimIdempotencySlot(idempotencyKey);
 
       if (!claimed) {
+        this.appLogger.incrementCounter(
+          'notification_dedupe_suppressed_total',
+          1,
+          {
+            channel,
+            queue: this.queueName,
+          },
+        );
         this.appLogger.warn(
           `Duplicate ${type} enqueue suppressed (idempotency)`,
           'NotificationQueue',
@@ -427,13 +442,46 @@ export class NotificationQueue implements OnModuleDestroy {
         'NotificationQueue',
       );
     } catch (error) {
-      this.appLogger.error(
-        `Failed to process ${type} notification: ${error.message}`,
-        undefined,
-        'NotificationQueue',
-      );
+      if (error instanceof TemplateVariableValidationError) {
+        const templateMeta = (error as any).templateMeta;
+        this.appLogger.error(
+          {
+            message: `Failed to process ${type} notification`,
+            failureContext: {
+              code: error.code,
+              templateKey: error.templateKey,
+              templateVersion: error.templateVersion,
+              templateTrack: templateMeta?.isCanary ? 'canary' : 'active',
+              violations: error.violations,
+            },
+          },
+          undefined,
+          'NotificationQueue',
+        );
+      } else {
+        this.appLogger.error(
+          `Failed to process ${type} notification: ${error.message}`,
+          undefined,
+          'NotificationQueue',
+        );
+      }
       throw error;
     }
+  }
+
+  private async processCommentNotification(
+    payload: CommentNotificationPayload,
+    job?: Job<CommentNotificationPayload>,
+  ): Promise<void> {
+    await this.processNotification(
+      'comment-notification',
+      {
+        ...payload,
+        confessionId: payload.confession?.id,
+        commentPreview: payload.comment?.content,
+      },
+      job,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -730,6 +778,10 @@ export class NotificationQueue implements OnModuleDestroy {
           reason: 'user_preference_disabled',
           suppressedAt: new Date().toISOString(),
         },
+        context: {
+          actorType: 'system',
+          actorId: 'notification-queue',
+        },
       });
     }
 
@@ -770,6 +822,10 @@ export class NotificationQueue implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = undefined;
+    }
     await this.queue.close();
     await this.worker.close();
     await this.redisClient.quit();

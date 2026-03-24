@@ -12,12 +12,14 @@ import { AdminGateway } from './realtime/admin.gateway';
 import { ReportsEventsListener } from './realtime/reports.events.listener';
 import { UserModule } from '../user/user.module';
 import { UserAnonymousUser } from '../user/entities/user-anonymous-link.entity';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Report, AuditLog, AnonymousConfession, User, UserAnonymousUser]),
     AuthModule,
     UserModule,
+    AuditLogModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, ModerationService, AdminGateway, ReportsEventsListener],
