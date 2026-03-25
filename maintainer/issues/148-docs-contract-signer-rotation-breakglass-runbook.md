@@ -13,7 +13,7 @@ Lack of explicit signer rotation and break-glass procedures increases governance
 
 ## Files
 - `docs/contract-signer-rotation-runbook.md` (new)
-- `xconfess-contract/README.md`
+- `xconfess-contracts/README.md`
 - `maintainer/issues/117-feat-contract-emergency-pause-guard.md`
 - `maintainer/issues/123-feat-contract-admin-role-transfer-timelock.md`
 - `maintainer/issues/144-feat-contract-governance-quorum-critical-actions.md`

@@ -353,6 +353,12 @@ codes without parsing message text.
 
 For a detailed analysis of our security assumptions, privileged roles, trust boundaries, and specific threat mitigations, please read the [Threat Model and Security Assumptions](../docs/contract-threat-model.md) document.
 
+## Operational runbooks
+
+| Runbook | Description |
+|---------|-------------|
+| [Signer Key Rotation & Break-Glass Response](../docs/contract-signer-rotation-runbook.md) | Planned signer rotation workflow and emergency compromised-key response procedure |
+
 ---
 
 ## Troubleshooting
