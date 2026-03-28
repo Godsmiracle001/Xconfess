@@ -1,98 +1,163 @@
+## DLQ Retention Policy & Cleanup
+
+The notification dead-letter queue (DLQ) is now protected by a retention policy and scheduled cleanup job.
+
+### Configuration
+
+Set these environment variables (or override in config):
+
+- `DLQ_RETENTION_DAYS` (default: 14) — How many days to retain failed jobs
+- `DLQ_CLEANUP_BATCH_SIZE` (default: 100) — Max jobs to process per cleanup run
+- `DLQ_CLEANUP_DRY_RUN` (default: false) — If true, cleanup only logs candidates
+
+### How it works
+
+- Every 6 hours, the backend scans the DLQ for jobs older than the retention window.
+- In dry-run mode, it logs which jobs would be deleted.
+- In active mode, it deletes jobs and emits an audit log entry for each batch.
+- Cleanup is idempotent and safe to rerun.
+
+#### Manual Cleanup
+
+You can trigger cleanup manually in code:
+
+```ts
+// In a service/controller:
+await notificationQueue.cleanupDlq({ dryRun: true }); // or dryRun: false
+```
+
+#### Audit Logging
+
+All cleanup activity is logged in the audit log with action type `NOTIFICATION_DLQ_CLEANUP`.
+
+# xConfess Backend
+
+For operational details on managing email templates and rollouts, see the [Template Rollout Runbook](../docs/template-rollout-runbook.md).
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> NestJS-based backend for the xConfess anonymous confession platform.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Auth Endpoint Split (`/users/*` vs `/auth/*`)
 
-## Description
+Both route groups are active in this codebase:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- `/api/users/*`: user lifecycle endpoints (`register`, `login`, `profile`, account status, user notification preferences)
+- `/api/auth/*`: auth-centric endpoints (`login`, `me`, `logout`, password reset flow)
 
-## Project setup
+Examples:
+
+- `POST /api/users/register`
+- `POST /api/users/login`
+- `POST /api/auth/login`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
+## Active Modules
+
+| Module        | Path                 | Description                                            |
+| ------------- | -------------------- | ------------------------------------------------------ |
+| Auth          | `src/auth/`          | JWT authentication, guards, decorators                 |
+| User          | `src/user/`          | User + anonymous user management                       |
+| Confession    | `src/confession/`    | Confession CRUD, search, tags, encryption              |
+| Reaction      | `src/reaction/`      | Emoji reactions with WebSocket                         |
+| Comment       | `src/comment/`       | Nested commenting system                               |
+| Messages      | `src/messages/`      | Anonymous messaging (author-reply)                     |
+| Report        | `src/report/`        | Report creation & resolution                           |
+| Admin         | `src/admin/`         | Admin panel with RBAC                                  |
+| Moderation    | `src/moderation/`    | AI content moderation (OpenAI)                         |
+| Audit Log     | `src/audit-log/`     | Comprehensive audit trail                              |
+| Logger        | `src/logger/`        | Structured logging with PII masking                    |
+| Stellar       | `src/stellar/`       | Stellar blockchain integration                         |
+| Tipping       | `src/tipping/`       | XLM micro-tipping                                      |
+| Encryption    | `src/encryption/`    | Field-level confession encryption                      |
+| Cache         | `src/cache/`         | Redis/in-memory caching                                |
+| Analytics     | `src/analytics/`     | View counts, trending                                  |
+| Data Export   | `src/data-export/`   | GDPR data export                                       |
+| WebSocket     | `src/websocket/`     | Real-time event gateway                                |
+| Notification (outbox/DLQ replay) | `src/notification/` | Active notification queue, replay, and retention cleanup |
+| Notifications (Bull queue APIs) | `src/notifications/` | Additional notification endpoints and DLQ admin queue tooling |
+
+## Project Setup
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+## Compile and Run
 
 ```bash
 # development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
+npm run start:dev
 
 # production mode
-$ npm run start:prod
+npm run build
+npm run start:prod
 ```
 
-## Run tests
+## Run Tests
 
 ```bash
 # unit tests
-$ npm run test
+npm run test
 
 # e2e tests
-$ npm run test:e2e
+npm run test:e2e
 
 # test coverage
-$ npm run test:cov
+npm run test:cov
 ```
 
-## Deployment
+## Environment Variables
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Copy `.env.example` to `.env` and update the values:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+DB_NAME=xconfess
+JWT_SECRET=your-secret-key
+PORT=5000
+NODE_ENV=development
+APP_ENV=local
+TYPEORM_SYNCHRONIZE=false
+STELLAR_NETWORK=testnet
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+```
+
+### TypeORM Synchronize Policy
+
+- Default is `false` in all environments.
+- Sync is enabled only when both conditions are true:
+  - environment is local/dev (`NODE_ENV` or `APP_ENV` is `local`/`dev`/`development`)
+  - `TYPEORM_SYNCHRONIZE=true`
+- In non-dev environments, schema sync remains disabled even if the flag is set.
+
+## Database Migrations
+
+Migrations are the authoritative schema-evolution mechanism for non-dev environments.
 
 ```bash
-$ npm install -g mau
-$ mau deploy
+# generate a migration from local entity changes
+npm run migration:generate -- ./migrations/<migration-name>
+
+# apply pending migrations
+npm run migration:run
+
+# revert the latest migration (if needed)
+npm run migration:revert
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## API Documentation
 
-## Resources
+When running locally, Swagger docs are available at `/api/api-docs`.
 
-Check out a few resources that may come in handy when working with NestJS:
+For the exact controller-derived route list and DTO-accurate payload examples, see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## 📄 License
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+[MIT licensed](../LICENSE)

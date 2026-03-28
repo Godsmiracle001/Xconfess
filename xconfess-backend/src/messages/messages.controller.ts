@@ -1,10 +1,33 @@
-import { Controller, Post, Body, UseGuards, Request, ForbiddenException, NotFoundException, Get, Query, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Get,
+  Query,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
-import { CreateMessageDto, ReplyMessageDto } from './dto/message.dto';
+import {
+  CreateMessageDto,
+  GetMessagesQueryDto,
+  ReplyMessageDto,
+} from './dto/message.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { NotificationQueue } from '../notification/notification.queue';
-import { ViewMessagesDto } from './dto/view-messages.dto';
+import { GetUser } from '../auth/get-user.decorator';
+import { User } from '../user/entities/user.entity';
 
+@ApiTags('Messages')
+@ApiBearerAuth()
 @Controller('messages')
 export class MessagesController {
   constructor(
@@ -14,49 +37,69 @@ export class MessagesController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  async sendMessage(@Body() dto: CreateMessageDto, @Request() req) {
-   try {
-      const message = await this.messagesService.create(dto, req.user);
-      
-      // Only send notification if recipient email exists
-      if (message.confession.user?.email) {
-        await this.notificationQueue.enqueueCommentNotification({
-          confession: message.confession,
-          comment: { content: message.content } as any,
-          recipientEmail: message.confession.user.email,
-        });
-      }
-      
-      return { success: true, messageId: message.id };
-    } catch (error) {
-      // Service layer exceptions will be handled by NestJS exception filters
-      throw error;
-    }
+  @ApiOperation({ summary: 'Send an anonymous message to a confession author' })
+  @ApiResponse({ status: 201, description: 'Message sent successfully' })
+  @ApiResponse({ status: 404, description: 'Confession not found' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async sendMessage(@Body() dto: CreateMessageDto, @GetUser() user: User) {
+    const message = await this.messagesService.create(dto, user);
+    // Confessions are anonymous; no email notification is sent here.
+    return { success: true, messageId: message.id };
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('reply')
-  async replyMessage(@Body() dto: ReplyMessageDto, @Request() req) {
-    const message = await this.messagesService.reply(dto, req.user);
-   
-    // Notify original sender (anonymously) if they have an email
-    if (message.sender?.email) {
-      await this.notificationQueue.enqueueCommentNotification({
-        confession: message.confession,
-        comment: { content: `Reply to your message: ${message.replyContent}` } as any,
-        recipientEmail: message.sender.email,
-      });
-    }
+  @ApiOperation({
+    summary: 'Reply to an anonymous message (author only, single reply)',
+  })
+  @ApiResponse({ status: 200, description: 'Reply sent successfully' })
+  @ApiResponse({
+    status: 403,
+    description: 'Not the author or already replied',
+  })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async replyMessage(@Body() dto: ReplyMessageDto, @GetUser() user: User) {
+    await this.messagesService.reply(dto, user);
     return { success: true };
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('threads')
+  @ApiOperation({
+    summary: 'Get all message threads for the authenticated user',
+  })
+  async getThreads(@GetUser() user: User) {
+    return this.messagesService.findAllThreadsForUser(user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get()
-  async getMessages(@Query('confession_id', ParseIntPipe) confession_id: number, @Request() req) {
-    const messages = await this.messagesService.findForConfessionAuthor(confession_id.toString(), req.user);
+  @ApiOperation({ summary: 'Get messages for a specific confession thread' })
+  @ApiQuery({
+    name: 'confession_id',
+    required: true,
+    description: 'Confession UUID',
+  })
+  @ApiQuery({
+    name: 'sender_id',
+    required: true,
+    description: 'Sender anonymous user ID',
+  })
+  @ApiResponse({ status: 200, description: 'Messages returned successfully' })
+  @ApiResponse({ status: 403, description: 'Not part of this conversation' })
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async getMessages(
+    @Query() query: GetMessagesQueryDto,
+    @GetUser() user: User,
+  ) {
+    const messages = await this.messagesService.findForConfessionThread(
+      query.confession_id,
+      query.sender_id,
+      user,
+    );
     // Hide sender info for anonymity
     return {
-      messages: messages.map(m => ({
+      messages: messages.map((m) => ({
         id: m.id,
         content: m.content,
         createdAt: m.createdAt,

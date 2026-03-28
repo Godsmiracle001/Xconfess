@@ -1,11 +1,21 @@
-import { Inject, Injectable, Logger, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
-import { EmailService } from '../email/email.service';
-import { User } from '../user/entities/user.entity';
+import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../common/entities/outbox-event.entity';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class ReactionService {
@@ -16,57 +26,150 @@ export class ReactionService {
     private reactionRepo: Repository<Reaction>,
     @InjectRepository(AnonymousConfession)
     private confessionRepo: Repository<AnonymousConfession>,
-    @Inject(forwardRef(() => EmailService))
-    private emailService: EmailService,
+    @InjectRepository(AnonymousUser)
+    private anonymousUserRepo: Repository<AnonymousUser>,
+    @InjectRepository(OutboxEvent)
+    private outboxRepo: Repository<OutboxEvent>,
+    private readonly dataSource: DataSource,
+    private readonly analyticsService: AnalyticsService,
   ) {}
 
-  async createReaction(dto: CreateReactionDto, userId?: number): Promise<Reaction> {
-    // Find the confession with the user who created it
-    const confession = await this.confessionRepo.findOne({ 
+  async createReaction(dto: CreateReactionDto): Promise<Reaction> {
+    // 1. Verify confession exists.
+    const confession = await this.confessionRepo.findOne({
       where: { id: dto.confessionId },
-      relations: ['user']
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+      ],
     });
 
     if (!confession) {
       throw new NotFoundException('Confession not found');
     }
 
-    // Find the user who is reacting (if authenticated)
-    let user: User | null = null;
-    if (userId) {
-      user = await this.confessionRepo.manager.findOne(User, { where: { id: userId } });
+    // 1.5: Check privacy settings - prevent reactions if author disabled them
+    const authorUser = confession.anonymousUser?.userLinks?.[0]?.user;
+    if (authorUser && !authorUser.shouldShowReactions()) {
+      throw new ForbiddenException('Reactions are disabled for this user');
     }
 
-    // Create the reaction
-    const reaction = this.reactionRepo.create({
-      emoji: dto.emoji,
-      confession,
-      user: user || null,
+    // 2. Verify the reacting anonymous user exists.
+    const anonymousUser = await this.anonymousUserRepo.findOne({
+      where: { id: dto.anonymousUserId },
     });
 
-    const savedReaction = await this.reactionRepo.save(reaction);
-
-    // Send notification email if the confession has an author with email
-    if (confession.user?.email) {
-      try {
-        const reactorName = user?.username || 'Someone';
-        await this.emailService.sendReactionNotification(
-          confession.user.email,
-          confession.user.username,
-          reactorName,
-          dto.emoji,
-          confession.message
-        );
-        this.logger.log(`Reaction notification sent to ${confession.user.email}`);
-      } catch (emailError) {
-        // Log but don't fail the operation if email sending fails
-        this.logger.error(
-          `Failed to send reaction notification: ${emailError instanceof Error ? emailError.message : 'Unknown error'}`,
-          emailError instanceof Error ? emailError.stack : ''
-        );
-      }
+    if (!anonymousUser) {
+      throw new NotFoundException('Anonymous user not found');
     }
 
-    return savedReaction;
+    return this.dataSource
+      .transaction(async (manager) => {
+        const reactionRepo = manager.getRepository(Reaction);
+        const outboxRepo = manager.getRepository(OutboxEvent);
+
+        // 3. Prevent duplicate reactions
+        const existing = await reactionRepo.findOne({
+          where: {
+            confession: { id: dto.confessionId },
+            anonymousUser: { id: dto.anonymousUserId },
+          },
+        });
+
+        if (existing) {
+          if (existing.emoji === dto.emoji) {
+            return existing;
+          }
+
+          existing.emoji = dto.emoji;
+          const updated = await reactionRepo.save(existing);
+
+          // Update outbox event for the change?
+          // Usually reactions are high volume, but let's notify the author.
+          await this.createOutboxEvent(
+            outboxRepo,
+            confession,
+            updated,
+            'reaction_update',
+          );
+
+          return updated;
+        }
+
+        // 4. Persist new reaction
+        const reaction = reactionRepo.create({
+          emoji: dto.emoji,
+          confession,
+          anonymousUser,
+        });
+
+        const savedReaction = await reactionRepo.save(reaction);
+
+        await this.createOutboxEvent(
+          outboxRepo,
+          confession,
+          savedReaction,
+          'reaction_notification',
+        );
+
+        return savedReaction;
+      })
+      .then(async (result) => {
+        // Invalidate analytics segments that are affected by a reaction change.
+        // Done outside the DB transaction so cache churn does not increase
+        // transaction latency. Errors are absorbed by the cache service.
+        this.analyticsService
+          .invalidateTrendingCache('reaction-mutation')
+          .catch((err) =>
+            this.logger.error(
+              'Failed to invalidate trending cache after reaction',
+              err,
+            ),
+          );
+        this.analyticsService
+          .invalidateReactionDistributionCache('reaction-mutation')
+          .catch((err) =>
+            this.logger.error(
+              'Failed to invalidate reaction distribution cache',
+              err,
+            ),
+          );
+        return result;
+      });
+  }
+
+  private async createOutboxEvent(
+    outboxRepo: Repository<OutboxEvent>,
+    confession: AnonymousConfession,
+    reaction: Reaction,
+    type: string,
+  ) {
+    const recipientEmail = this.getRecipientEmail(confession.anonymousUser);
+    if (recipientEmail) {
+      await outboxRepo.save(
+        outboxRepo.create({
+          type,
+          payload: {
+            reactionId: reaction.id,
+            confessionId: confession.id,
+            recipientEmail,
+            emoji: reaction.emoji,
+          },
+          // Idempotency key for reactions can be user-confession-emoji if we want to limit alerts
+          idempotencyKey: `${type}:${reaction.id}:${reaction.emoji}`,
+          status: OutboxStatus.PENDING,
+        }),
+      );
+    }
+  }
+
+  private getRecipientEmail(anonymousUser: AnonymousUser): string | null {
+    if (!anonymousUser) return null;
+    const link = anonymousUser.userLinks?.[0];
+    if (link?.user) {
+      return link.user.getEmail();
+    }
+    return null;
   }
 }
