@@ -3,7 +3,8 @@ import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
 import { User } from './entities/user.entity';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { CryptoUtil } from '../common/crypto.util';
 
@@ -27,13 +28,17 @@ describe('UserController', () => {
     resetPasswordExpires: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    isAdmin: false,
     is_active: true,
+    notificationPreferences: { email: true, push: false },
   };
 
   const mockUserService = {
     findByEmail: jest.fn(),
     create: jest.fn(),
+    findById: jest.fn(),
+    saveUser: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
   };
 
   const mockAuthService = {
@@ -242,4 +247,64 @@ describe('UserController', () => {
       expect(mockAuthService.login).not.toHaveBeenCalled();
     });
   });
-}); 
+
+  describe('notification preferences', () => {
+    it('should get notification preferences for authenticated user', async () => {
+      mockUserService.findById.mockResolvedValue(mockUser);
+      
+      const result = await controller.getNotificationPreferences(1);
+      
+      expect(result).toEqual(mockUser.notificationPreferences);
+      expect(mockUserService.findById).toHaveBeenCalledWith(1);
+    });
+
+    it('should throw NotFoundException when user not found during get', async () => {
+      mockUserService.findById.mockResolvedValue(null);
+      
+      await expect(controller.getNotificationPreferences(1)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should update notification preferences for authenticated user', async () => {
+      const updatedPreferences = { email: false, push: true };
+      const updatedUser = { ...mockUser, notificationPreferences: updatedPreferences };
+      
+      mockUserService.findById.mockResolvedValue(mockUser);
+      mockUserService.saveUser.mockResolvedValue(updatedUser);
+      
+      const result = await controller.updateNotificationPreferences(1, updatedPreferences);
+      
+      expect(result).toEqual(updatedPreferences);
+      expect(mockUserService.findById).toHaveBeenCalledWith(1);
+      expect(mockUserService.saveUser).toHaveBeenCalledWith({
+        ...mockUser,
+        notificationPreferences: updatedPreferences,
+      });
+    });
+
+    it('should throw NotFoundException when user not found during update', async () => {
+      mockUserService.findById.mockResolvedValue(null);
+      
+      await expect(
+        controller.updateNotificationPreferences(1, { email: false }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should merge preferences correctly during update', async () => {
+      const existingPreferences = { email: true, push: false, sms: true };
+      const updateDto = { push: true };
+      const expectedMerged = { email: true, push: true, sms: true };
+      const userWithExistingPrefs = { ...mockUser, notificationPreferences: existingPreferences };
+      const updatedUser = { ...userWithExistingPrefs, notificationPreferences: expectedMerged };
+      
+      mockUserService.findById.mockResolvedValue(userWithExistingPrefs);
+      mockUserService.saveUser.mockResolvedValue(updatedUser);
+      
+      const result = await controller.updateNotificationPreferences(1, updateDto);
+      
+      expect(result).toEqual(expectedMerged);
+      expect(mockUserService.saveUser).toHaveBeenCalledWith(updatedUser);
+    });
+  });
+});

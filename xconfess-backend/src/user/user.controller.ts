@@ -133,16 +133,22 @@ export class UserController {
   }
 
   @Get('notification-preferences')
-  async getNotificationPreferences(@Req() req) {
-    return req.user.notificationPreferences || {};
+  @UseGuards(JwtAuthGuard)
+  async getNotificationPreferences(@GetUser('id') userId: number) {
+    const user = await this.userService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user.notificationPreferences || {};
   }
 
   @Patch('notification-preferences')
+  @UseGuards(JwtAuthGuard)
   async updateNotificationPreferences(
-    @Req() req,
+    @GetUser('id') userId: number,
     @Body() dto: UpdateNotificationPreferencesDto,
   ) {
-    const user = await this.userService.findById(req.user.id);
+    const user = await this.userService.findById(userId);
 
     if (!user) {
       throw new NotFoundException('User not found');
