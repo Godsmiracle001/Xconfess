@@ -1,15 +1,14 @@
-'use client';
-
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import apiClient from '@/app/lib/api/client';
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import apiClient from "@/app/lib/api/client";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,10 +16,14 @@ export default function RegisterPage() {
     setLoading(true);
     setError(null);
     try {
-      await apiClient.post('/api/users/register', { username, email, password });
-      router.push('/login');
+      await apiClient.post("/api/users/register", {
+        username,
+        email,
+        password,
+      });
+      router.push("/login");
     } catch (e: any) {
-      setError(e?.message || 'Registration failed');
+      setError(e?.message || "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -30,21 +33,24 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create account</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Create account
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Already have an account?{' '}
-            <Link href="/login" className="text-indigo-600 dark:text-indigo-400">
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              className="text-indigo-600 dark:text-indigo-400"
+            >
               Sign in
             </Link>
           </p>
         </div>
-
         {error && (
           <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded">
             {error}
           </div>
         )}
-
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -80,13 +86,12 @@ export default function RegisterPage() {
               placeholder="••••••••"
             />
           </div>
-
           <button
             onClick={doRegister}
             disabled={loading}
             className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
           >
-            {loading ? 'Creating…' : 'Create account'}
+            {loading ? "Creating\u2026" : "Create account"}
           </button>
         </div>
       </div>

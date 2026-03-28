@@ -1,30 +1,34 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import apiClient from '@/app/lib/api/client';
-import { AUTH_TOKEN_KEY, USER_DATA_KEY, ANONYMOUS_USER_ID_KEY } from '@/app/lib/api/constants';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import apiClient from "@/app/lib/api/client";
+import {
+  AUTH_TOKEN_KEY,
+  USER_DATA_KEY,
+  ANONYMOUS_USER_ID_KEY,
+} from "@/app/lib/api/constants";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const doMockAdminLogin = () => {
-    localStorage.setItem('adminMock', 'true');
-    localStorage.setItem(AUTH_TOKEN_KEY, 'mock');
+    localStorage.setItem("adminMock", "true");
+    localStorage.setItem(AUTH_TOKEN_KEY, "mock");
     localStorage.setItem(
       USER_DATA_KEY,
       JSON.stringify({
         id: 1,
-        username: 'demo-admin',
+        username: "demo-admin",
         isAdmin: true,
         is_active: true,
       }),
     );
-    router.push('/admin/dashboard');
+    router.push("/admin/dashboard");
   };
 
   const doLogin = async () => {
@@ -32,11 +36,11 @@ export default function LoginPage() {
     setError(null);
     try {
       // Best-effort real login. If your backend expects different fields, use Mock Admin Login.
-      const res = await apiClient.post('/api/users/login', { email, password });
+      const res = await apiClient.post("/api/users/login", { email, password });
       const { access_token, user, anonymousUserId } = res.data ?? {};
 
       if (!access_token) {
-        throw new Error('Missing access token');
+        throw new Error("Missing access token");
       }
 
       localStorage.setItem(AUTH_TOKEN_KEY, access_token);
@@ -47,9 +51,9 @@ export default function LoginPage() {
         localStorage.setItem(ANONYMOUS_USER_ID_KEY, anonymousUserId);
       }
 
-      router.push('/admin/dashboard');
+      router.push("/admin/dashboard");
     } catch (e: any) {
-      setError(e?.message || 'Login failed');
+      setError(e?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -59,9 +63,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Login</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Login
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            For quick testing, use <span className="font-medium">Mock Admin Login</span>.
+            For quick testing, use{" "}
+            <span className="font-medium">Mock Admin Login</span>.
           </p>
         </div>
 
@@ -101,7 +108,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? "Signing in\u2026" : "Sign in"}
           </button>
 
           <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
@@ -112,7 +119,8 @@ export default function LoginPage() {
               Mock Admin Login (Dummy Data)
             </button>
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              This enables local mock data for admin endpoints (analytics, reports, users, audit logs).
+              This enables local mock data for admin endpoints (analytics,
+              reports, users, audit logs).
             </p>
           </div>
         </div>

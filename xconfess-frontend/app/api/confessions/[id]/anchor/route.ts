@@ -2,7 +2,7 @@ const BASE_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -15,7 +15,7 @@ export async function POST(
         {
           status: 400,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -26,7 +26,7 @@ export async function POST(
         {
           status: 400,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     }
 
@@ -43,16 +43,24 @@ export async function POST(
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error(
+          `[confessions/${id}/anchor] upstream returned ${response.status}`,
+          { status: response.status, message: errorData.message },
+        );
         return new Response(
           JSON.stringify({
+            error: true,
+            code: "UPSTREAM_ERROR",
+            status: response.status,
             message:
               errorData.message ||
               `Failed to anchor confession: ${response.statusText}`,
+            timestamp: new Date().toISOString(),
           }),
           {
             status: response.status,
             headers: { "Content-Type": "application/json" },
-          }
+          },
         );
       }
 
@@ -63,55 +71,37 @@ export async function POST(
         headers: { "Content-Type": "application/json" },
       });
     } catch (fetchError) {
-      console.error("Backend fetch error:", fetchError);
-
-      // Demo mode fallback
-      const isDemoMode =
-        process.env.NODE_ENV === "development" ||
-        process.env.DEMO_MODE === "true";
-
-      if (isDemoMode) {
-        return new Response(
-          JSON.stringify({
-            id,
-            stellarTxHash,
-            isAnchored: true,
-            anchoredAt: new Date().toISOString(),
-            stellarExplorerUrl: `https://stellar.expert/explorer/testnet/tx/${stellarTxHash}`,
-            _demo: true,
-          }),
-          {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "X-Demo-Mode": "true",
-            },
-          }
-        );
-      }
-
+      console.error("[confessions/[id]/anchor] network error:", fetchError);
       return new Response(
         JSON.stringify({
-          message: "Backend service unavailable",
+          error: true,
+          code: "NETWORK_ERROR",
+          status: 503,
+          message: "Backend service unavailable. Please try again later.",
+          timestamp: new Date().toISOString(),
         }),
         {
           status: 503,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     }
   } catch (error) {
-    console.error("Error anchoring confession:", error);
+    console.error("[confessions/[id]/anchor] unexpected error:", error);
     const errorMessage =
       error instanceof Error ? error.message : "Internal server error";
     return new Response(
       JSON.stringify({
+        error: true,
+        code: "UNKNOWN_ERROR",
+        status: 500,
         message: errorMessage,
+        timestamp: new Date().toISOString(),
       }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 }

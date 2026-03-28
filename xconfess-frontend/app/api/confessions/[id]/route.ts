@@ -21,98 +21,18 @@ export async function GET(
     });
 
     if (!response.ok) {
-      const isDemoMode =
-        process.env.NODE_ENV === "development" ||
-        process.env.DEMO_MODE === "true";
-
-      if (response.status === 404) {
-        // In demo mode, return demo data instead of 404
-        if (isDemoMode) {
-          console.warn(
-            "Confession not found in backend, returning demo data for testing",
-          );
-          const demoConfessions: Record<
-            string,
-            { content: string; commentCount: number }
-          > = {
-            "1": {
-              content:
-                "I love coding at midnight when everyone else is asleep. There's something magical about the quiet and the glow of the screen. I feel most creative during these hours, and my best ideas come when the world is quiet.",
-              commentCount: 8,
-            },
-            "2": {
-              content:
-                "I secretly watch cartoons even though I'm an adult. They bring me joy and comfort, and I don't care what anyone thinks. Some of my favorite shows have amazing storytelling.",
-              commentCount: 15,
-            },
-            "3": {
-              content:
-                "I talk to my plants every morning. It helps me start the day positively and makes me feel connected to nature. I swear they grow better when I do this.",
-              commentCount: 5,
-            },
-            "4": {
-              content:
-                "I go for midnight walks alone and find them incredibly peaceful. The streets are quiet, the air is fresh, and I can think clearly without distractions.",
-              commentCount: 12,
-            },
-            "5": {
-              content:
-                "I write poems that no one will ever read. But that's okay because writing them helps me process my emotions and understand myself better.",
-              commentCount: 3,
-            },
-          };
-
-          const demoData = demoConfessions[id] || {
-            content:
-              "This is a demo confession. Visit the feed to see more confessions when the backend is running.",
-            commentCount: 2,
-          };
-
-          const normalized = {
-            id,
-            content: demoData.content,
-            message: demoData.content,
-            createdAt: new Date(
-              Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-            ).toISOString(),
-            created_at: new Date(
-              Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-            ).toISOString(),
-            viewCount: Math.floor(Math.random() * 200) + 10,
-            view_count: Math.floor(Math.random() * 200) + 10,
-            reactions: {
-              like: Math.floor(Math.random() * 20) + 1,
-              love: Math.floor(Math.random() * 15) + 1,
-            },
-            commentCount: demoData.commentCount,
-            isAnchored: Math.random() > 0.7,
-            stellarTxHash: Math.random() > 0.7 ? `demo-tx-${Date.now()}` : null,
-            author: {
-              id: "anonymous",
-              username: "Anonymous",
-              avatar: null,
-            },
-            _demo: true,
-          };
-
-          return new Response(JSON.stringify(normalized), {
-            status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "X-Demo-Mode": "true",
-            },
-          });
-        }
-
-        return new Response(
-          JSON.stringify({ message: "Confession not found" }),
-          { status: 404, headers: { "Content-Type": "application/json" } },
-        );
-      }
       const err = await response.json().catch(() => ({}));
+      console.error(
+        `[confessions/${id}] upstream returned ${response.status}`,
+        { status: response.status, message: err.message },
+      );
       return new Response(
         JSON.stringify({
-          message: err.message || "Failed to fetch confession",
+          error: true,
+          code: response.status === 404 ? "NOT_FOUND" : "UPSTREAM_ERROR",
+          status: response.status,
+          message: err.message || `Backend returned ${response.status}`,
+          timestamp: new Date().toISOString(),
         }),
         {
           status: response.status,
@@ -123,7 +43,6 @@ export async function GET(
 
     const data = await response.json();
 
-    // Normalize to frontend shape: message -> content, created_at -> createdAt, view_count -> viewCount
     const normalized = {
       id: data.id,
       content: data.message ?? data.body ?? data.content,
@@ -148,92 +67,21 @@ export async function GET(
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    const isDemoMode =
-      process.env.NODE_ENV === "development" ||
-      process.env.DEMO_MODE === "true";
-
-    if (isDemoMode) {
-      console.warn("Backend unreachable, returning demo data for testing");
-
-      const demoConfessions: Record<
-        string,
-        { content: string; commentCount: number }
-      > = {
-        "1": {
-          content:
-            "I love coding at midnight when everyone else is asleep. There's something magical about the quiet and the glow of the screen. I feel most creative during these hours, and my best ideas come when the world is quiet.",
-          commentCount: 8,
-        },
-        "2": {
-          content:
-            "I secretly watch cartoons even though I'm an adult. They bring me joy and comfort, and I don't care what anyone thinks. Some of my favorite shows have amazing storytelling.",
-          commentCount: 15,
-        },
-        "3": {
-          content:
-            "I talk to my plants every morning. It helps me start the day positively and makes me feel connected to nature. I swear they grow better when I do this.",
-          commentCount: 5,
-        },
-        "4": {
-          content:
-            "I go for midnight walks alone and find them incredibly peaceful. The streets are quiet, the air is fresh, and I can think clearly without distractions.",
-          commentCount: 12,
-        },
-        "5": {
-          content:
-            "I write poems that no one will ever read. But that's okay because writing them helps me process my emotions and understand myself better.",
-          commentCount: 3,
-        },
-      };
-
-      const { id } = await context.params;
-      const demoData = demoConfessions[id] || {
-        content:
-          "This is a demo confession. Visit the feed to see more confessions when the backend is running.",
-        commentCount: 2,
-      };
-
-      const normalized = {
-        id,
-        content: demoData.content,
-        message: demoData.content,
-        createdAt: new Date(
-          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        created_at: new Date(
-          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        viewCount: Math.floor(Math.random() * 200) + 10,
-        view_count: Math.floor(Math.random() * 200) + 10,
-        reactions: {
-          like: Math.floor(Math.random() * 20) + 1,
-          love: Math.floor(Math.random() * 15) + 1,
-        },
-        commentCount: demoData.commentCount,
-        isAnchored: Math.random() > 0.7,
-        stellarTxHash: Math.random() > 0.7 ? `demo-tx-${Date.now()}` : null,
-        author: {
-          id: "anonymous",
-          username: "Anonymous",
-          avatar: null,
-        },
-        _demo: true,
-      };
-
-      return new Response(JSON.stringify(normalized), {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json",
-          "X-Demo-Mode": "true",
-        },
-      });
-    }
-
-    console.error("Error fetching confession:", error);
-    return new Response(JSON.stringify({ message: "Internal server error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("[confessions/[id]] network error:", error);
+    return new Response(
+      JSON.stringify({
+        error: true,
+        code: "NETWORK_ERROR",
+        status: 503,
+        message:
+          "Could not reach the confessions service. Please try again later.",
+        timestamp: new Date().toISOString(),
+      }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 }
 
