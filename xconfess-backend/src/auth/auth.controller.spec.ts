@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  GoneException,
+  InternalServerErrorException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -199,23 +204,36 @@ describe('AuthController', () => {
       );
     });
 
-    it('should throw BadRequestException for expired token', async () => {
+    it('should rethrow UnprocessableEntityException for expired token', async () => {
       mockAuthService.resetPassword.mockRejectedValue(
-        new BadRequestException('Reset token has expired'),
+        new UnprocessableEntityException('Reset token expired'),
       );
 
       await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
-        BadRequestException,
+        UnprocessableEntityException,
       );
     });
 
-    it('should handle generic errors and wrap them in BadRequestException', async () => {
+    it('should rethrow GoneException for reused token', async () => {
+      mockAuthService.resetPassword.mockRejectedValue(
+        new GoneException('Reset token already used'),
+      );
+
+      await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
+        GoneException,
+      );
+    });
+
+    it('should map generic errors to InternalServerErrorException without leaking details', async () => {
       mockAuthService.resetPassword.mockRejectedValue(
         new Error('Database connection error'),
       );
 
       await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
-        'Failed to reset password: Database connection error',
+        InternalServerErrorException,
+      );
+      await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
+        'Failed to reset password',
       );
     });
   });

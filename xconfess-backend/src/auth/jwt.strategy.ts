@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -24,7 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const user = await this.userService.findById(payload.sub);
 
     if (!user) {
-      throw new Error('User not found');
+      throw new UnauthorizedException('Unauthorized');
     }
 
     // Return canonical RequestUser shape
@@ -32,7 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       id: payload.sub, // Canonical ID field
       username: payload.username,
       email: payload.email,
-      role: user?.role || UserRole.USER,
+      role: user.role || UserRole.USER,
       scopes: payload.scopes ?? [],
     };
   }

@@ -1,12 +1,9 @@
 {
+  "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "target": "es6",
-    "esModuleInterop": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "types": ["jest", "node"]
+    "strictPropertyInitialization": false,
+    "useUnknownInCatchVariables": false,
+    "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.spec.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

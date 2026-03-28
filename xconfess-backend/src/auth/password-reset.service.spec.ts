@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { PasswordResetService } from './password-reset.service';
 import { PasswordReset } from './entities/password-reset.entity';
 import { User, UserRole } from '../user/entities/user.entity';
-import { BadRequestException } from '@nestjs/common';
+import { InternalServerErrorException } from '@nestjs/common';
 import { CryptoUtil } from '../common/crypto.util';
 
 describe('PasswordResetService', () => {
@@ -130,12 +130,12 @@ describe('PasswordResetService', () => {
       expect(expiresAt.getTime()).toBeLessThan(expectedMaxExpiry.getTime());
     });
 
-    it('should throw error when save fails', async () => {
+    it('should throw InternalServerErrorException when save fails', async () => {
       mockRepository.create.mockReturnValue(mockPasswordReset);
       mockRepository.save.mockRejectedValue(new Error('Database error'));
 
       await expect(service.createResetToken(1)).rejects.toThrow(
-        'Failed to create reset token: Database error',
+        InternalServerErrorException,
       );
     });
   });
@@ -180,11 +180,11 @@ describe('PasswordResetService', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw error when database query fails', async () => {
+    it('should throw InternalServerErrorException when database query fails', async () => {
       mockRepository.findOne.mockRejectedValue(new Error('Database error'));
 
       await expect(service.findValidToken('test-token-123')).rejects.toThrow(
-        'Error finding token: Database error',
+        InternalServerErrorException,
       );
     });
   });
@@ -264,6 +264,14 @@ describe('PasswordResetService', () => {
       expect(res.reset).toBeNull();
       expect(res.reason).toBe('reused');
     });
+
+    it('throws InternalServerErrorException when findOne rejects', async () => {
+      mockRepository.findOne.mockRejectedValue(new Error('Database error'));
+
+      await expect(service.consumeValidToken('test-token-123')).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
   });
 
   describe('markTokenAsUsed', () => {
@@ -285,11 +293,11 @@ describe('PasswordResetService', () => {
       expect(usedAt.getTime()).toBeLessThanOrEqual(afterCall.getTime());
     });
 
-    it('should throw error when update fails', async () => {
+    it('should throw InternalServerErrorException when update fails', async () => {
       mockRepository.update.mockRejectedValue(new Error('Database error'));
 
       await expect(service.markTokenAsUsed(1)).rejects.toThrow(
-        'Failed to mark token as used: Database error',
+        InternalServerErrorException,
       );
     });
   });
@@ -306,11 +314,11 @@ describe('PasswordResetService', () => {
       );
     });
 
-    it('should throw error when update fails', async () => {
+    it('should throw InternalServerErrorException when update fails', async () => {
       mockRepository.update.mockRejectedValue(new Error('Database error'));
 
       await expect(service.invalidateUserTokens(1)).rejects.toThrow(
-        'Failed to invalidate tokens: Database error',
+        InternalServerErrorException,
       );
     });
   });

@@ -1,4 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, MoreThan } from 'typeorm';
 import { PasswordReset } from './entities/password-reset.entity';
@@ -9,6 +13,14 @@ export type PasswordResetConsumeReason =
   | 'invalid'
   | 'expired'
   | 'reused';
+
+const PASSWORD_RESET_STORAGE_MESSAGE =
+  'Password reset is temporarily unavailable';
+
+function tokenPrefix(token: string): string {
+  if (!token) return '[empty]';
+  return token.length <= 8 ? '[redacted]' : `${token.slice(0, 8)}...`;
+}
 
 @Injectable()
 export class PasswordResetService {
@@ -52,12 +64,12 @@ export class PasswordResetService {
 
       return token;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+      const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(
-        `Failed to create reset token for user ID ${userId}: ${errorMessage}`,
+        `Failed to create reset token for user ID ${userId}: ${err.message}`,
+        err.stack,
       );
-      throw new Error(`Failed to create reset token: ${errorMessage}`);
+      throw new InternalServerErrorException(PASSWORD_RESET_STORAGE_MESSAGE);
     }
   }
 
@@ -72,13 +84,16 @@ export class PasswordResetService {
       });
 
       if (!passwordReset) {
-        this.logger.debug(`No unused token found: ${token}`);
+        this.logger.debug(`No unused token found`, {
+          tokenPrefix: tokenPrefix(token),
+        });
         return null;
       }
 
       // Check if token has expired
       if (new Date() > passwordReset.expiresAt) {
-        this.logger.debug(`Token expired: ${token}`, {
+        this.logger.debug(`Token expired`, {
+          tokenPrefix: tokenPrefix(token),
           tokenId: passwordReset.id,
           expiresAt: passwordReset.expiresAt,
         });
@@ -87,10 +102,9 @@ export class PasswordResetService {
 
       return passwordReset;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Error finding token: ${errorMessage}`);
-      throw new Error(`Error finding token: ${errorMessage}`);
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Error finding token: ${err.message}`, err.stack);
+      throw new InternalServerErrorException(PASSWORD_RESET_STORAGE_MESSAGE);
     }
   }
 
@@ -105,35 +119,40 @@ export class PasswordResetService {
     reset: PasswordReset | null;
     reason: PasswordResetConsumeReason;
   }> {
-    const existing = await this.passwordResetRepository.findOne({
-      where: { token },
-      relations: ['user'],
-    });
+    try {
+      const existing = await this.passwordResetRepository.findOne({
+        where: { token },
+        relations: ['user'],
+      });
 
-    if (!existing) return { reset: null, reason: 'invalid' };
-    if (existing.used) return { reset: null, reason: 'reused' };
-    if (existing.expiresAt <= now) return { reset: null, reason: 'expired' };
+      if (!existing) return { reset: null, reason: 'invalid' };
+      if (existing.used) return { reset: null, reason: 'reused' };
+      if (existing.expiresAt <= now) return { reset: null, reason: 'expired' };
 
-    // Atomic consume:
-    // Only the first concurrent consumer will get affected=1.
-    const updateResult = await this.passwordResetRepository.update(
-      { token, used: false, expiresAt: MoreThan(now) },
-      { used: true, usedAt: now },
-    );
+      const updateResult = await this.passwordResetRepository.update(
+        { token, used: false, expiresAt: MoreThan(now) },
+        { used: true, usedAt: now },
+      );
 
-    if (!updateResult.affected) {
-      // Token was likely consumed concurrently between the initial read and update.
-      return { reset: null, reason: 'reused' };
+      if (!updateResult.affected) {
+        return { reset: null, reason: 'reused' };
+      }
+
+      const consumed = await this.passwordResetRepository.findOne({
+        where: { token },
+        relations: ['user'],
+      });
+
+      if (!consumed) return { reset: null, reason: 'invalid' };
+      return { reset: consumed, reason: 'valid' };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(
+        `Error consuming reset token (prefix ${tokenPrefix(token)}): ${err.message}`,
+        err.stack,
+      );
+      throw new InternalServerErrorException(PASSWORD_RESET_STORAGE_MESSAGE);
     }
-
-    const consumed = await this.passwordResetRepository.findOne({
-      where: { token },
-      relations: ['user'],
-    });
-
-    // consumed should exist; if it doesn't, treat as invalid (defensive fallback).
-    if (!consumed) return { reset: null, reason: 'invalid' };
-    return { reset: consumed, reason: 'valid' };
   }
 
   async markTokenAsUsed(tokenId: number): Promise<void> {
@@ -148,10 +167,9 @@ export class PasswordResetService {
         usedAt: new Date(),
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to mark token as used: ${errorMessage}`);
-      throw new Error(`Failed to mark token as used: ${errorMessage}`);
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Failed to mark token as used: ${err.message}`, err.stack);
+      throw new InternalServerErrorException(PASSWORD_RESET_STORAGE_MESSAGE);
     }
   }
 
@@ -164,12 +182,12 @@ export class PasswordResetService {
 
       this.logger.log(`All tokens invalidated for user ID: ${userId}`);
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
+      const err = error instanceof Error ? error : new Error(String(error));
       this.logger.error(
-        `Failed to invalidate tokens for user ${userId}: ${errorMessage}`,
+        `Failed to invalidate tokens for user ${userId}: ${err.message}`,
+        err.stack,
       );
-      throw new Error(`Failed to invalidate tokens: ${errorMessage}`);
+      throw new InternalServerErrorException(PASSWORD_RESET_STORAGE_MESSAGE);
     }
   }
 
@@ -185,9 +203,8 @@ export class PasswordResetService {
         timestamp: now.toISOString(),
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Failed to cleanup expired tokens: ${errorMessage}`);
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Failed to cleanup expired tokens: ${err.message}`, err.stack);
     }
   }
 }

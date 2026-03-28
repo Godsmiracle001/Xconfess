@@ -6,16 +6,20 @@ import { PasswordResetService } from './password-reset.service';
 import { EmailService } from '../email/email.service';
 import { JwtService } from '@nestjs/jwt';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from '../user/entities/user.entity';
+import { User, UserRole } from '../user/entities/user.entity';
 import { PasswordReset } from './entities/password-reset.entity';
 import { Repository } from 'typeorm';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  GoneException,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { CryptoUtil } from '../common/crypto.util';
 
-// Mock bcrypt module
-jest.mock('bcrypt', () => ({
+jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
   compare: jest.fn(),
 }));
@@ -31,7 +35,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
 
   const encrypted = CryptoUtil.encrypt('test@example.com');
 
-  const mockUser: User = {
+  const mockUser = {
     id: 1,
     username: 'testuser',
     emailEncrypted: encrypted.encrypted,
@@ -39,13 +43,23 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
     emailTag: encrypted.tag,
     emailHash: CryptoUtil.hash('test@example.com'),
     password: 'hashedpassword',
+    role: UserRole.USER,
     resetPasswordToken: null,
     resetPasswordExpires: null,
+    notificationPreferences: {},
+    privacySettings: {
+      isDiscoverable: true,
+      canReceiveReplies: true,
+      showReactions: true,
+    },
     createdAt: new Date(),
     updatedAt: new Date(),
-    isAdmin: false,
     is_active: true,
-  };
+    isNotificationEnabled: () => true,
+    isDiscoverable: () => true,
+    canReceiveReplies: () => true,
+    shouldShowReactions: () => true,
+  } as unknown as User;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -54,7 +68,12 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         AuthService,
         UserService,
         PasswordResetService,
-        EmailService,
+        {
+          provide: EmailService,
+          useValue: {
+            sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         JwtService,
         {
           provide: AnonymousUserService,
@@ -164,24 +183,29 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         .mock.calls[0];
       const actualToken = emailCallArgs[1];
 
-      // Step 5: Mock finding the reset token for password reset using the actual token
+      // Step 5–7: consumeValidToken — two reads, atomic token update, then user password update
       const mockPasswordResetForLookup = {
         ...mockPasswordReset,
         token: actualToken,
+        userId: 1,
+        user: mockUser,
+      };
+      const consumedReset = {
+        ...mockPasswordResetForLookup,
+        used: true,
+        usedAt: new Date(),
       };
       jest
         .spyOn(passwordResetRepository, 'findOne')
-        .mockResolvedValue(mockPasswordResetForLookup as any);
-
-      // Step 6: Mock updating the password
-      jest
-        .spyOn(userRepository, 'update')
-        .mockResolvedValue({ affected: 1 } as any);
-
-      // Step 7: Mock marking token as used
+        .mockResolvedValueOnce(mockPasswordResetForLookup as any)
+        .mockResolvedValueOnce(consumedReset as any);
       jest
         .spyOn(passwordResetRepository, 'update')
         .mockResolvedValue({ affected: 1 } as any);
+      jest
+        .spyOn(userRepository, 'findOne')
+        .mockResolvedValue(mockUser as any);
+      jest.spyOn(userRepository, 'save').mockResolvedValue(mockUser as any);
 
       // Step 8: Execute password reset with the actual token
       const resetPasswordResult = await authController.resetPassword({
@@ -193,18 +217,24 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         message: 'Password has been reset successfully',
       });
 
-      // Verify that the password was updated
-      expect(userRepository.update).toHaveBeenCalledWith(1, {
-        password: 'hashedPassword',
-        resetPasswordToken: null,
-        resetPasswordExpires: null,
-      });
+      expect(userRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          password: 'hashedPassword',
+          resetPasswordToken: null,
+          resetPasswordExpires: null,
+        }),
+      );
 
-      // Verify that the token was marked as used
-      expect(passwordResetRepository.update).toHaveBeenCalledWith(1, {
-        used: true,
-        usedAt: expect.any(Date),
-      });
+      expect(passwordResetRepository.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          token: actualToken,
+          used: false,
+        }),
+        expect.objectContaining({
+          used: true,
+          usedAt: expect.any(Date),
+        }),
+      );
     });
 
     it('should handle invalid token during reset', async () => {
@@ -242,7 +272,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
           token: 'expired-token-123',
           newPassword: 'newPassword123',
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(UnprocessableEntityException);
     });
 
     it('should handle used token during reset', async () => {
@@ -259,14 +289,16 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         userAgent: 'test-agent',
       };
 
-      jest.spyOn(passwordResetRepository, 'findOne').mockResolvedValue(null); // Return null for used token
+      jest
+        .spyOn(passwordResetRepository, 'findOne')
+        .mockResolvedValue(usedToken as any);
 
       await expect(
         authController.resetPassword({
           token: 'used-token-123',
           newPassword: 'newPassword123',
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(GoneException);
     });
   });
 });
@@ -281,7 +313,7 @@ describe('AuthService Integration', () => {
 
   const encrypted = CryptoUtil.encrypt('test@example.com');
 
-  const mockUser: User = {
+  const mockUser = {
     id: 1,
     username: 'testuser',
     emailEncrypted: encrypted.encrypted,
@@ -289,13 +321,23 @@ describe('AuthService Integration', () => {
     emailTag: encrypted.tag,
     emailHash: CryptoUtil.hash('test@example.com'),
     password: 'hashedpassword',
+    role: UserRole.USER,
     resetPasswordToken: null,
     resetPasswordExpires: null,
+    notificationPreferences: {},
+    privacySettings: {
+      isDiscoverable: true,
+      canReceiveReplies: true,
+      showReactions: true,
+    },
     createdAt: new Date(),
     updatedAt: new Date(),
-    isAdmin: false,
     is_active: true,
-  };
+    isNotificationEnabled: () => true,
+    isDiscoverable: () => true,
+    canReceiveReplies: () => true,
+    shouldShowReactions: () => true,
+  } as unknown as User;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -361,8 +403,16 @@ describe('AuthService Integration', () => {
         id: mockUser.id,
         username: mockUser.username,
         email: 'test@example.com',
+        role: UserRole.USER,
+        is_active: true,
         resetPasswordToken: mockUser.resetPasswordToken,
         resetPasswordExpires: mockUser.resetPasswordExpires,
+        notificationPreferences: {},
+        privacy: {
+          isDiscoverable: true,
+          canReceiveReplies: true,
+          showReactions: true,
+        },
         createdAt: mockUser.createdAt,
         updatedAt: mockUser.updatedAt,
       });
@@ -397,6 +447,8 @@ describe('AuthService Integration', () => {
       });
       expect(passwordResetService.createResetToken).toHaveBeenCalledWith(
         mockUser.id,
+        undefined,
+        undefined,
       );
       expect(emailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         'test@example.com',
