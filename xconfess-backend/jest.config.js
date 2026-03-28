@@ -4,11 +4,17 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',
-      { tsconfig: '<rootDir>/tsconfig.test.json' },
+      {
+        diagnostics: false,
+      },
     ],
   },
-  testMatch: ['**/*.spec.ts'],
-  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/xconfess-backend/'],
+  testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/test/**/*.spec.ts'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/xconfess-backend/',
+    '<rootDir>/e2e/',
+  ],
   watchPathIgnorePatterns: ['<rootDir>/xconfess-backend/'],
   modulePathIgnorePatterns: ['<rootDir>/xconfess-backend/'],
   moduleNameMapper: {

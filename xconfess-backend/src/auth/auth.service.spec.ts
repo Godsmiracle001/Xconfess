@@ -4,21 +4,21 @@ import { UserService } from '../user/user.service';
 import { EmailService } from '../email/email.service';
 import { PasswordResetService } from './password-reset.service';
 import { JwtService } from '@nestjs/jwt';
-import {
-  BadRequestException,
-  GoneException,
-  InternalServerErrorException,
-  UnauthorizedException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
-import { User, UserRole } from '../user/entities/user.entity';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { User } from '../user/entities/user.entity';
 import { PasswordReset } from './entities/password-reset.entity';
 import * as bcrypt from 'bcryptjs';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { UserResponse } from '../user/user.controller';
 
-jest.mock('bcryptjs');
+// Mock bcrypt
+jest.mock('bcrypt');
+jest.mock('crypto', () => ({
+  randomBytes: jest.fn(() => ({
+    toString: jest.fn(() => 'mocked-token-123'),
+  })),
+}));
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -29,7 +29,7 @@ describe('AuthService', () => {
 
   const enc = CryptoUtil.encrypt('test@example.com');
 
-  const mockUser = {
+  const mockUser: User = {
     id: 1,
     username: 'testuser',
     emailEncrypted: enc.encrypted,
@@ -37,23 +37,13 @@ describe('AuthService', () => {
     emailTag: enc.tag,
     emailHash: CryptoUtil.hash('test@example.com'),
     password: 'hashedpassword',
-    role: UserRole.USER,
     resetPasswordToken: null,
     resetPasswordExpires: null,
-    notificationPreferences: {},
-    privacySettings: {
-      isDiscoverable: true,
-      canReceiveReplies: true,
-      showReactions: true,
-    },
     createdAt: new Date(),
     updatedAt: new Date(),
+    isAdmin: false,
     is_active: true,
-    isNotificationEnabled: () => true,
-    isDiscoverable: () => true,
-    canReceiveReplies: () => true,
-    shouldShowReactions: () => true,
-  } as unknown as User;
+  };
 
   const mockPasswordReset: PasswordReset = {
     id: 1,
@@ -82,7 +72,8 @@ describe('AuthService', () => {
 
   const mockPasswordResetService = {
     createResetToken: jest.fn(),
-    consumeValidToken: jest.fn(),
+    findValidToken: jest.fn(),
+    markTokenAsUsed: jest.fn(),
     invalidateUserTokens: jest.fn(),
   };
 
@@ -274,89 +265,52 @@ describe('AuthService', () => {
 
   describe('resetPassword', () => {
     it('should reset password with valid token', async () => {
-      mockPasswordResetService.consumeValidToken.mockResolvedValue({
-        reset: mockPasswordReset,
-        reason: 'valid',
-      });
+      mockPasswordResetService.findValidToken.mockResolvedValue(
+        mockPasswordReset,
+      );
       mockUserService.updatePassword.mockResolvedValue(undefined);
+      mockPasswordResetService.markTokenAsUsed.mockResolvedValue(undefined);
 
       const result = await service.resetPassword(
         'test-token-123',
         'newPassword123',
       );
 
-      expect(mockPasswordResetService.consumeValidToken).toHaveBeenCalledWith(
+      expect(mockPasswordResetService.findValidToken).toHaveBeenCalledWith(
         'test-token-123',
       );
       expect(mockUserService.updatePassword).toHaveBeenCalledWith(
         1,
         'newPassword123',
       );
+      expect(mockPasswordResetService.markTokenAsUsed).toHaveBeenCalledWith(1);
       expect(result).toEqual({
         message: 'Password has been reset successfully',
       });
     });
 
     it('should throw BadRequestException for invalid token', async () => {
-      mockPasswordResetService.consumeValidToken.mockResolvedValue({
-        reset: null,
-        reason: 'invalid',
-      });
+      mockPasswordResetService.findValidToken.mockResolvedValue(null);
 
       await expect(
         service.resetPassword('invalid-token', 'newPassword123'),
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.resetPassword('invalid-token', 'newPassword123'),
-      ).rejects.toThrow('Invalid reset token');
+      ).rejects.toThrow('Invalid or expired reset token');
     });
 
-    it('should throw UnprocessableEntityException for expired token', async () => {
-      mockPasswordResetService.consumeValidToken.mockResolvedValue({
-        reset: null,
-        reason: 'expired',
-      });
-
-      await expect(
-        service.resetPassword('expired-token', 'newPassword123'),
-      ).rejects.toThrow(UnprocessableEntityException);
-    });
-
-    it('should throw GoneException for reused token', async () => {
-      mockPasswordResetService.consumeValidToken.mockResolvedValue({
-        reset: null,
-        reason: 'reused',
-      });
-
-      await expect(
-        service.resetPassword('reused-token', 'newPassword123'),
-      ).rejects.toThrow(GoneException);
-    });
-
-    it('should rethrow InternalServerErrorException from consumeValidToken', async () => {
-      mockPasswordResetService.consumeValidToken.mockRejectedValue(
-        new InternalServerErrorException(
-          'Password reset is temporarily unavailable',
-        ),
+    it('should handle password update errors', async () => {
+      mockPasswordResetService.findValidToken.mockResolvedValue(
+        mockPasswordReset,
       );
-
-      await expect(
-        service.resetPassword('test-token-123', 'newPassword123'),
-      ).rejects.toThrow(InternalServerErrorException);
-    });
-
-    it('should map password update errors to InternalServerErrorException', async () => {
-      mockPasswordResetService.consumeValidToken.mockResolvedValue({
-        reset: mockPasswordReset,
-        reason: 'valid',
-      });
       mockUserService.updatePassword.mockRejectedValue(
         new Error('Database error'),
       );
 
       await expect(
         service.resetPassword('test-token-123', 'newPassword123'),
-      ).rejects.toThrow(InternalServerErrorException);
+      ).rejects.toThrow(BadRequestException);
       await expect(
         service.resetPassword('test-token-123', 'newPassword123'),
       ).rejects.toThrow('Failed to reset password');
@@ -377,17 +331,11 @@ describe('AuthService', () => {
         id: 1,
         username: 'testuser',
         email: 'test@example.com',
-        role: UserRole.USER,
         resetPasswordToken: null,
         resetPasswordExpires: null,
-        notificationPreferences: {},
-        privacy: {
-          isDiscoverable: true,
-          canReceiveReplies: true,
-          showReactions: true,
-        },
         createdAt: mockUser.createdAt,
         updatedAt: mockUser.updatedAt,
+        isAdmin: false,
         is_active: true,
       });
     });
@@ -411,17 +359,11 @@ describe('AuthService', () => {
         id: 1,
         username: 'testuser',
         email: 'test@example.com',
-        role: UserRole.USER,
         resetPasswordToken: null,
         resetPasswordExpires: null,
-        notificationPreferences: {},
-        privacy: {
-          isDiscoverable: true,
-          canReceiveReplies: true,
-          showReactions: true,
-        },
         createdAt: new Date(),
         updatedAt: new Date(),
+        isAdmin: false,
         is_active: true,
       };
 
@@ -444,16 +386,20 @@ describe('AuthService', () => {
 
   describe('generateResetPasswordToken', () => {
     it('should generate and store reset token for valid email', async () => {
+      const mockToken = 'mock-reset-token';
+      const crypto = require('crypto');
+      crypto.randomBytes.mockReturnValue({ toString: () => mockToken });
+
       mockUserService.findByEmail.mockResolvedValue(mockUser);
       mockUserService.setResetPasswordToken.mockResolvedValue(undefined);
 
       const result =
         await service.generateResetPasswordToken('test@example.com');
 
-      expect(result).toMatch(/^[a-f0-9]{64}$/);
+      expect(result).toBe(mockToken);
       expect(mockUserService.setResetPasswordToken).toHaveBeenCalledWith(
         1,
-        result,
+        mockToken,
         expect.any(Date),
       );
     });

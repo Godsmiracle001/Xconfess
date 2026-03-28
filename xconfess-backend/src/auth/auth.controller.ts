@@ -5,9 +5,6 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
-  HttpException,
-  InternalServerErrorException,
-  Logger,
   Req,
   Get,
   UseGuards,
@@ -28,8 +25,6 @@ import { RateLimit } from './guard/rate-limit.decorator';
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
@@ -53,12 +48,9 @@ export class AuthController {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.logger.error(`Login failed: ${err.message}`, err.stack);
-      throw new InternalServerErrorException('Login failed');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException('Login failed: ' + errorMessage);
     }
   }
 
@@ -76,12 +68,9 @@ export class AuthController {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      if (error instanceof HttpException) {
-        throw error;
-      }
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.logger.error(`Failed to get profile: ${err.message}`, err.stack);
-      throw new InternalServerErrorException('Failed to get profile');
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException('Failed to get profile: ' + errorMessage);
     }
   }
 
@@ -135,12 +124,15 @@ export class AuthController {
         resetPasswordDto.newPassword,
       );
     } catch (error) {
-      if (error instanceof HttpException) {
+      if (error instanceof BadRequestException) {
         throw error;
       }
-      const err = error instanceof Error ? error : new Error(String(error));
-      this.logger.error(`Reset password failed: ${err.message}`, err.stack);
-      throw new InternalServerErrorException('Failed to reset password');
+      // Handle generic errors
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException(
+        'Failed to reset password: ' + errorMessage,
+      );
     }
   }
 }

@@ -58,10 +58,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
         return 'FORBIDDEN';
       case HttpStatus.NOT_FOUND:
         return 'NOT_FOUND';
-      case HttpStatus.GONE:
-        return 'GONE';
-      case HttpStatus.UNPROCESSABLE_ENTITY:
-        return 'UNPROCESSABLE_ENTITY';
       case HttpStatus.CONFLICT:
         return 'CONFLICT';
       case HttpStatus.TOO_MANY_REQUESTS:

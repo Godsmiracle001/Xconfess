@@ -5,8 +5,6 @@ import {
   BadRequestException,
   GoneException,
   UnprocessableEntityException,
-  HttpException,
-  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -130,9 +128,7 @@ export class AuthService {
         await this.passwordResetService.consumeValidToken(token);
 
       if (!reset) {
-        const tokenPrefix =
-          token.length <= 8 ? '[redacted]' : `${token.slice(0, 8)}...`;
-        this.logger.warn(`Reset token rejected`, { tokenPrefix, reason });
+        this.logger.warn(`Reset token rejected`, { token, reason });
 
         switch (reason) {
           case 'invalid':
@@ -156,18 +152,22 @@ export class AuthService {
 
       return { message: 'Password has been reset successfully' };
     } catch (error) {
-      if (error instanceof HttpException) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof GoneException ||
+        error instanceof UnprocessableEntityException
+      ) {
         throw error;
       }
 
-      const err = error instanceof Error ? error : new Error(String(error));
-      const tokenPrefix =
-        token.length <= 8 ? '[redacted]' : `${token.slice(0, 8)}...`;
-      this.logger.error(
-        `Password reset failed (tokenPrefix=${tokenPrefix}): ${err.message}`,
-        err.stack,
-      );
-      throw new InternalServerErrorException('Failed to reset password');
+      this.logger.error(`Password reset failed: ${errorMessage}`, {
+        token,
+        error: errorMessage,
+      });
+      throw new BadRequestException('Failed to reset password');
     }
   }
 
