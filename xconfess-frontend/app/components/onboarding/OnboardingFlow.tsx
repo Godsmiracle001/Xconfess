@@ -26,19 +26,6 @@ export const OnboardingFlow = () => {
   }, [isCompleted, hasSeenWelcome]);
 
   // ✅ Wait until all targets exist in the DOM
-  const startTourWhenReady = () => {
-    const checkTargets = () => {
-      const allExist = ONBOARDING_STEPS.every((step) =>
-        document.querySelector(step.target),
-      );
-      if (allExist) {
-        setRunTour(true); // Start tour
-      } else {
-        setTimeout(checkTargets, 100); // retry until ready
-      }
-    };
-    checkTargets();
-  };
 
   // Welcome modal button handlers
   const handleStartTour = () => {

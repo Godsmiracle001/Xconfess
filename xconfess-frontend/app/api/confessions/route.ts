@@ -152,7 +152,6 @@ export async function GET(request: Request) {
         "Content-Type": "application/json",
         "X-Correlation-ID": correlationId,
       },
-      // @ts-ignore - Next.js fetch extension
       next: {
         revalidate: 30, // Cache for 30 seconds
       },

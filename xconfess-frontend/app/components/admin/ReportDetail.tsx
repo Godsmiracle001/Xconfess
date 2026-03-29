@@ -19,9 +19,6 @@ export default function ReportDetail({
   onDismiss,
 }: ReportDetailProps) {
   const [resolutionNotes, setResolutionNotes] = useState('');
-  const [showResolveDialog, setShowResolveDialog] = useState(false);
-  const [showDismissDialog, setShowDismissDialog] = useState(false);
-  const [action, setAction] = useState<'resolve' | 'dismiss' | null>(null);
 
   const handleResolve = () => {
     if (confirm('Are you sure you want to resolve this report?')) {
@@ -41,7 +38,7 @@ export default function ReportDetail({
         await adminApi.deleteConfession(report.confessionId, 'Deleted via report resolution');
         alert('Confession deleted successfully');
         onBack();
-      } catch (error) {
+      } catch {
         alert('Failed to delete confession');
       }
     }
@@ -53,7 +50,7 @@ export default function ReportDetail({
         await adminApi.hideConfession(report.confessionId, 'Hidden via report resolution');
         alert('Confession hidden successfully');
         onBack();
-      } catch (error) {
+      } catch {
         alert('Failed to hide confession');
       }
     }

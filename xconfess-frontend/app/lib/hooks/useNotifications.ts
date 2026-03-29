@@ -2,7 +2,6 @@
 
 import {
     NotificationFilter,
-    PaginatedNotifications,
 } from "@/app/types/notifications";
 import type { Notification } from "@/app/types/notifications";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -69,7 +68,7 @@ export function useNotifications(userId: string): UseNotificationsReturn {
         setLoading(false);
       }
     },
-    []
+    [handleError]
   );
 
   const markAsRead = useCallback(async (notificationId: string) => {

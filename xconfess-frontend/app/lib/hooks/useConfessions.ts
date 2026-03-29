@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import apiClient from "@/app/lib/api/client";
 import { getErrorMessage } from "@/app/lib/utils/errorHandler";
 
-import { Confession } from "@/app/lib/types/confession";
 import { RawConfession } from "../utils/normalizeConfession";
 
 export const useConfessions = () => {
@@ -38,7 +37,7 @@ export const useConfessions = () => {
     };
 
     fetchConfessions();
-  }, [page]);
+  }, [page, hasMore]);
 
   const fetchNextPage = () => {
     if (hasMore) setPage((prev) => prev + 1);

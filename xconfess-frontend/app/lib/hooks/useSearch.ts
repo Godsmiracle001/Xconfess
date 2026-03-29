@@ -155,7 +155,6 @@ async function fetchSearchWithRetry(
 }
 
 export function useSearch({
-  query,
   filters,
   debouncedQuery,
   runSearch,

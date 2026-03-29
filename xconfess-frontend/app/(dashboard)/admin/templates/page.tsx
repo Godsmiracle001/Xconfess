@@ -83,8 +83,8 @@ export default function AdminTemplatesPage() {
     try {
       const data = await rolloutApi.getTemplates();
       setTemplates(data);
-    } catch (err) {
-      console.error("API Sync Error:", err);
+    } catch {
+      console.error('Failed to create/update template:');
     } finally {
       setLoading(false);
     }
@@ -97,7 +97,7 @@ export default function AdminTemplatesPage() {
       try {
         await action();
         await loadData();
-      } catch (err) {
+      } catch {
         alert("Operation failed. Monitoring team notified.");
       }
     }

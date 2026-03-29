@@ -19,12 +19,8 @@ export default function PrivacySettingsPage() {
   const [saving, setSaving] = useState(false)
   const { addToast } = useGlobalToast()
 
-  // Load settings from backend
-  useEffect(() => {
-    loadSettings()
-  }, [])
 
-  const loadSettings = async () => {
+  const loadSettings = React.useCallback(async () => {
     try {
       const response = await fetch('/api/users/privacy-settings', {
         headers: { 
@@ -34,14 +30,18 @@ export default function PrivacySettingsPage() {
       
       if (!response.ok) throw new Error('Failed to load settings')
       
-      const data = await response.json()
       setSettings(data)
-    } catch (error) {
+    } catch {
       addToast('Failed to load privacy settings', 'error')
     } finally {
       setLoading(false)
     }
-  }
+  }, [addToast])
+
+  // Load settings from backend
+  useEffect(() => {
+    loadSettings()
+  }, [loadSettings])
 
   const handleSave = async () => {
     if (!settings) return
@@ -62,7 +62,7 @@ export default function PrivacySettingsPage() {
       const updated = await response.json()
       setSettings(updated)
       addToast('Privacy settings saved successfully', 'success')
-    } catch (error) {
+    } catch {
       addToast('Failed to save privacy settings', 'error')
     } finally {
       setSaving(false)

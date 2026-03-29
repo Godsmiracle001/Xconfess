@@ -90,7 +90,6 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
     mutationFn: ({
       confessionId,
       type,
-      isRemoval,
     }: {
       confessionId: string;
       type: ReactionType;

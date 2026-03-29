@@ -55,7 +55,7 @@ export function CommentSection({
         setLoading(false);
       }
     },
-    [confessionId]
+    [confessionId, loading]
   );
 
   useEffect(() => {

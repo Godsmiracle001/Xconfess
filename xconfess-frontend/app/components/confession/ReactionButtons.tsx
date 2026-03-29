@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/app/lib/utils/cn";
-import { Heart, ThumbsUp } from "lucide-react";
 import { useReactions } from "@/app/lib/hooks/useReactions";
 import type { ReactionType } from "@/app/lib/types/reaction";
 
@@ -44,7 +43,7 @@ export const ReactionButton = ({
     setTimeout(() => setIsAnimating(false), 300);
 
     try {
-      const result = await addReaction({ confessionId, type });
+      const result = await addReaction(confessionId, type);
       
       if (!result.ok) {
         // Rollback on error
@@ -58,14 +57,13 @@ export const ReactionButton = ({
       if (result.data.reactions?.[type] !== undefined) {
         setLocalCount(result.data.reactions[type]);
       }
-    } catch (err) {
+    } catch {
       // Rollback on exception
       setActive(wasActive);
       setLocalCount(previousCount);
       setError("An unexpected error occurred");
     }
   };
-  const Icon = type === "like" ? ThumbsUp : Heart;
   const label = active
     ? `Remove ${type} reaction, current count ${localCount}`
     : `React with ${type}, current count ${localCount}`;

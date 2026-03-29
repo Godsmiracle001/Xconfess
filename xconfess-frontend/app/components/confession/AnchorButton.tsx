@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ExternalLink,
   Anchor,
-  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import { useActivityStore } from "@/app/lib/store/activity.store";

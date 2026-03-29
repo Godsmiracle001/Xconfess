@@ -13,9 +13,13 @@ import {
   BASE_FEE,
 } from "@stellar/stellar-sdk";
 import { ActivityStatus } from "@/app/lib/types/activity";
+import {
+  isFreighterInstalled,
+  freighterGetPublicKey,
+  freighterSignTransaction,
+} from "../wallet/freighterAdapter";
 
 const MIN_TIP_AMOUNT = 0.1;
-const SIGN_TIMEOUT_MS = 45000;
 
 // -------------------- Types --------------------
 
@@ -74,9 +78,7 @@ function sleep(ms: number): Promise<void> {
 /**
  * Fake status checker — replace with actual backend or Stellar SDK call
  */
-export const checkTransactionStatus = async (
-  txHash: string
-): Promise<ActivityStatus> => {
+export const checkTransactionStatus = async (): Promise<ActivityStatus> => {
   await sleep(2000);
 
   const random = Math.random();

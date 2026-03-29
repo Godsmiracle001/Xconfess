@@ -1,4 +1,3 @@
-import { AUTH_TOKEN_KEY } from "./constants";
 import { getApiBaseUrl } from "@/app/lib/config";
 
 const API_URL = getApiBaseUrl();
@@ -19,7 +18,7 @@ export interface AuthResponse {
   access_token: string;
 }
 
-export function saveToken(token: string): void {
+export function saveToken(): void {
   // Persistence is now handled via HttpOnly session cookies
 }
 

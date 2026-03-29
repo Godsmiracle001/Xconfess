@@ -92,7 +92,7 @@ export async function anchorConfession(
       throw new Error("Invalid hash length");
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Next.js fetch extension
     const hashBytes = StellarSDK.xdr.ScVal.scvBytes(hashArray);
     const timestampVal = StellarSDK.xdr.ScVal.scvU64(
       StellarSDK.xdr.Uint64.fromString(timestamp.toString()),
@@ -118,22 +118,22 @@ export async function anchorConfession(
 
     const status = submitResponse.status as string;
 
+    const responseAny = submitResponse as any;
+
     if (status === "ERROR") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const errorDetails =
-        submitResponse.errorResultXdr ||
-        submitResponse.errorResult ||
-        (submitResponse as any).details ||
+        responseAny.errorResultXdr ||
+        responseAny.errorResult ||
+        responseAny.details ||
         "Unknown error";
       throw new Error(`Transaction submission error: ${errorDetails}`);
     }
 
     if (status === "DUPLICATE") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const errorDetails =
-        submitResponse.errorResultXdr ||
-        submitResponse.errorResult ||
-        (submitResponse as any).details ||
+        responseAny.errorResultXdr ||
+        responseAny.errorResult ||
+        responseAny.details ||
         "Transaction already submitted";
       throw new Error(`Duplicate transaction: ${errorDetails}`);
     }
@@ -151,11 +151,10 @@ export async function anchorConfession(
       }
     } else if (status !== "SUCCESS" && status !== "ACCEPTED") {
       if (!submitResponse.hash) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const errorDetails =
-          submitResponse.errorResultXdr ||
-          submitResponse.errorResult ||
-          (submitResponse as any).details ||
+          responseAny.errorResultXdr ||
+          responseAny.errorResult ||
+          responseAny.details ||
           `Unexpected status: ${status}`;
         throw new Error(`Transaction submission failed: ${errorDetails}`);
       }
@@ -189,7 +188,6 @@ export async function anchorConfession(
       success: true,
       txHash: submitResponse.hash,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("Failed to anchor confession:", error);
     return {
