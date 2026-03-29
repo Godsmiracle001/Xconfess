@@ -182,6 +182,86 @@ stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $CURRENT_ADM
 Note: `mint_badge` allows users to self-mint badges they've earned without admin involvement, while `award_badge` is admin-driven for community management and off-chain verification.
 
 
+### ConfessionRegistry Contract
+
+#### Daily Operations
+
+```bash
+# Check confession statistics
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- \
+  get_total_count
+
+# Monitor creation activity
+stellar contract events --id $CONFESSION_REGISTRY_ID --limit 100 --topic "confession_created"
+
+# Check user confessions
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- \
+  get_author_confessions --author $USER_ADDRESS
+```
+
+#### Pause/Unpause Management
+
+Pausing is handled through **governance proposals** (not direct admin calls). All write operations are blocked while paused; read operations remain available.
+
+```bash
+# Propose pause action (requires admin authorization and approval quorum)
+PROPOSAL_ID=$(stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ADMIN_KEY -- \
+  gov_propose \
+  --proposer $ADMIN_ADDRESS \
+  --action Pause | jq '.proposal_id')
+
+echo "Pause proposal $PROPOSAL_ID created (waiting for approval)"
+
+# Admin approves the pause proposal
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $APPROVER_KEY -- \
+  gov_approve \
+  --approver $APPROVER_ADDRESS \
+  --id $PROPOSAL_ID
+
+# Execute the pause after quorum is reached
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $EXECUTOR_KEY -- \
+  gov_execute \
+  --executor $EXECUTOR_ADDRESS \
+  --id $PROPOSAL_ID
+
+echo "Contract is now paused - write operations blocked, reads still available"
+
+# Similar process to unpause using CriticalAction::Unpause
+UNPAUSE_PROPOSAL=$(stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ADMIN_KEY -- \
+  gov_propose \
+  --proposer $ADMIN_ADDRESS \
+  --action Unpause | jq '.proposal_id')
+
+# Approve and execute unpause proposal
+```
+
+#### Pause Behavior
+
+| Operation | While Paused |
+|-----------|-------------|
+| `create_confession()` | ❌ Blocked |
+| `update_status()` | ❌ Blocked |
+| `delete_confession()` | ❌ Blocked |
+| `get_confession()` | ✅ Allowed |
+| `get_by_hash()` | ✅ Allowed |
+| `get_author_confessions()` | ✅ Allowed |
+| `get_total_count()` | ✅ Allowed |
+
+Read operations remain available while paused, maintaining visibility into contract state during maintenance or emergency windows.
+
+#### Administrative Functions
+
+| Function | Purpose | Required Role |
+|----------|---------|--------------|
+| `initialize` | Set contract admin | None (on deployment) |
+| `gov_propose` | Propose critical action | Admin/Authorized |
+| `gov_approve` | Approve proposal | Admin/Authorized |
+| `gov_execute` | Execute approved proposal | Any |
+| `set_quorum` | Set approval threshold | Owner |
+
+The governance system ensures no single admin can pause arbitrarily—approval from other admins is required based on quorum settings.
+
+
 ### AnonymousTipping Contract
 
 #### Monitoring Only
@@ -253,18 +333,41 @@ stellar contract invoke --id $CONTRACT_ID --source-account $COMPROMISED_ADMIN_KE
 stellar contract invoke --id $CONTRACT_ID --source-account $SAFE_ADMIN_SECRET -- get_admin
 ```
 
-#### Contract Pause (If Implemented)
+### Emergency Response: Pause Contract
+
+The ConfessionRegistry contract supports emergency pause via governance to block all write operations during incidents or maintenance.
 
 ```bash
-# Emergency pause
-stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- emergency_pause
+# EMERGENCY: Fast-track pause via governance
+# Step 1: Propose pause
+PAUSE_ID=$(stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ADMIN_KEY -- \
+  gov_propose \
+  --proposer $ADMIN_ADDRESS \
+  --action Pause | jq '.proposal_id')
 
-# Check pause status
-stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- is_paused
+# Step 2: Admin approval(s)
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $APPROVER1_KEY -- \
+  gov_approve --approver $APPROVER1 --id $PAUSE_ID
 
-# Resume when safe
-stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- resume
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $APPROVER2_KEY -- \
+  gov_approve --approver $APPROVER2 --id $PAUSE_ID
+
+# Step 3: Execute (anyone can execute after quorum reached)
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $EXECUTOR_KEY -- \
+  gov_execute --executor $EXECUTOR_ADDRESS --id $PAUSE_ID
+
+# Verify pause is active
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- is_paused
+
+# Reads still work during pause for monitoring
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- \
+  get_total_count
+
+# When resolved, unpause using same governance flow with CriticalAction::Unpause
 ```
+
+**Note:** Pause requires governance approval (typically 50%+ of admins). This prevents individual admin abuse. Is there a lower-level emergency pause for immediate response?
+
 
 ## Monitoring and Alerting
 

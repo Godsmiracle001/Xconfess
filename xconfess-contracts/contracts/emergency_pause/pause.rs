@@ -48,3 +48,9 @@ pub fn unpause(env: Env, reason: String) -> Result<(), PauseError> {
 
     Ok(())
 }
+
+/// Internal: Set paused state without admin authorization check.
+/// Used by governance module after quorum approval.
+pub fn set_paused_internal(env: &Env, paused: bool) {
+    env.storage().instance().set(&DataKey::Paused, &paused);
+}

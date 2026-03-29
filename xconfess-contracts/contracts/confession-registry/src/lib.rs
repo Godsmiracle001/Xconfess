@@ -15,6 +15,8 @@ mod error;
 mod events;
 #[path = "../../governance/mod.rs"]
 mod governance;
+#[path = "../../emergency_pause/mod.rs"]
+mod emergency_pause;
 // mod confession_reg_auth;
 
 // ─── Data Types ───
@@ -132,15 +134,9 @@ impl ConfessionRegistry {
         // Require author authorization
         author.require_auth();
 
-        // Check if paused
-        let paused: bool = env
-            .storage()
-            .instance()
-            .get(&symbol_short!("paused"))
-            .unwrap_or(false);
-        if paused {
-            panic!("contract paused");
-        }
+        // Check if paused — use shared emergency pause module
+        emergency_pause::assert_not_paused(&env)
+            .unwrap_or_else(|err| panic!("{}", err as u32));
 
         // Enforce uniqueness on content_hash
         if env
@@ -248,15 +244,9 @@ impl ConfessionRegistry {
     ) {
         caller.require_auth();
 
-        // Pause guard — mirrors create_confession
-        let paused: bool = env
-            .storage()
-            .instance()
-            .get(&symbol_short!("paused"))
-            .unwrap_or(false);
-        if paused {
-            panic!("contract paused");
-        }
+        // Check if paused — use shared emergency pause module
+        emergency_pause::assert_not_paused(&env)
+            .unwrap_or_else(|err| panic!("{}", err as u32));
 
         let mut confession: Confession = env
             .storage()
@@ -305,15 +295,9 @@ impl ConfessionRegistry {
     pub fn delete_confession(env: Env, caller: Address, id: u64, timestamp: u64) {
         caller.require_auth();
 
-        // Pause guard — mirrors create_confession
-        let paused: bool = env
-            .storage()
-            .instance()
-            .get(&symbol_short!("paused"))
-            .unwrap_or(false);
-        if paused {
-            panic!("contract paused");
-        }
+        // Check if paused — use shared emergency pause module
+        emergency_pause::assert_not_paused(&env)
+            .unwrap_or_else(|err| panic!("{}", err as u32));
 
         let mut confession: Confession = env
             .storage()
