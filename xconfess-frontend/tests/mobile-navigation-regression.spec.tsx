@@ -247,13 +247,6 @@ describe("Mobile Navigation Regression Coverage", () => {
     });
   });
 
-  describe("Auth Recovery on Mobile", () => {
-    // TODO: Add AuthGuard mobile tests in separate file due to mocking complexity
-    it("placeholder for auth recovery tests", () => {
-      expect(true).toBe(true);
-    });
-  });
-
   describe("Dashboard Layout on Mobile", () => {
     it("renders header and main content on mobile", () => {
       render(
