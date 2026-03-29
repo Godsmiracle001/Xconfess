@@ -11,7 +11,7 @@ import { AnonymousConfession } from '../../confession/entities/confession.entity
 import { User, UserRole } from '../../user/entities/user.entity';
 import { ModerationService } from './moderation.service';
 import { ModerationTemplateService } from '../../comment/moderation-template.service';
-import { AuditAction } from '../entities/audit-log.entity';
+import { AuditActionType } from '../../audit-log/audit-log.entity';
 import { Request } from 'express';
 import { decryptConfession } from '../../utils/confession-encryption';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -147,7 +147,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.REPORT_RESOLVED,
+      AuditActionType.REPORT_RESOLVED,
       'report',
       id,
       {
@@ -186,7 +186,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.REPORT_DISMISSED,
+      AuditActionType.REPORT_DISMISSED,
       'report',
       id,
       { reportType: report.type },
@@ -225,7 +225,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.BULK_ACTION,
+      AuditActionType.BULK_ACTION,
       'report',
       null,
       { action: 'bulk_resolve', count: reports.length, reportIds: ids },
@@ -258,7 +258,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.CONFESSION_DELETED,
+      AuditActionType.CONFESSION_DELETED,
       'confession',
       id,
       { reason },
@@ -286,7 +286,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.CONFESSION_HIDDEN,
+      AuditActionType.CONFESSION_HIDDEN,
       'confession',
       id,
       { reason },
@@ -315,7 +315,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.CONFESSION_UNHIDDEN,
+      AuditActionType.CONFESSION_UNHIDDEN,
       'confession',
       id,
       null,
@@ -348,7 +348,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.USER_BANNED,
+      AuditActionType.USER_BANNED,
       'user',
       userId.toString(),
       { reason },
@@ -379,7 +379,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.USER_UNBANNED,
+      AuditActionType.USER_UNBANNED,
       'user',
       userId.toString(),
       null,

@@ -43,6 +43,8 @@ describe("TipButton", () => {
       isLoading: false,
       error: null,
       isFreighterInstalled: true,
+      isReady: true,
+      readinessError: null,
       connect: jest.fn().mockResolvedValue(undefined),
       disconnect: jest.fn(),
       signTransaction: jest.fn().mockResolvedValue("signed-xdr"),

@@ -21,6 +21,8 @@ function createWalletOverrides(
     checkConnection: jest.fn().mockResolvedValue(undefined),
     switchNetwork: jest.fn(),
     clearError: jest.fn(),
+    isReady: true,
+    readinessError: null,
     ...overrides,
   };
 }

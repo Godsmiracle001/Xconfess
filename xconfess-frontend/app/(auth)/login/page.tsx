@@ -9,6 +9,9 @@ import {
   type ValidationErrors,
 } from '@/app/lib/utils/validation';
 
+const showDevMockAdminLogin =
+  process.env.NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN === 'true';
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -19,14 +22,17 @@ export default function LoginPage() {
   const doMockAdminLogin = async () => {
     setLoading(true);
     try {
-      // Establish a session via the proxy with mock signals
       await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@example.com', password: 'mock', mock: true }),
+        body: JSON.stringify({
+          email: 'admin@example.com',
+          password: 'mock',
+          mock: true,
+        }),
       });
       router.push('/admin/dashboard');
-    } catch (e: any) {
+    } catch {
       setErrors({ password: 'Mock login failed' });
     } finally {
       setLoading(false);
@@ -34,7 +40,6 @@ export default function LoginPage() {
   };
 
   const doLogin = async () => {
-    // Validate using shared validation helpers
     const validationErrors = validateLoginForm({ email, password });
     setErrors(validationErrors);
 
@@ -42,7 +47,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Parse and validate with typed helper
     const parsed = parseLoginForm({ email, password });
     if (!parsed.success) {
       setErrors(parsed.errors);
@@ -64,8 +68,9 @@ export default function LoginPage() {
       }
 
       router.push('/admin/dashboard');
-    } catch (e: any) {
-      setErrors({ password: e?.message || 'Login failed' });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Login failed';
+      setErrors({ password: message });
     } finally {
       setLoading(false);
     }
@@ -77,7 +82,7 @@ export default function LoginPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Login</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            For quick testing, use <span className="font-medium">Mock Admin Login</span>.
+            Sign in with your account credentials.
           </p>
         </div>
 
@@ -104,13 +109,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                // Clear error on change
                 if (errors.email) {
                   setErrors((prev) => ({ ...prev, email: undefined }));
                 }
               }}
               className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
-              placeholder="admin@example.com"
+              placeholder="you@example.com"
               autoComplete="email"
             />
           </div>
@@ -124,7 +128,6 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
-                // Clear error on change
                 if (errors.password) {
                   setErrors((prev) => ({ ...prev, password: undefined }));
                 }
@@ -136,6 +139,7 @@ export default function LoginPage() {
           </div>
 
           <button
+            type="button"
             onClick={doLogin}
             disabled={loading}
             className="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50"
@@ -143,17 +147,23 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-            <button
-              onClick={doMockAdminLogin}
-              className="w-full bg-gray-700 text-white px-4 py-2 rounded-md hover:bg-gray-800"
-            >
-              Mock Admin Login (Dummy Data)
-            </button>
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              This enables local mock data for admin endpoints (analytics, reports, users, audit logs).
-            </p>
-          </div>
+          {showDevMockAdminLogin && (
+            <div className="pt-2 border-t border-dashed border-amber-600/50 dark:border-amber-500/40">
+              <p className="text-xs text-amber-800 dark:text-amber-200/90 mb-2">
+                Dev-only: mock admin shortcut (set{' '}
+                <code className="font-mono">NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN=true</code>
+                ). Do not enable in production.
+              </p>
+              <button
+                type="button"
+                onClick={doMockAdminLogin}
+                disabled={loading}
+                className="w-full bg-amber-700 text-white px-4 py-2 rounded-md hover:bg-amber-800 disabled:opacity-50 text-sm"
+              >
+                Mock Admin Login (local testing)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

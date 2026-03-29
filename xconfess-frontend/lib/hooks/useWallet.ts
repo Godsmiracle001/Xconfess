@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import * as WalletService from "../services/wallet.service";
+import { computeWalletReadiness } from "../wallet/walletReadiness";
 
 export interface WalletState {
   publicKey: string | null;
@@ -321,42 +322,11 @@ export const useWallet = (): UseWalletReturn => {
     }));
   }, []);
 
-  /**
-   * Compute wallet readiness state continuously based on current app configuration
-   */
-  const getReadinessState = () => {
-    if (!state.isConnected) return { isReady: false, readinessError: null };
-
-    const expected = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet";
-    const actual = (state.network || "").toUpperCase();
-
-    let isNetworkMatch = false;
-    if (expected === "mainnet") {
-      isNetworkMatch = ["PUBLIC", "PUBLIC_NETWORK", "MAINNET"].includes(actual);
-    } else {
-      isNetworkMatch = ["TESTNET", "TESTNET_SOROBAN"].includes(actual);
-    }
-
-    if (!isNetworkMatch) {
-      const displayExpected = expected === "mainnet" ? "Mainnet" : "Testnet";
-      return {
-        isReady: false,
-        readinessError: `Wallet on wrong network. Please switch to ${displayExpected}.`,
-      };
-    }
-
-    if (!state.publicKey) {
-      return {
-        isReady: false,
-        readinessError:
-          "Wallet signer is unavailable. Unlock Freighter and try again.",
-      };
-    }
-
-    return { isReady: true, readinessError: null };
-  };
-
-  const { isReady, readinessError } = getReadinessState();
+  const { isReady, readinessError } = computeWalletReadiness({
+    isConnected: state.isConnected,
+    publicKey: state.publicKey,
+    networkLabel: state.network,
+  });
 
   return {
     ...state,

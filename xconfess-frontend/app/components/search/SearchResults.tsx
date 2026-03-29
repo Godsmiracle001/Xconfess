@@ -27,6 +27,7 @@ interface SearchResultsProps {
   onClearFilters?: () => void;
   onUseSuggestion?: (query: string) => void;
   className?: string;
+  isRetrying?: boolean;
 }
 
 export function SearchResults({
@@ -45,6 +46,7 @@ export function SearchResults({
   onClearFilters,
   onUseSuggestion,
   className,
+  isRetrying = false,
 }: SearchResultsProps) {
   const suggestions = ["confession", "secret", "relationships"];
 
@@ -54,8 +56,17 @@ export function SearchResults({
         className={cn("space-y-4", className)}
         role="status"
         aria-live="polite"
-        aria-label="Loading search results"
+        aria-label={
+          isRetrying
+            ? "Loading search results, retrying after a connection issue"
+            : "Loading search results"
+        }
       >
+        {isRetrying && (
+          <p className="text-sm text-amber-200/90 text-center">
+            Search is taking longer than usual — retrying…
+          </p>
+        )}
         {Array.from({ length: 3 }).map((_, i) => (
           <SkeletonCard key={i} />
         ))}

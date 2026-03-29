@@ -26,7 +26,7 @@ Before deploying contracts, ensure you have:
 1. ✅ Soroban development environment set up (see [README.md](./README.md))
 2. ✅ All contracts built successfully with `stellar contract build`
 3. ✅ Stellar account with testnet XLM (for testing)
-4. ✅ Stellar CLI v21.x or later
+4. ✅ Stellar CLI v22.0.0 or later
 
 ### Quick Setup Check
 
@@ -35,9 +35,9 @@ Before deploying contracts, ensure you have:
 source $HOME/.cargo/env
 
 # Verify tools
-rustc --version  # Should be 1.74.0+
+rustc --version  # Should be 1.81+
 cargo --version
-stellar --version  # Should be 21.x+
+stellar --version  # Should be 22.0.0+
 ```
 
 ## 🌐 Network Configuration
@@ -68,13 +68,24 @@ stellar keys show mykey
 
 ## 🚀 Building Contracts
 
-### Build All Contracts
+### Canonical Build (Recommended)
+
+From the repository root, use the canonical release script:
 
 ```bash
-cd /workspaces/Xconfess/xconfess-contracts
+# From repository root
+./scripts/contracts-release.sh build
+```
+
+This builds all contracts with locked dependencies, verifies artifacts, and generates deployment metadata.
+
+### Manual Build (if needed)
+
+```bash
+cd xconfess-contracts
 
 # Build all for WebAssembly
-cargo build --release --target wasm32-unknown-unknown
+cargo build --locked --workspace --release --target wasm32-unknown-unknown
 ```
 
 ### Build for Testing
@@ -89,85 +100,42 @@ cargo build --target wasm32-unknown-unknown
 After building, compiled contracts are at:
 
 ```
-target/wasm32-unknown-unknown/release/
+xconfess-contracts/target/wasm32-unknown-unknown/release/
 ├── confession_anchor.wasm
+├── confession_registry.wasm
 ├── reputation_badges.wasm
 └── anonymous_tipping.wasm
 ```
 
-## 🚁 Deployment Steps
+All four contracts are built and deployed together.
 
-### 1. Prepare Account
+## 🚁 Deployment Steps (Using Canonical Script)
 
-```bash
-# Use your test account
-export STELLAR_ACCOUNT="your-public-key"
-export STELLAR_SECRET="your-secret-key"
-
-# Set network
-stellar network use testnet
-```
-
-### 2. Deploy Confession Anchor Contract
+**Use the canonical deployment script instead of manual steps:**
 
 ```bash
-# Build contract
-cargo build --release --target wasm32-unknown-unknown -p confession-anchor
-
-# Deploy contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/confession_anchor.wasm \
-  --source-account $STELLAR_ACCOUNT \
-  --network testnet
-
-# Note: Save the returned CONTRACT_ID
-export CONFESSION_ANCHOR_ID="contract-id-from-output"
+# From repository root
+./scripts/contracts-release.sh deploy --network testnet --source deployer
 ```
 
-### 3. Deploy Reputation Badges Contract
+Replace:
+- `testnet` with the target network (futurenet, public, etc.)
+- `deployer` with the name of your Stellar CLI key
+
+**What the script does:**
+1. Verifies all WASM artifacts exist
+2. Deploys each contract in sequence
+3. Records each returned contract ID
+4. Generates `deployments/testnet.json` with all metadata
+
+**Result:** Check `deployments/testnet.json` for the contract IDs of all four contracts.
 
 ```bash
-# Build contract
-cargo build --release --target wasm32-unknown-unknown -p reputation-badges
-
-# Deploy contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/reputation_badges.wasm \
-  --source-account $STELLAR_ACCOUNT \
-  --network testnet
-
-export REPUTATION_BADGES_ID="contract-id-from-output"
+# Extract contract IDs
+jq '.contracts | to_entries[] | {name: .key, id: .value.contract_id}' deployments/testnet.json
 ```
 
-### 4. Deploy Anonymous Tipping Contract
-
-```bash
-# Build contract
-cargo build --release --target wasm32-unknown-unknown -p anonymous-tipping
-
-# Deploy contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/anonymous_tipping.wasm \
-  --source-account $STELLAR_ACCOUNT \
-  --network testnet
-
-export ANONYMOUS_TIPPING_ID="contract-id-from-output"
-```
-
-### 5. Deploy Confession Registry Contract
-
-```bash
-# Build contract
-cargo build --release --target wasm32-unknown-unknown -p confession-registry
-
-# Deploy contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/confession_registry.wasm \
-  --source-account $STELLAR_ACCOUNT \
-  --network testnet
-
-export CONFESSION_REGISTRY_ID="contract-id-from-output"
-```
+**Do not manually deploy individual contracts.** The script ensures all four contracts are built and deployed from the same `Cargo.lock` snapshot.
 
 ## 🧪 Testing Contracts
 
@@ -175,6 +143,7 @@ export CONFESSION_REGISTRY_ID="contract-id-from-output"
 
 ```bash
 # Run all contract tests
+cd xconfess-contracts
 cargo test
 
 # Run specific contract tests
@@ -187,42 +156,46 @@ cargo test -p anonymous-tipping
 cargo test -- --nocapture
 ```
 
-### Integration Tests
+### Canonical Test Script
 
 ```bash
-# Test contract invocation locally
+# From repository root
+./scripts/test-contracts.sh
+```
+
+### Post-Deployment Verification
+
+After deploying to a network, test contract invocations:
+
+```bash
+# Test ConfessionAnchor
 stellar contract invoke \
   --id $CONFESSION_ANCHOR_ID \
-  --source-account $STELLAR_ACCOUNT \
+  --source "$DEPLOYER_KEY" \
   --network testnet \
-  -- init_contract
-```
+  -- gDeployment Metadata
 
-### Test Script
+Contract IDs are automatically saved in `deployments/<network>.json` by the canonical script:
 
 ```bash
-# From project root
-bash xconfess-contracts/scripts/test-contracts.sh
+# View deployment metadata
+cat deployments/testnet.json | jq '.'
+
+# Extract contract IDs
+jq '.contracts | to_entries[] | {name: .key, id: .value.contract_id}' deployments/testnet.json
 ```
 
-## 📝 Configuration Storage
+This file includes:
+- Generated timestamp
+- Network name
+- All four contract IDs
+- Version and SHA-256 hash for each contract WASM
 
-Save deployed contract IDs:
+**Important:** Commit this file to version control for tracking which versions are deployed to each network.
 
-Create `deployments/testnet.json`:
-
-```json
-{
-  "network": "testnet",
-  "deployed_at": "2024-01-25T00:00:00Z",
-  "contracts": {
-    "confession_anchor": {
-      "id": "CXXXXXXXXX...",
-      "wasm": "confession_anchor.wasm",
-      "version": "0.1.0"
-    },
-    "reputation_badges": {
-      "id": "CYYYYYYYYY...",
+```bash
+git add deployments/testnet.json
+git commit -m "deploy: contracts deployed to testnet"     "id": "CYYYYYYYYY...",
       "wasm": "reputation_badges.wasm",
       "version": "0.1.0"
     },

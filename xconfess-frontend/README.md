@@ -78,7 +78,15 @@ logout();
 
 ```env
 # xconfess-frontend/.env.local
+
+# Server-side backend API URL (used by API routes)
+BACKEND_API_URL=http://localhost:5000
+
+# Client-side API URL (used by client-side code)
 NEXT_PUBLIC_API_URL=http://localhost:5000
+
+# WebSocket URL (used by client-side WebSocket connections)
+NEXT_PUBLIC_WS_URL=http://localhost:3001
 ```
 
 ### Note on /api/auth/* route

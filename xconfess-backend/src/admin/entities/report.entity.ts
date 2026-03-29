@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
 import { User } from '../../user/entities/user.entity';
+import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 
 export enum ReportType {
   SPAM = 'spam',
@@ -49,6 +50,13 @@ export class Report {
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'reporter_id' })
   reporter: User | null;
+
+  @Column({ name: 'anonymous_reporter_id', type: 'uuid', nullable: true })
+  anonymousReporterId: string | null;
+
+  @ManyToOne(() => AnonymousUser, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'anonymous_reporter_id' })
+  anonymousReporter: AnonymousUser | null;
 
   @Column({
     type: 'enum',

@@ -2,7 +2,7 @@ import { AdminService } from './admin.service';
 import { ModerationService } from './moderation.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ReportStatus } from '../entities/report.entity';
-import { AuditAction } from '../entities/audit-log.entity';
+import { AuditActionType } from '../../audit-log/audit-log.entity';
 
 function createChainableQB(overrides: Partial<any> = {}) {
   const qb: any = {
@@ -120,7 +120,7 @@ describe('AdminService', () => {
     expect(res.status).toBe(ReportStatus.RESOLVED);
     expect(moderationService.logAction).toHaveBeenCalledWith(
       1,
-      AuditAction.REPORT_RESOLVED,
+      AuditActionType.REPORT_RESOLVED,
       'report',
       'r1',
       expect.any(Object),
@@ -153,7 +153,7 @@ describe('AdminService', () => {
     expect(res.status).toBe(ReportStatus.DISMISSED);
     expect(moderationService.logAction).toHaveBeenCalledWith(
       2,
-      AuditAction.REPORT_DISMISSED,
+      AuditActionType.REPORT_DISMISSED,
       'report',
       'r1',
       expect.any(Object),
@@ -182,7 +182,7 @@ describe('AdminService', () => {
     expect(count).toBe(1);
     expect(moderationService.logAction).toHaveBeenCalledWith(
       1,
-      AuditAction.BULK_ACTION,
+      AuditActionType.BULK_ACTION,
       'report',
       null,
       expect.any(Object),

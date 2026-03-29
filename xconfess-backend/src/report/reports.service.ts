@@ -55,7 +55,7 @@ export class ReportsService {
     confessionId: string,
     reporterId: number | null,
     dto: CreateReportDto,
-    context?: { ipAddress?: string; userAgent?: string },
+    context?: { ipAddress?: string; userAgent?: string; anonymousUserId?: string },
     idempotencyKey?: string,
   ): Promise<Report> {
     // ── Idempotency replay ────────────────────────────────────────────────────
@@ -94,17 +94,25 @@ export class ReportsService {
         throw new NotFoundException('Confession not found');
       }
 
-      // 2️⃣ Duplicate-report check (24-hour window, handles NULL reporterId)
+      // 2️⃣ Duplicate-report check (24-hour window)
       const qb = manager
         .getRepository(Report)
         .createQueryBuilder('report')
         .where('report.confessionId = :confessionId', { confessionId })
         .andWhere('report.createdAt > :since', { since });
 
-      if (reporterId === null) {
-        qb.andWhere('report.reporterId IS NULL');
-      } else {
+      if (reporterId !== null) {
         qb.andWhere('report.reporterId = :reporterId', { reporterId });
+      } else if (context?.anonymousUserId) {
+        qb.andWhere('report.anonymousReporterId = :anonymousReporterId', {
+          anonymousReporterId: context.anonymousUserId,
+        });
+      } else {
+        // No stable identity for anonymous reporter, allow but log
+        this.logger.warn(
+          `Anonymous report without anonymousUserId for confession ${confessionId}`,
+        );
+        // For now, allow it, but in future, reject
       }
 
       const existingReport = await qb.getOne();
@@ -116,6 +124,7 @@ export class ReportsService {
       const report = manager.getRepository(Report).create({
         confessionId,
         reporterId: reporterId ?? undefined,
+        anonymousReporterId: reporterId === null ? context?.anonymousUserId : undefined,
         type: dto.type ?? ReportType.OTHER,
         reason: dto.reason ?? null,
         status: ReportStatus.PENDING,

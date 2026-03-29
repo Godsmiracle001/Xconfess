@@ -1,8 +1,10 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import {
-    AppError, getStatusMessage,
+    AppError,
+    getStatusMessage,
     getStatusCodeString,
     logError,
+    LOGIN_ATTEMPT_FAILED_MESSAGE,
     toAppError
 } from '@/app/lib/utils/errorHandler';
 import {
@@ -12,8 +14,9 @@ import {
     RegisterResponse,
     User,
 } from '../types/auth';
+import { getApiBaseUrl } from '@/app/lib/config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = getApiBaseUrl();
 
 /**
  * Axios instance for API calls
@@ -82,13 +85,20 @@ export const authApi = {
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         const status = response.status;
+        const rawApi =
+          (body && ((body as any).message || (body as any).error)) || null;
         const message =
-          (body && ((body as any).message || (body as any).error)) ||
-          getStatusMessage(status);
+          status === 401
+            ? LOGIN_ATTEMPT_FAILED_MESSAGE
+            : typeof rawApi === 'string' && rawApi.trim().length > 0
+              ? rawApi
+              : getStatusMessage(status);
         const code = getStatusCodeString(status);
         const apiError = new AppError(message, code, status, {
           responseBody: body,
           path: '/api/auth/session',
+          upstreamMessage:
+            typeof rawApi === 'string' ? rawApi : undefined,
         });
         logError(apiError, 'authApi.login', { status, url: '/api/auth/session' });
         throw apiError;

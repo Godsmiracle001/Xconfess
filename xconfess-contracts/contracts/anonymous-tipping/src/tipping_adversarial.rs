@@ -31,23 +31,6 @@ mod adversarial {
         SorobanString::from_str(env, &std::string::String::from("m").repeat(len))
     }
 
-    /// Verify that a `catch_unwind` result is an error whose payload contains
-    /// `substr`. Handles both `&str` and `String` panic payloads.
-    fn assert_panics(result: std::thread::Result<()>, substr: &str) {
-        let err = result.expect_err("expected a panic but the call succeeded");
-        let msg: std::string::String = if let Some(s) = err.downcast_ref::<&str>() {
-            std::format!("{}", s)
-        } else if let Some(s) = err.downcast_ref::<std::string::String>() {
-            s.clone()
-        } else {
-            std::format!("<non-string panic payload>")
-        };
-        assert!(
-            msg.contains(substr),
-            "panic message {msg:?} did not contain {substr:?}"
-        );
-    }
-
     // ── invalid amount — zero ─────────────────────────────────────────────────
 
     #[test]

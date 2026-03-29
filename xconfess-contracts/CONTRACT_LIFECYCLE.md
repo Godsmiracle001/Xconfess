@@ -29,36 +29,78 @@ Each contract has specific initialization requirements and administrative capabi
 
 ```rust
 // Initialize the confession anchor contract
-pub fn init(env: Env, admin: Address) {
-    // Sets the contract administrator
-    // Initializes confession counter
-    // Sets up access control
+pub fn initialize(env: Env, owner: Address) {
+    // Sets the contract owner (full administrative control)
+    // Initializes the admin set (Map)
+    // Sets up access control checks
+    // Storage auto-renews via TTL
 }
 ```
 
 #### Required Parameters
 
-- `admin: Address` - The administrator address with full control over contract settings
+- `owner: Address` - The owner address with full administrative control
 
 #### Initialization Process
 
-1. Deploy contract with administrator address
-2. Contract automatically sets up:
-   - Access control with admin as initial owner
-   - Confession counter initialized to 0
-   - Version information stored
+1. Deploy contract to testnet/mainnet
+2. Call `initialize(owner_address)` immediately after deployment
+3. Contract configures:
+   - Sets specified address as owner
+   - Initializes admin set to empty map
+   - Prepares version and capability information
+   - Enables pause/resume functionality
+
+#### Authorization Model
+
+**Owner Operations** (require owner signature):
+- `transfer_owner()` - Transfer ownership to new address
+- `grant_admin()` - Add addresses to admin set
+- `revoke_admin()` - Remove addresses from admin set
+- `pause()` - Block write operations (emergency pause)
+- `unpause()` - Resume write operations
+
+**Public Operations** (no authentication required):
+- `anchor_confession()` - Submit confession hash (blocks if paused)
+- `verify_confession()` - Lookup confession hash
+- `get_confession_count()` - Read total anchored count
+- `get_owner()` - Read current owner address
+- `is_admin()` - Check if address has admin role
+- `get_admin_count()` - Count active admins
+- `is_paused()` - Check pause status
+- `get_version()` - Read version info
+- `get_capabilities()` - List supported features
 
 #### Example Initialization
 
 ```bash
-# Deploy ConfessionAnchor contract
-stellar contract deploy \
+# 1. Deploy ConfessionAnchor contract
+CONTRACT_ID=$(stellar contract deploy \
   --wasm target/wasm32-unknown-unknown/release/confession_anchor.wasm \
-  --source-account $ADMIN_KEY \
+  --source-account $DEPLOYER_KEY \
   --network testnet \
-  -- \
-  init \
-  --admin $ADMIN_ADDRESS
+  | jq -r '.contractId')
+
+# 2. Initialize with owner
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $OWNER_KEY \
+  -- initialize \
+  --owner $OWNER_ADDRESS
+
+# 3. Grant admin roles (optional)
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $OWNER_KEY \
+  -- grant_admin \
+  --caller $OWNER_ADDRESS \
+  --target $ADMIN_ADDRESS
+
+# 4. Verify initialization
+stellar contract invoke --id $CONTRACT_ID -- get_owner
+stellar contract invoke --id $CONTRACT_ID -- get_admin_count
+
+echo "ConfessionAnchor initialized and ready"
 ```
 
 ### ReputationBadges Contract
@@ -68,85 +110,81 @@ stellar contract deploy \
 ```rust
 // Initialize the reputation badges contract
 pub fn init(env: Env, admin: Address) {
-    // Sets up badge system
-    // Configures reputation thresholds
-    // Initializes admin controls
+    // Sets the contract administrator
+    // Initializes badge counter
+    // Sets up access control
 }
 ```
 
 #### Required Parameters
 
-- `admin: Address` - Administrator address for badge management
+- `admin: Address` - Administrator address for badge and reputation management
 
 #### Initialization Process
 
-1. Deploy with administrator address
+1. Deploy contract and call `initialize(admin_address)`
 2. Contract configures:
-   - Badge type definitions
-   - Reputation calculation parameters
-   - Administrative access controls
+   - Sets specified address as admin
+   - Initializes badge counter to 0
+   - Prepares reputation storage (all users start with 0 reputation)
+   - Sets up access control checks
 
-### AnonymousTipping Contract
+#### Authorization Model
 
-#### Initialization Requirements
+The ReputationBadges contract has two authorization models:
 
-```rust
-// Initialize the anonymous tipping contract
-pub fn init(env: Env) {
-    // Sets up settlement nonce
-    // Initializes tip tracking
-    // No admin required - fully decentralized
-}
-```
+**Admin-Managed Operations** (require admin authorization):
+- `initialize()` - Set up the contract admin
+- `transfer_admin()` - Change admin
+- `create_badge()` - Define badge metadata
+- `award_badge()` - Grant badges to users
+- `adjust_reputation()` - Adjust user reputation scores
 
-#### Initialization Process
+**User-Driven Operations** (user self-authorizes):
+- `mint_badge()` - Users self-mint badges they've earned
+- `transfer_badge()` - Owner transfers badge to another user
+- `revoke_badge()` - Owner revokes their own badge
 
-1. Deploy contract (no administrator required)
-2. Contract automatically:
-   - Initializes settlement nonce to 0
-   - Sets up tip tracking storage
-   - Ready for anonymous tipping
+**Public Operations** (no auth required):
+- `get_user_reputation()` - Read user reputation
+- `get_badges()` - List user's badges
+- `has_badge()` - Check if user has specific badge type
+- `get_admin()` - Read current admin
 
 #### Example Initialization
 
 ```bash
-# Deploy AnonymousTipping contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/anonymous_tipping.wasm \
+# 1. Deploy ReputationBadges contract
+CONTRACT_ID=$(stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/reputation_badges.wasm \
   --source-account $DEPLOYER_KEY \
-  --network testnet
+  --network testnet \
+  | jq -r '.contractId')
+
+# 2. Initialize with admin
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $ADMIN_KEY \
+  -- initialize \
+  --admin $ADMIN_ADDRESS
+
+# 3. Set up badge types (optional but recommended)
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $ADMIN_KEY \
+  -- create_badge \
+  --badge_type ConfessionStarter \
+  --name "First Confession" \
+  --description "Posted your first confession" \
+  --criteria "Post at least one confession"
+
+echo "ReputationBadges initialized and ready"
 ```
-
-## Administrative Functions
-
-### ConfessionAnchor Administration
-
-#### Admin Management
-
-```rust
-// Transfer administrative rights
-pub fn transfer_admin(env: Env, new_admin: Address) -> Result<(), Error>
-
-// Check current administrator
-pub fn get_admin(env: Env) -> Address
-```
-
-#### Administrative Capabilities
-
-- **Transfer Admin**: Change contract administrator
-- **View Admin**: Get current administrator address
-- **Emergency Functions**: Contract pause/resume (if implemented)
-- **Configuration**: Update contract parameters
-
-#### Access Control
-
-- Only administrator can call privileged functions
-- All administrative actions emit events for audit trail
-- Role-based access prevents privilege escalation
 
 ### ReputationBadges Administration
 
 #### Badge Management
+
 
 ```rust
 // Create new badge type
@@ -407,17 +445,74 @@ If administrator keys are compromised:
    - Verify old admin access is revoked
    - Update all dependent systems
 
-#### Contract Pause
+#### Emergency Pause Management
 
-For contracts with pause functionality:
+xConfess contracts use a **unified emergency pause model** managed via the `emergency_pause` module. For detailed specifications, see [EMERGENCY_PAUSE_MODEL.md](EMERGENCY_PAUSE_MODEL.md).
 
-```rust
-// Emergency pause
-pub fn emergency_pause(env: Env) -> Result<(), Error>
+**ConfessionRegistry Pause Flow:**
 
-// Resume operations
-pub fn resume(env: Env) -> Result<(), Error>
+1. Admin proposes `CriticalAction::Pause` via governance
+2. Other admins approve the proposal
+3. When quorum is reached, executor calls `gov_execute()`
+4. Governance module calls `emergency_pause::set_paused_internal()`
+5. All write operations now fail with error code 4 (ContractPaused)
+6. Read operations continue normally
+
+**Pause Behavior:**
+
+| Operation | Paused | Running |
+|-----------|--------|---------|
+| `create_confession()` | ❌ Error 4 | ✅ OK |
+| `update_status()` | ❌ Error 4 | ✅ OK |
+| `delete_confession()` | ❌ Error 4 | ✅ OK |
+| `get_confession()` | ✅ OK | ✅ OK |
+| `get_by_hash()` | ✅ OK | ✅ OK |
+| `get_author_confessions()` | ✅ OK | ✅ OK |
+| `get_total_count()` | ✅ OK | ✅ OK |
+
+**Example: Proposing a Pause**
+
+```bash
+# 1. Propose governance action (pause)
+stellar contract invoke \
+  --id $GOVERNANCE_ID \
+  --source-account $ADMIN_KEY \
+  -- propose_critical \
+  --action Pause \
+  --reason "Emergency response: suspected exploit detected"
+
+# 2. Get proposal ID and approve it
+PROPOSAL_ID=$(stellar contract invoke \
+  --id $GOVERNANCE_ID \
+  --source-account $ADMIN_KEY \
+  -- get_proposals_count)
+
+# 3. Other admins approve
+for APPROVER in $ADMIN_ADDRESSES; do
+  stellar contract invoke \
+    --id $GOVERNANCE_ID \
+    --source-account $APPROVER \
+    -- approve_proposal \
+    --proposal_id $PROPOSAL_ID
+done
+
+# 4. Execute after quorum reached
+stellar contract invoke \
+  --id $GOVERNANCE_ID \
+  --source-account $EXECUTOR_KEY \
+  -- execute \
+  --proposal_id $PROPOSAL_ID
+
+# 5. Verify pause is active
+stellar contract invoke \
+  --id $CONFESSION_REGISTRY_ID \
+  -- get_pause_status
 ```
+
+**Other Contracts:**
+- **ConfessionAnchor**: No pause (read-only operations)
+- **ReputationBadges**: No pause (separate governance model)
+- **AnonymousTipping**: No pause (fully decentralized)
 
 ## Best Practices
 

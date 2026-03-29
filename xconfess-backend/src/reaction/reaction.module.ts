@@ -9,6 +9,8 @@ import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { WebSocketLogger } from '../websocket/websocket.logger';
+import { ReactionsGateway } from './reactions.gateway';
+import { WebSocketHealthController } from '../websocket/websocket-health.controller';
 
 @Module({
   imports: [
@@ -21,8 +23,8 @@ import { WebSocketLogger } from '../websocket/websocket.logger';
     ]),
     AnalyticsModule,
   ],
-  controllers: [ReactionController],
-  providers: [ReactionService, WebSocketLogger],
-  exports: [ReactionService],
+  controllers: [ReactionController, WebSocketHealthController],
+  providers: [ReactionService, WebSocketLogger, ReactionsGateway],
+  exports: [ReactionService, ReactionsGateway],
 })
 export class ReactionModule {}

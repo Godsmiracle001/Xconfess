@@ -132,7 +132,7 @@ describe('Reactions Integration (e2e)', () => {
 
     it('should broadcast reaction:removed when user removes reaction', (done) => {
       // First add a reaction
-      request(app.getHttpServer())
+      void request(app.getHttpServer())
         .post('/api/v1/reactions')
         .set('Authorization', `Bearer ${authToken}`)
         .send({
@@ -152,14 +152,15 @@ describe('Reactions Integration (e2e)', () => {
 
             // Remove reaction
             setTimeout(() => {
-              request(app.getHttpServer())
+              void request(app.getHttpServer())
                 .delete(`/api/v1/reactions/${confessionId}`)
                 .set('Authorization', `Bearer ${authToken}`)
                 .expect(200)
                 .catch((err) => done(err));
             }, 100);
           });
-        });
+        })
+        .catch((err) => done(err));
     });
   });
 

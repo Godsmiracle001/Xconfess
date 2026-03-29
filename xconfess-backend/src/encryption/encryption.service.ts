@@ -13,6 +13,7 @@ export class EncryptionService {
     const keyString = this.configService.get<string>(
       'CONFESSION_ENCRYPTION_KEY',
     );
+
     if (!keyString) {
       throw new Error(
         'CONFESSION_ENCRYPTION_KEY must be set in environment variables',

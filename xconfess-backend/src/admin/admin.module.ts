@@ -4,7 +4,7 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './services/admin.service';
 import { ModerationService } from './services/moderation.service';
 import { Report } from './entities/report.entity';
-import { AuditLog } from './entities/audit-log.entity';
+import { AuditLog } from '../audit-log/audit-log.entity';
 import { ModerationNoteTemplate } from '../comment/entities/moderation-note-template.entity';
 import { ModerationTemplateService } from '../comment/moderation-template.service';
 import { AnonymousConfession } from '../confession/entities/confession.entity';

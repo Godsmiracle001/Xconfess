@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Component, ReactNode } from 'react';
-import { logError } from '@/app/lib/utils/errorHandler';
+import { getErrorMessage, logError } from '@/app/lib/utils/errorHandler';
 import { AlertCircle, RotateCcw, Home } from 'lucide-react';
 
 interface Props {
@@ -87,7 +87,8 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-              {this.state.error.message || 'An unexpected runtime error occurred during template sync.'}
+              {getErrorMessage(this.state.error) ||
+                'An unexpected runtime error occurred during template sync.'}
             </p>
 
             {this.state.correlationId && (

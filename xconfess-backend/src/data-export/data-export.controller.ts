@@ -69,6 +69,7 @@ export class DataExportController {
     @Query('userId') userId: string,
     @Query('expires') expires: string,
     @Query('signature') signature: string,
+    @Res() res: Response,
     @Query('chunk') chunk?: string,
   ) {
     // 1. Check Expiration
@@ -129,6 +130,10 @@ export class DataExportController {
           this.exportService.generateSignedDownloadUrl(id, userId, i),
         ),
       });
+    }
+
+    if (!exportReq.fileData) {
+      throw new BadRequestException('File not found or expired.');
     }
 
     // 4. Stream to User (Single file)

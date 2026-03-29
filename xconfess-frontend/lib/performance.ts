@@ -24,7 +24,7 @@ export class PerformanceMonitor {
           console.log(`  LCP: ${Math.round(lastEntry.renderTime || lastEntry.loadTime)}ms`);
         });
         lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });
-      } catch (e) {
+      } catch {
         console.warn('LCP measurement not supported');
       }
 
@@ -36,7 +36,7 @@ export class PerformanceMonitor {
           });
         });
         fidObserver.observe({ entryTypes: ['first-input'] });
-      } catch (e) {
+      } catch {
         console.warn('FID measurement not supported');
       }
     }

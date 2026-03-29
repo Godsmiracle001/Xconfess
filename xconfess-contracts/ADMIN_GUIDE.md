@@ -38,75 +38,323 @@ export ANONYMOUS_TIPPING_ID="tipping-contract-id"
 
 ### ConfessionAnchor Contract
 
+#### Initialization
+
+```bash
+# Initialize the contract with an owner (called immediately after deployment)
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- initialize \
+  --owner $OWNER_ADDRESS
+```
+
 #### Daily Operations
 
 ```bash
 # Check confession statistics
-stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_confession_count
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_confession_count
 
 # Monitor recent activity
 stellar contract events --id $CONFESSION_ANCHOR_ID --limit 100 --topic "confession_anchor"
+
+# Check current owner
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_owner
+
+# Check if contract is paused
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- is_paused
 ```
 
 #### Administrative Functions
 
 | Function | Purpose | Required Role |
 |-----------|---------|--------------|
-| `transfer_admin` | Change administrator | Current Admin |
-| `get_admin` | View current admin | Any |
+| `transfer_owner` | Change contract owner | Current Owner |
+| `grant_admin` | Grant admin role | Owner |
+| `revoke_admin` | Remove admin role | Owner |
+| `get_owner` | View current owner | Any |
+| `is_admin` | Check if address is admin | Any |
+| `get_admin_count` | Count active admins | Any |
+| `pause` | Block write operations | Owner |
+| `unpause` | Resume write operations | Owner |
+| `is_paused` | Check pause status | Any |
 | `get_version` | Check contract version | Any |
 | `get_capabilities` | View supported features | Any |
 
-#### Example: Admin Transfer
+#### Example: Owner Transfer
 
 ```bash
-# Step 1: Verify current admin
-CURRENT_ADMIN=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_admin --json | jq -r '.admin')
+# Step 1: Verify current owner
+CURRENT_OWNER=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_owner --json | jq -r '.result.ok')
 
-# Step 2: Transfer to new admin
-stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+# Step 2: Transfer ownership
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- transfer_owner \
+  --caller $OWNER_ADDRESS \
+  --new_owner $NEW_OWNER_ADDRESS
 
 # Step 3: Verify transfer
-NEW_ADMIN=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $NEW_ADMIN_SECRET -- get_admin --json | jq -r '.admin')
-echo "Admin transferred from $CURRENT_ADMIN to $NEW_ADMIN"
+NEW_OWNER=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_owner --json | jq -r '.result.ok')
+echo "Owner transferred from $CURRENT_OWNER to $NEW_OWNER"
 ```
+
+#### Admin Management
+
+```bash
+# Grant admin role
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- grant_admin \
+  --caller $OWNER_ADDRESS \
+  --target $NEW_ADMIN_ADDRESS
+
+# Check if address is admin
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- is_admin --address $ADMIN_ADDRESS
+
+# Get active admin count
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_admin_count
+
+# Revoke admin role
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- revoke_admin \
+  --caller $OWNER_ADDRESS \
+  --target $ADMIN_ADDRESS
+```
+
+#### Pause/Unpause Management
+
+```bash
+# Pause the contract (blocks new confession anchoring, allows reads)
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- pause \
+  --caller $OWNER_ADDRESS \
+  --reason "Emergency response: system maintenance"
+
+# Verify pause status
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- is_paused
+
+# While paused, read operations still work:
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- verify_confession --hash 0x...
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_confession_count
+
+# Resume operations when ready
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- unpause \
+  --caller $OWNER_ADDRESS \
+  --reason "Maintenance complete, resuming normal operations"
+```
+
+#### Pause Behavior
+
+| Operation | While Paused |
+|-----------|-------------|
+| `anchor_confession()` | ❌ Blocked (error code 4) |
+| `verify_confession()` | ✅ Allowed |
+| `get_confession_count()` | ✅ Allowed |
+| `get_version()` | ✅ Allowed |
+| `get_capabilities()` | ✅ Allowed |
+
+Read operations remain available to maintain visibility into contract state during maintenance or emergency windows.
 
 ### ReputationBadges Contract
 
-#### Badge Management
+#### Initialization
 
 ```bash
-# List all badge types
-stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- list_badge_types
+# Initialize the contract with an admin
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  initialize \
+  --admin $ADMIN_ADDRESS
+```
 
-# Create new badge
+#### Badge Type Management
+
+```bash
+# Define badge metadata (admin only)
 stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
   create_badge \
-  --name "Community Leader" \
-  --description "Awarded to active community members" \
-  --criteria "100+ helpful posts"
+  --badge_type ConfessionStarter \
+  --name "First Confession" \
+  --description "Your first confession was posted" \
+  --criteria "Post at least one confession"
 
-# Award badge to user
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  create_badge \
+  --badge_type PopularVoice \
+  --name "Popular Voice" \
+  --description "Your confessions resonated with 100+ people" \
+  --criteria "Receive 100+ reactions"
+
+# Supported badge types:
+# - ConfessionStarter
+# - PopularVoice
+# - GenerousSoul
+# - CommunityHero
+# - TopReactor
+```
+
+#### Badge Award Management
+
+```bash
+# Award a badge to a user (admin only - recipient does not need to authorize)
 stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
   award_badge \
-  --user $USER_ADDRESS \
-  --badge_id $BADGE_ID
+  --recipient $USER_ADDRESS \
+  --badge_type PopularVoice
+
+# Check what badges a user owns
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  get_badges --owner $USER_ADDRESS
+
+# Check if user has a specific badge type
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  has_badge --owner $USER_ADDRESS --badge_type ConfessionStarter
+
+# Get badge count for user
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  get_badge_count --owner $USER_ADDRESS
 ```
 
 #### Reputation Management
 
 ```bash
 # Check user reputation
-stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
   get_user_reputation --user $USER_ADDRESS
 
-# Manual reputation adjustment (emergency use)
+# Adjust user reputation (admin only) - positive or negative
 stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
   adjust_reputation \
   --user $USER_ADDRESS \
-  --amount 50 \
-  --reason "Manual adjustment for lost reputation"
+  --amount 100 \
+  --reason "Exceptional community contribution"
+
+# Negative adjustment for policy violations
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  adjust_reputation \
+  --user $REPORTED_USER \
+  --amount -50 \
+  --reason "Policy violation: inappropriate content"
 ```
+
+#### Admin Management
+
+```bash
+# Get current admin
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  get_admin
+
+# Transfer admin rights (current admin and new admin must authorize)
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $CURRENT_ADMIN_KEY -- \
+  transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+```
+
+#### Authorization Model
+
+| Function | Required Role | Requires Auth |
+|----------|--------------|---------------|
+| `initialize` | None (one-time) | Yes (admin autho-rizes) |
+| `get_admin` | Public | No |
+| `transfer_admin` | Current admin | Yes (both parties) |
+| `create_badge` | Admin only | Yes |
+| `award_badge` | Admin only | Yes |
+| `mint_badge` | Any user | Yes (self-auth) |
+| `get_user_reputation` | Public | No |
+| `adjust_reputation` | Admin only | Yes |
+| `transfer_badge` | Badge owner | Yes (owner auth) |
+| `revoke_badge` | Badge owner | Yes (owner auth) |
+
+Note: `mint_badge` allows users to self-mint badges they've earned without admin involvement, while `award_badge` is admin-driven for community management and off-chain verification.
+
+
+### ConfessionRegistry Contract
+
+#### Daily Operations
+
+```bash
+# Check confession statistics
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- \
+  get_total_count
+
+# Monitor creation activity
+stellar contract events --id $CONFESSION_REGISTRY_ID --limit 100 --topic "confession_created"
+
+# Check user confessions
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- \
+  get_author_confessions --author $USER_ADDRESS
+```
+
+#### Pause/Unpause Management
+
+Pausing is handled through **governance proposals** (not direct admin calls). All write operations are blocked while paused; read operations remain available.
+
+```bash
+# Propose pause action (requires admin authorization and approval quorum)
+PROPOSAL_ID=$(stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ADMIN_KEY -- \
+  gov_propose \
+  --proposer $ADMIN_ADDRESS \
+  --action Pause | jq '.proposal_id')
+
+echo "Pause proposal $PROPOSAL_ID created (waiting for approval)"
+
+# Admin approves the pause proposal
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $APPROVER_KEY -- \
+  gov_approve \
+  --approver $APPROVER_ADDRESS \
+  --id $PROPOSAL_ID
+
+# Execute the pause after quorum is reached
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $EXECUTOR_KEY -- \
+  gov_execute \
+  --executor $EXECUTOR_ADDRESS \
+  --id $PROPOSAL_ID
+
+echo "Contract is now paused - write operations blocked, reads still available"
+
+# Similar process to unpause using CriticalAction::Unpause
+UNPAUSE_PROPOSAL=$(stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ADMIN_KEY -- \
+  gov_propose \
+  --proposer $ADMIN_ADDRESS \
+  --action Unpause | jq '.proposal_id')
+
+# Approve and execute unpause proposal
+```
+
+#### Pause Behavior
+
+| Operation | While Paused |
+|-----------|-------------|
+| `create_confession()` | ❌ Blocked |
+| `update_status()` | ❌ Blocked |
+| `delete_confession()` | ❌ Blocked |
+| `get_confession()` | ✅ Allowed |
+| `get_by_hash()` | ✅ Allowed |
+| `get_author_confessions()` | ✅ Allowed |
+| `get_total_count()` | ✅ Allowed |
+
+Read operations remain available while paused, maintaining visibility into contract state during maintenance or emergency windows.
+
+#### Administrative Functions
+
+| Function | Purpose | Required Role |
+|----------|---------|--------------|
+| `initialize` | Set contract admin | None (on deployment) |
+| `gov_propose` | Propose critical action | Admin/Authorized |
+| `gov_approve` | Approve proposal | Admin/Authorized |
+| `gov_execute` | Execute approved proposal | Any |
+| `set_quorum` | Set approval threshold | Owner |
+
+The governance system ensures no single admin can pause arbitrarily—approval from other admins is required based on quorum settings.
+
 
 ### AnonymousTipping Contract
 
@@ -179,18 +427,41 @@ stellar contract invoke --id $CONTRACT_ID --source-account $COMPROMISED_ADMIN_KE
 stellar contract invoke --id $CONTRACT_ID --source-account $SAFE_ADMIN_SECRET -- get_admin
 ```
 
-#### Contract Pause (If Implemented)
+### Emergency Response: Pause Contract
+
+The ConfessionRegistry contract supports emergency pause via governance to block all write operations during incidents or maintenance.
 
 ```bash
-# Emergency pause
-stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- emergency_pause
+# EMERGENCY: Fast-track pause via governance
+# Step 1: Propose pause
+PAUSE_ID=$(stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ADMIN_KEY -- \
+  gov_propose \
+  --proposer $ADMIN_ADDRESS \
+  --action Pause | jq '.proposal_id')
 
-# Check pause status
-stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- is_paused
+# Step 2: Admin approval(s)
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $APPROVER1_KEY -- \
+  gov_approve --approver $APPROVER1 --id $PAUSE_ID
 
-# Resume when safe
-stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- resume
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $APPROVER2_KEY -- \
+  gov_approve --approver $APPROVER2 --id $PAUSE_ID
+
+# Step 3: Execute (anyone can execute after quorum reached)
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $EXECUTOR_KEY -- \
+  gov_execute --executor $EXECUTOR_ADDRESS --id $PAUSE_ID
+
+# Verify pause is active
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- is_paused
+
+# Reads still work during pause for monitoring
+stellar contract invoke --id $CONFESSION_REGISTRY_ID --source-account $ANY_KEY -- \
+  get_total_count
+
+# When resolved, unpause using same governance flow with CriticalAction::Unpause
 ```
+
+**Note:** Pause requires governance approval (typically 50%+ of admins). This prevents individual admin abuse. Is there a lower-level emergency pause for immediate response?
+
 
 ## Monitoring and Alerting
 

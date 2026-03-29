@@ -1,4 +1,6 @@
-const BASE_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+import { getApiBaseUrl } from "@/app/lib/config";
+
+const BASE_API_URL = getApiBaseUrl();
 
 export async function POST(
   request: Request,

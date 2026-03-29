@@ -27,6 +27,7 @@ jest.mock("next/link", () => {
     children: React.ReactNode;
     [key: string]: unknown;
   }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require("react");
     return React.createElement("a", { href, ...rest }, children);
   };
@@ -63,6 +64,7 @@ jest.mock("@/app/lib/api/constants", () => ({
 }));
 
 jest.mock("lucide-react", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require("react");
   const icon = (name: string) =>
     React.forwardRef((props: Record<string, unknown>, ref: unknown) =>
@@ -85,6 +87,7 @@ jest.mock("lucide-react", () => {
 
 jest.mock("@/app/components/common/ThemeToggle", () => ({
   ThemeToggle: () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require("react");
     return React.createElement(
       "button",
@@ -95,6 +98,7 @@ jest.mock("@/app/components/common/ThemeToggle", () => ({
 }));
 
 jest.mock("@/app/components/layout/Sidebar", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require("react");
   return {
     __esModule: true,
@@ -135,6 +139,7 @@ function Thrower({ shouldThrow }: { shouldThrow: boolean }) {
   if (shouldThrow) {
     throw new Error("Test crash");
   }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const React = require("react");
   return React.createElement("div", null, "child content");
 }
@@ -543,7 +548,7 @@ describe("Register page accessibility", () => {
   });
 
   it("Tab reaches the sign-in link", async () => {
-    const user = userEvent.setup();
+    userEvent.setup();
     render(<RegisterPage />);
 
     const signInLink = screen.getByRole("link", { name: /sign in/i });

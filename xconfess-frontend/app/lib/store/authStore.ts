@@ -3,7 +3,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { User } from "@/app/lib/types/user";
-import { AUTH_TOKEN_KEY, USER_DATA_KEY, ANONYMOUS_USER_ID_KEY } from "@/app/lib/api/constants";
 
 export interface AuthStoreState {
   user: User | null;

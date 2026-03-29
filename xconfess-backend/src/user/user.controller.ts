@@ -10,16 +10,16 @@ import {
   Get,
   UseGuards,
   Put,
-  Request,
   Patch,
   Req,
+  Param,
   NotFoundException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
 import { User, UserRole } from './entities/user.entity';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from '../auth/dto/register.dto';
+import { LoginDto } from '../auth/dto/login.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { UpdateUserProfileDto } from './dto/updateProfile.dto';
@@ -30,23 +30,32 @@ import {
   PrivacySettingsResponseDto,
 } from './dto/update-privacy-settings.dto';
 
-// Add decrypted email and privacy metadata to the response type for API output
+/**
+ * Public user response contract.
+ * Internal fields (resetPasswordToken, resetPasswordExpires, password hash,
+ * raw email ciphertext) are intentionally omitted.
+ */
 export interface UserResponse {
   id: number;
   username: string;
   role: UserRole;
   is_active: boolean;
   email: string;
-  resetPasswordToken: string | null;
-  resetPasswordExpires: Date | null;
   notificationPreferences: Record<string, boolean>;
   privacy: {
     isDiscoverable: boolean;
     canReceiveReplies: boolean;
     showReactions: boolean;
+    dataProcessingConsent: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface UserProfileResponse {
+  id: number;
+  username: string;
+  isAnonymous: boolean;
 }
 
 @Controller('users')
@@ -56,7 +65,7 @@ export class UserController {
     private readonly authService: AuthService,
   ) {}
 
-  // Helper method to keep DRY (Don't Repeat Yourself)
+  /** Maps a User entity to the public response shape — no internal fields. */
   private formatUserResponse(user: User): UserResponse {
     const email = CryptoUtil.decrypt(
       user.emailEncrypted,
@@ -69,13 +78,12 @@ export class UserController {
       role: user.role,
       is_active: user.is_active,
       email,
-      resetPasswordToken: user.resetPasswordToken,
-      resetPasswordExpires: user.resetPasswordExpires,
       notificationPreferences: user.notificationPreferences || {},
       privacy: {
         isDiscoverable: user.isDiscoverable(),
         canReceiveReplies: user.canReceiveReplies(),
         showReactions: user.shouldShowReactions(),
+        dataProcessingConsent: user.hasDataProcessingConsent(),
       },
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -87,25 +95,42 @@ export class UserController {
   async register(
     @Body() registerDto: RegisterDto,
   ): Promise<{ user: UserResponse }> {
-    const existingEmail = await this.userService.findByEmail(registerDto.email);
-    if (existingEmail) {
-      throw new ConflictException('Email already in use');
+    try {
+      if (!registerDto.email || !registerDto.email.includes('@')) {
+        throw new BadRequestException('Invalid email format');
+      }
+      if (!registerDto.password || registerDto.password.length < 6) {
+        throw new BadRequestException('Password must be at least 6 characters');
+      }
+      if (!registerDto.username) {
+        throw new BadRequestException('Username is required');
+      }
+
+      const existingEmail = await this.userService.findByEmail(registerDto.email);
+      if (existingEmail) {
+        throw new ConflictException('Email already in use');
+      }
+
+      const existingUsername = await this.userService.findByUsername(
+        registerDto.username,
+      );
+      if (existingUsername) {
+        throw new ConflictException('Username already in use');
+      }
+
+      const user = await this.userService.create(
+        registerDto.email,
+        registerDto.password,
+        registerDto.username,
+      );
+
+      return { user: this.formatUserResponse(user) };
+    } catch (error) {
+      if (error instanceof ConflictException || error instanceof BadRequestException)
+        throw error;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException('Registration failed: ' + message);
     }
-
-    const existingUsername = await this.userService.findByUsername(
-      registerDto.username,
-    );
-    if (existingUsername) {
-      throw new ConflictException('Username already in use');
-    }
-
-    const user = await this.userService.create(
-      registerDto.email,
-      registerDto.password,
-      registerDto.username,
-    );
-
-    return { user: this.formatUserResponse(user) };
   }
 
   @Post('login')
@@ -134,7 +159,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   async getProfile(@GetUser('id') userId: number): Promise<UserResponse> {
     try {
-      const user = await this.userService.findById(userId); // Use canonical ID
+      const user = await this.userService.findById(userId);
       if (!user) throw new UnauthorizedException();
       return this.formatUserResponse(user);
     } catch (error) {
@@ -162,17 +187,20 @@ export class UserController {
   }
 
   @Get('notification-preferences')
-  async getNotificationPreferences(@Req() req) {
-    return req.user.notificationPreferences || {};
+  @UseGuards(JwtAuthGuard)
+  async getNotificationPreferences(@GetUser('id') userId: number) {
+    const user = await this.userService.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+    return user.notificationPreferences || {};
   }
 
   @Patch('notification-preferences')
+  @UseGuards(JwtAuthGuard)
   async updateNotificationPreferences(
-    @Req() req,
+    @GetUser('id') userId: number,
     @Body() dto: UpdateNotificationPreferencesDto,
   ) {
-    const user = await this.userService.findById(req.user.id);
-
+    const user = await this.userService.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -183,14 +211,13 @@ export class UserController {
     };
 
     const savedUser = await this.userService.saveUser(user);
-
     return savedUser.notificationPreferences;
   }
 
   @UseGuards(JwtAuthGuard)
   @Put('profile')
   async updateProfile(
-    @GetUser('id') userId: number, // Replaced @Request() req
+    @GetUser('id') userId: number,
     @Body() updateUserProfileDto: UpdateUserProfileDto,
   ): Promise<UserResponse> {
     const updatedUser = await this.userService.updateProfile(
@@ -215,5 +242,27 @@ export class UserController {
     @Body() dto: UpdatePrivacySettingsDto,
   ): Promise<PrivacySettingsResponseDto> {
     return this.userService.updatePrivacySettings(userId, dto);
+  }
+
+  @Get(':id/public-profile')
+  async getPublicProfile(@Param('id') id: string): Promise<UserProfileResponse> {
+    // Mock implementation
+    return {
+      id: parseInt(id),
+      username: 'Anonymous',
+      isAnonymous: true,
+    };
+  }
+
+  @Get(':id/confessions')
+  async getUserConfessions(@Param('id') id: string): Promise<any[]> {
+    // Mock implementation
+    return [];
+  }
+
+  @Get(':id/activities')
+  async getUserActivities(@Param('id') id: string): Promise<any[]> {
+    // Mock implementation
+    return [];
   }
 }

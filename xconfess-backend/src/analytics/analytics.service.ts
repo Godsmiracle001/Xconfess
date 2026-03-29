@@ -19,6 +19,7 @@ interface AnalyticsWindowRange {
   endAt: Date;
 }
 
+/** Exported for controller / declaration emit (TS4053). */
 export interface ComparisonWindowMetadata {
   requestedDays: number;
   bucketUnit: 'day';
@@ -33,7 +34,7 @@ export interface ComparisonWindowMetadata {
   };
 }
 
-interface DailyGrowthPoint {
+export interface DailyGrowthPoint {
   date: string;
   count: number;
 }
@@ -46,7 +47,12 @@ export interface GrowthMetrics {
   trend: TrendDirection;
 }
 
-interface DailyActivityPoint {
+interface BucketCountRow extends Record<string, string | number> {
+  date: string;
+  count: string | number;
+}
+
+export interface DailyActivityPoint {
   date: string;
   activeUsers: number;
 }
@@ -65,6 +71,20 @@ export interface ReactionDistributionMetrics {
     percentage: string;
   }>;
   period: string;
+}
+
+interface TrendingConfessionWithReactionCount extends AnonymousConfession {
+  reactionCount?: number;
+}
+
+interface CategoryStatsRow {
+  category: string | null;
+  count: string;
+}
+
+interface ReactionDistributionRow {
+  type: string;
+  count: string;
 }
 
 @Injectable()
@@ -110,13 +130,18 @@ export class AnalyticsService {
       .take(20)
       .getMany();
 
-    const result = trending.map((confession) => ({
-      id: confession.id,
-      content: confession.content.substring(0, 200), // Preview only
-      reactionCount: confession['reactionCount'] || 0,
-      createdAt: confession.created_at,
-      category: confession.comments,
-    }));
+    const result = trending.map((confession) => {
+      const confessionWithCounts =
+        confession as TrendingConfessionWithReactionCount;
+
+      return {
+        id: confession.id,
+        content: confession.content.substring(0, 200), // Preview only
+        reactionCount: confessionWithCounts.reactionCount || 0,
+        createdAt: confession.created_at,
+        category: confession.comments,
+      };
+    });
 
     // Cache the result
     await this.cacheService.set(cacheKey, result, this.CACHE_TTL);
@@ -181,7 +206,7 @@ export class AnalyticsService {
       ]);
 
     // Get most popular category
-    const categoryStats = await this.confessionRepository
+    const categoryStats = (await this.confessionRepository
       .createQueryBuilder('confession')
       .select('confession.category', 'category')
       .addSelect('COUNT(*)', 'count')
@@ -189,7 +214,7 @@ export class AnalyticsService {
       .groupBy('confession.category')
       .orderBy('count', 'DESC')
       .limit(1)
-      .getRawOne();
+      .getRawOne()) as CategoryStatsRow | null;
 
     const result = {
       totalUsers,
@@ -384,7 +409,7 @@ export class AnalyticsService {
       .andWhere('confession.created_at < :endAt', { endAt: range.endAt })
       .groupBy("DATE(confession.created_at AT TIME ZONE 'UTC')")
       .orderBy('date', 'ASC')
-      .getRawMany();
+      .getRawMany<BucketCountRow>();
 
     const dailyGrowth = this.getDateBuckets(range).map((date) => ({
       date,
@@ -408,7 +433,7 @@ export class AnalyticsService {
     range: AnalyticsWindowRange,
     days: number,
   ): Promise<UserActivityMetrics> {
-    const activityRows = await this.confessionRepository.manager.query(
+    const rawActivityRows: unknown = await this.confessionRepository.manager.query(
       `
         SELECT activity.date::text AS date,
                COUNT(DISTINCT activity.anonymous_user_id)::int AS "activeUsers"
@@ -428,6 +453,7 @@ export class AnalyticsService {
       `,
       [range.startAt, range.endAt],
     );
+    const activityRows = this.toBucketRows(rawActivityRows, 'activeUsers');
 
     const dailyActivity = this.getDateBuckets(range).map((date) => ({
       date,
@@ -459,7 +485,7 @@ export class AnalyticsService {
       .andWhere('reaction.createdAt < :endAt', { endAt: range.endAt })
       .groupBy('reaction.emoji')
       .orderBy('type', 'ASC')
-      .getRawMany();
+      .getRawMany<ReactionDistributionRow>();
 
     const total = distribution.reduce(
       (sum, item) => sum + parseInt(item.count, 10),
@@ -504,6 +530,34 @@ export class AnalyticsService {
     }
 
     return parseInt(String(match[valueKey] || 0), 10);
+  }
+
+  private toBucketRows(
+    rows: unknown,
+    valueKey: string,
+  ): Array<Record<string, string | number>> {
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+
+    return rows.flatMap((row) => {
+      if (!row || typeof row !== 'object') {
+        return [];
+      }
+
+      const record = row as Record<string, unknown>;
+      const dateValue = record.date;
+      const bucketValue = record[valueKey];
+
+      if (
+        typeof dateValue !== 'string' ||
+        (typeof bucketValue !== 'string' && typeof bucketValue !== 'number')
+      ) {
+        return [];
+      }
+
+      return [{ date: dateValue, [valueKey]: bucketValue }];
+    });
   }
 
   private getDateBuckets(range: AnalyticsWindowRange): string[] {

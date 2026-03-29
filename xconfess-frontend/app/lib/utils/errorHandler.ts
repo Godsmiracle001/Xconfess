@@ -21,6 +21,35 @@ export const STATUS_ERROR_MESSAGES: Record<number, string> = {
   503: 'Service unavailable. Please try again later.',
 };
 
+/** Shown on failed sign-in (wrong credentials, etc.) — never raw API/auth strings. */
+export const LOGIN_ATTEMPT_FAILED_MESSAGE =
+  'Unable to sign in. Please check your email and password.';
+
+const JWT_LIKE =
+  /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+
+/**
+ * Removes JWT-shaped fragments and bearer tokens from free text for logs/beacons.
+ */
+export const redactSensitiveStrings = (input: string): string => {
+  return input
+    .replace(JWT_LIKE, '[REDACTED_JWT]')
+    .replace(/bearer\s+[^\s]+/gi, 'Bearer [REDACTED]');
+};
+
+function looksLikeInternalAuthLeak(message: string): boolean {
+  const m = message.trim();
+  if (!m) return false;
+  if (/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(m)) return true;
+  const lower = m.toLowerCase();
+  if (/^invalid token\.?$/.test(lower)) return true;
+  if (/^not authenticated/.test(lower)) return true;
+  if (/malformed (jwt|token)/i.test(m)) return true;
+  if (/^(jwt|json web token)\s/.test(lower)) return true;
+  if (lower.includes('bearer ') && m.length < 200) return true;
+  return false;
+}
+
 export const STATUS_ERROR_CODES: Record<number, string> = {
   400: 'VALIDATION_ERROR',
   401: 'UNAUTHORIZED',
@@ -62,8 +91,43 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Technical detail for logs and support — redacted, safe to ship to analytics without secrets.
+ */
+export const getDiagnosticMessageForLog = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    const raw =
+      typeof data === 'object' && data !== null
+        ? JSON.stringify(data)
+        : String(data ?? '');
+    const line = `[axios] ${error.response?.status ?? 'no_response'} ${error.config?.method ?? ''} ${error.config?.url ?? ''} ${raw.slice(0, 500)}`;
+    return redactSensitiveStrings(line);
+  }
+  if (error instanceof AppError) {
+    const detailStr = JSON.stringify(error.details ?? {}).slice(0, 500);
+    return redactSensitiveStrings(
+      `[AppError] ${error.statusCode} ${error.code} ${error.message} ${detailStr}`
+    );
+  }
+  if (error instanceof Error) {
+    return redactSensitiveStrings(error.message);
+  }
+  return redactSensitiveStrings(String(error));
+};
+
 export const getErrorMessage = (error: unknown): string => {
   if (error instanceof AppError) {
+    if (error.statusCode === 401) {
+      const hasLoginBody =
+        error.details &&
+        typeof error.details === 'object' &&
+        'responseBody' in error.details;
+      return hasLoginBody ? LOGIN_ATTEMPT_FAILED_MESSAGE : STATUS_ERROR_MESSAGES[401];
+    }
+    if (error.statusCode === 403) {
+      return STATUS_ERROR_MESSAGES[403];
+    }
     return error.message;
   }
 
@@ -72,7 +136,13 @@ export const getErrorMessage = (error: unknown): string => {
     const defaultMessage = status ? getStatusMessage(status) : 'Network error. Please check your internet connection.';
     const data = error.response?.data as { message?: string; error?: string } | undefined;
     const apiMessage = data?.message || data?.error;
-    if (apiMessage && typeof apiMessage === 'string' && apiMessage.trim().length > 0) {
+    const isAuthFailure = status === 401 || status === 403;
+    if (
+      !isAuthFailure &&
+      apiMessage &&
+      typeof apiMessage === 'string' &&
+      apiMessage.trim().length > 0
+    ) {
       return apiMessage;
     }
     if (error.message === 'Network Error') {
@@ -82,7 +152,11 @@ export const getErrorMessage = (error: unknown): string => {
   }
 
   if (error instanceof Error) {
-    return error.message || 'An unexpected error occurred. Please try again.';
+    const raw = error.message || 'An unexpected error occurred. Please try again.';
+    if (looksLikeInternalAuthLeak(raw)) {
+      return STATUS_ERROR_MESSAGES[401];
+    }
+    return raw;
   }
 
   return 'An unexpected error occurred. Please try again.';
@@ -176,6 +250,7 @@ export const logError = (
 ): void => {
   const timestamp = new Date().toISOString();
   const message = getErrorMessage(error);
+  const diagnosticMessage = getDiagnosticMessageForLog(error);
   const code = getErrorCode(error);
   const statusCode = getErrorStatusCode(error);
 
@@ -183,6 +258,7 @@ export const logError = (
     timestamp,
     context,
     message,
+    diagnosticMessage,
     code,
     statusCode,
     ...additionalInfo,

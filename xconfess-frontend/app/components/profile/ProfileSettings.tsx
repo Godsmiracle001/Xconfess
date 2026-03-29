@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { UserProfile } from "../../api/user.api";
 import Link from "next/link";
-import { Shield, User, Bell, ChevronRight } from "lucide-react";
+import { Shield, Bell, ChevronRight } from "lucide-react";
 
 interface Props {
   profile: UserProfile;

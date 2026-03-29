@@ -8,7 +8,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AnalyticsPage from '../page';
 
 jest.mock('next/dynamic', () => {
-  const React = require('react');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const React = require('react');
 
   return (loader: () => Promise<any>, options?: { loading?: () => React.ReactNode }) => {
     return function DynamicComponent(props: Record<string, unknown>) {

@@ -1,5 +1,5 @@
 import { ModerationService } from './moderation.service';
-import { AuditAction } from '../entities/audit-log.entity';
+import { AuditActionType } from '../../audit-log/audit-log.entity';
 
 describe('ModerationService', () => {
   it('logAction saves an audit log with ip/userAgent', async () => {
@@ -18,7 +18,7 @@ describe('ModerationService', () => {
 
     const saved = await svc.logAction(
       1,
-      AuditAction.REPORT_RESOLVED,
+      AuditActionType.REPORT_RESOLVED,
       'report',
       'r1',
       { k: 'v' },
@@ -26,7 +26,20 @@ describe('ModerationService', () => {
       req,
     );
 
-    expect(repo.create).toHaveBeenCalled();
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adminId: 1,
+        action: AuditActionType.REPORT_RESOLVED,
+        entityType: 'report',
+        entityId: 'r1',
+        metadata: expect.objectContaining({
+          k: 'v',
+          entityType: 'report',
+          entityId: 'r1',
+        }),
+        notes: 'note',
+      }),
+    );
     expect(repo.save).toHaveBeenCalled();
     expect(saved.id).toBe('log1');
     expect(saved.ipAddress).toBe('1.2.3.4');
@@ -50,7 +63,7 @@ describe('ModerationService', () => {
     const svc = new ModerationService(repo);
     const [logs, total] = await svc.getAuditLogs(
       1,
-      AuditAction.REPORT_RESOLVED,
+      AuditActionType.REPORT_RESOLVED,
       'report',
       'r1',
       10,

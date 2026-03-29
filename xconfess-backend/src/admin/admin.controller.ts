@@ -13,7 +13,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AdminGuard } from './guards/admin.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { AdminService } from './services/admin.service';
 import { ModerationService } from './services/moderation.service';
 import { ModerationTemplateService } from '../comment/moderation-template.service';
@@ -21,6 +21,7 @@ import { ResolveReportDto } from './dto/resolve-report.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { BulkResolveDto } from './dto/bulk-resolve.dto';
 import { ReportStatus, ReportType } from './entities/report.entity';
+import { AuditActionType } from '../audit-log/audit-log.entity';
 import { TemplateCategory } from '../comment/entities/moderation-note-template.entity';
 import { Request } from 'express';
 import { GetUser } from '../auth/get-user.decorator';
@@ -56,6 +57,20 @@ class UpdateTemplateDto {
 }
 
 type AuthedRequest = Request & { user?: RequestUser };
+
+const auditActionTypeValues = new Set<string>(
+  Object.values(AuditActionType) as string[],
+);
+
+function parseAuditAction(value?: string): AuditActionType | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return auditActionTypeValues.has(value)
+    ? (value as AuditActionType)
+    : undefined;
+}
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -299,7 +314,7 @@ export class AdminController {
   ) {
     const [logs, total] = await this.moderationService.getAuditLogs(
       adminId ? parseInt(adminId, 10) : undefined,
-      action as any,
+      parseAuditAction(action),
       entityType,
       entityId,
       parseInt(limit || '100', 10),

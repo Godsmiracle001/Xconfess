@@ -55,7 +55,11 @@ impl AnonymousTipping {
     }
 
     /// Send anonymous tip to a recipient
-    pub fn send_tip(env: Env, recipient: Address, amount: i128) -> u64 {
+    pub fn send_tip(
+        env: Env,
+        recipient: Address,
+        amount: i128,
+    ) -> Result<u64, Error> {
         Self::send_tip_with_proof(env, recipient, amount, None)
     }
 
@@ -65,15 +69,15 @@ impl AnonymousTipping {
         recipient: Address,
         amount: i128,
         proof_metadata: Option<SorobanString>,
-    ) -> u64 {
+    ) -> Result<u64, Error> {
         if amount <= 0 {
-            panic!("tip amount must be positive");
+            return Err(Error::InvalidTipAmount);
         }
 
         let metadata = match proof_metadata {
             Some(value) => {
                 if value.len() > Self::MAX_PROOF_METADATA_LEN {
-                    panic!("proof metadata too long");
+                    return Err(Error::MetadataTooLong);
                 }
                 value
             }
@@ -87,7 +91,7 @@ impl AnonymousTipping {
             .unwrap_or(0_i128);
         let next_total = previous
             .checked_add(amount)
-            .expect("recipient tip total overflow");
+            .ok_or(Error::TotalOverflow)?;
         env.storage()
             .instance()
             .set(&DataKey::RecipientTotal(recipient.clone()), &next_total);
@@ -98,7 +102,7 @@ impl AnonymousTipping {
             .get::<_, u64>(&DataKey::SettlementNonce)
             .unwrap_or(0_u64)
             .checked_add(1)
-            .expect("settlement nonce overflow");
+            .ok_or(Error::NonceOverflow)?;
         env.storage()
             .instance()
             .set(&DataKey::SettlementNonce, &settlement_id);
@@ -114,7 +118,7 @@ impl AnonymousTipping {
         };
         env.events().publish((SETTLEMENT_EVENT, recipient), payload);
 
-        settlement_id
+        Ok(settlement_id)
     }
 
     /// Get tip history for a recipient

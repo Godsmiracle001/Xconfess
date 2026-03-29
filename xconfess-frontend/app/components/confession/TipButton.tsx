@@ -33,7 +33,7 @@ export const TipButton = ({
   const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
 
-  const { publicKey, isConnected, isReady, readinessError, connect } =
+  const { isConnected, isReady, connect } =
     useWallet();
 
   useEffect(() => {

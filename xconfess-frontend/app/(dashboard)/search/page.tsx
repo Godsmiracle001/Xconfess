@@ -116,6 +116,7 @@ export default function SearchPage() {
     hasMore,
     page,
     isLoading,
+    isRetrying,
     error,
     statusMeta,
     loadMore,
@@ -324,7 +325,7 @@ export default function SearchPage() {
               <div className="mb-6">
                 <ErrorState
                   title="Search request failed"
-                  description="We could not reach search right now."
+                  description="We couldn’t complete search. You can retry or adjust filters."
                   error={error ?? "Search failed"}
                   onRetry={retry}
                   variant="error"
@@ -355,6 +356,7 @@ export default function SearchPage() {
                   results={results}
                   query={debouncedQuery.trim() || undefined}
                   isLoading={isLoading}
+                  isRetrying={isRetrying}
                   isEmpty={isEmpty}
                   hasSearched={hasSearched}
                   page={page}

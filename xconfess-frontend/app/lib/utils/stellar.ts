@@ -1,5 +1,10 @@
 import * as StellarSDK from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
+import {
+  freighterGetPublicKey,
+  freighterSignTransaction,
+  isFreighterInstalled,
+} from "@/lib/wallet/freighterAdapter";
 
 export function hashConfession(content: string, timestamp?: number): string {
   const ts = timestamp || Date.now();
@@ -22,29 +27,13 @@ export function getStellarServer(): StellarSDK.Horizon.Server {
 }
 
 export async function isFreighterAvailable(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const freighter = (window as any).freighterApi;
-    return !!freighter;
-  } catch {
-    return false;
-  }
+  return isFreighterInstalled();
 }
 
 export async function getPublicKey(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const freighter = (window as any).freighterApi;
-    if (!freighter) return null;
-
-    const publicKey = await freighter.getPublicKey();
-    return publicKey || null;
-  } catch (error) {
-    console.error("Failed to get public key:", error);
+    return await freighterGetPublicKey();
+  } catch {
     return null;
   }
 }
@@ -62,17 +51,17 @@ export async function anchorConfession(
       };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const freighter = (window as any).freighterApi;
-    if (!freighter) {
+    if (!isFreighterInstalled()) {
       return {
         success: false,
         error: "Freighter wallet not found",
       };
     }
 
-    const publicKey = await freighter.getPublicKey();
-    if (!publicKey) {
+    let publicKey: string;
+    try {
+      publicKey = await freighterGetPublicKey();
+    } catch {
       return {
         success: false,
         error: "Failed to get public key from wallet",
@@ -103,7 +92,7 @@ export async function anchorConfession(
       throw new Error("Invalid hash length");
     }
 
-    // @ts-ignore
+    // @ts-expect-error - Next.js fetch extension
     const hashBytes = StellarSDK.xdr.ScVal.scvBytes(hashArray);
     const timestampVal = StellarSDK.xdr.ScVal.scvU64(
       StellarSDK.xdr.Uint64.fromString(timestamp.toString()),
@@ -118,7 +107,7 @@ export async function anchorConfession(
       .build();
 
     const preparedTx = await sorobanServer.prepareTransaction(transaction);
-    const signedTx = await freighter.signTransaction(
+    const signedTx = await freighterSignTransaction(
       preparedTx.toXDR(),
       network,
     );
@@ -129,22 +118,22 @@ export async function anchorConfession(
 
     const status = submitResponse.status as string;
 
+    const responseAny = submitResponse as any;
+
     if (status === "ERROR") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const errorDetails =
-        submitResponse.errorResultXdr ||
-        submitResponse.errorResult ||
-        (submitResponse as any).details ||
+        responseAny.errorResultXdr ||
+        responseAny.errorResult ||
+        responseAny.details ||
         "Unknown error";
       throw new Error(`Transaction submission error: ${errorDetails}`);
     }
 
     if (status === "DUPLICATE") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const errorDetails =
-        submitResponse.errorResultXdr ||
-        submitResponse.errorResult ||
-        (submitResponse as any).details ||
+        responseAny.errorResultXdr ||
+        responseAny.errorResult ||
+        responseAny.details ||
         "Transaction already submitted";
       throw new Error(`Duplicate transaction: ${errorDetails}`);
     }
@@ -162,11 +151,10 @@ export async function anchorConfession(
       }
     } else if (status !== "SUCCESS" && status !== "ACCEPTED") {
       if (!submitResponse.hash) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const errorDetails =
-          submitResponse.errorResultXdr ||
-          submitResponse.errorResult ||
-          (submitResponse as any).details ||
+          responseAny.errorResultXdr ||
+          responseAny.errorResult ||
+          responseAny.details ||
           `Unexpected status: ${status}`;
         throw new Error(`Transaction submission failed: ${errorDetails}`);
       }
@@ -200,7 +188,6 @@ export async function anchorConfession(
       success: true,
       txHash: submitResponse.hash,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("Failed to anchor confession:", error);
     return {

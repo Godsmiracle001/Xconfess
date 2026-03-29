@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Clock, Heart, Eye, MessageCircle } from 'lucide-react';
+import { Clock, Heart, Eye } from 'lucide-react';
 
 import { Confession } from "@/app/lib/types/confession";
 
@@ -22,7 +22,7 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                     {Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className="bg-zinc-800/30 rounded-xl p-4 animate-pulse">
                             <div className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-zinc-700 rounded-full flex-shrink-0" />
+                                <div className="w-8 h-8 bg-zinc-700 rounded-full shrink-0" />
                                 <div className="flex-1 space-y-2">
                                     <div className="h-4 bg-zinc-700 rounded w-3/4" />
                                     <div className="h-4 bg-zinc-700 rounded w-1/2" />
@@ -68,9 +68,9 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                     >
                         <div className="flex items-start gap-3">
                             {/* Rank Badge */}
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm ${index === 0 ? 'bg-gradient-to-br from-yellow-500 to-orange-500 text-white' :
-                                index === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-500 text-white' :
-                                    index === 2 ? 'bg-gradient-to-br from-orange-600 to-orange-700 text-white' :
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${index === 0 ? 'bg-linear-to-br from-yellow-500 to-orange-500 text-white' :
+                                index === 1 ? 'bg-linear-to-br from-gray-400 to-gray-500 text-white' :
+                                    index === 2 ? 'bg-linear-to-br from-orange-600 to-orange-700 text-white' :
                                         'bg-zinc-700/50 text-zinc-400'
                                 }`}>
                                 {index + 1}

@@ -25,7 +25,10 @@ export async function middleware(request: NextRequest) {
             // and we want it to be fast, we can do a simple base64 decode of the payload.
             const payloadBase64 = token.split(".")[1];
             if (!payloadBase64) {
-                throw new Error("Invalid token");
+                console.error("Middleware auth error:", {
+                    reason: "session_cookie_missing_payload",
+                });
+                return NextResponse.redirect(new URL("/login", request.url));
             }
 
             // Use atob for Edge Runtime compatibility
@@ -37,7 +40,10 @@ export async function middleware(request: NextRequest) {
                 return NextResponse.redirect(new URL("/dashboard", request.url));
             }
         } catch (error) {
-            console.error("Middleware auth error:", error);
+            console.error("Middleware auth error:", {
+                reason: "session_decode_failed",
+                name: error instanceof Error ? error.name : "unknown",
+            });
             return NextResponse.redirect(new URL("/login", request.url));
         }
     }
