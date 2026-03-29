@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { getApiBaseUrl } from "@/app/lib/config";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+const API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 
 export async function POST(request: Request) {

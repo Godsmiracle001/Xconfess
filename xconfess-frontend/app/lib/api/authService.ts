@@ -14,8 +14,9 @@ import {
     RegisterResponse,
     User,
 } from '../types/auth';
+import { getApiBaseUrl } from '@/app/lib/config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = getApiBaseUrl();
 
 /**
  * Axios instance for API calls

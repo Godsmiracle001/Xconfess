@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
+import { getApiBaseUrl } from '@/app/lib/config';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const BACKEND_URL = getApiBaseUrl();
 
 type ComparisonAvailability = 'available' | 'estimated' | 'unavailable';
 type DeltaDirection = 'up' | 'down' | 'flat' | 'unknown';

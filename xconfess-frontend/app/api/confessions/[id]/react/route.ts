@@ -3,9 +3,9 @@ import {
   isValidReactionType,
   REACTION_EMOJI_MAP,
 } from "@/app/lib/constants/reactions";
+import { getApiBaseUrl } from "@/app/lib/config";
 
-const BASE_API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const BASE_API_URL = getApiBaseUrl();
 
 /**
  * POST /api/confessions/[id]/react

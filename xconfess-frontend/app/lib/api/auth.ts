@@ -1,5 +1,7 @@
 import { AUTH_TOKEN_KEY } from "./constants";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { getApiBaseUrl } from "@/app/lib/config";
+
+const API_URL = getApiBaseUrl();
 
 export interface AuthTokenPayload {
   sub: string;

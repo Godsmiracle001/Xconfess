@@ -9,8 +9,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { notificationApi } from "@/app/lib/api/notification";
 import { useApiError } from "@/app/lib/hooks/useApiError";
+import { getWsUrl } from "@/app/lib/config";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
+const WS_URL = getWsUrl();
 
 interface UseNotificationsReturn {
   notifications: Notification[];

@@ -2,9 +2,10 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 import { logError } from "@/app/lib/utils/errorHandler";
 import { AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY } from "./constants";
 import { useAuthStore } from "@/app/lib/store/authStore";
+import { getApiBaseUrl } from "@/app/lib/config";
 
 const apiClient = axios.create({
-	baseURL: process.env.NEXT_PUBLIC_API_URL,
+	baseURL: getApiBaseUrl(),
 	headers: { "Content-Type": "application/json" },
 	timeout: 30000,
 });

@@ -7,6 +7,7 @@ import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { AUTH_TOKEN_KEY, USER_DATA_KEY } from "@/app/lib/api/constants";
 import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
+import { getApiBaseUrl } from "@/app/lib/config";
 
 function isMockAdminEnabled(): boolean {
   if (process.env.NEXT_PUBLIC_ADMIN_MOCK === "true") return true;
@@ -83,7 +84,7 @@ export default function AdminLayout({
         : null;
     if (!token) return;
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+    const baseUrl = getApiBaseUrl();
     if (!baseUrl) return;
 
     const socket: Socket = io(`${baseUrl}/admin`, {
