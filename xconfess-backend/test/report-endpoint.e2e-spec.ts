@@ -253,7 +253,9 @@ describe('Report Endpoint (e2e)', () => {
         .expect(400);
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toBe('Anonymous reports require x-anonymous-user-id header');
+      expect(res.body.message).toBe(
+        'Anonymous reports require x-anonymous-user-id header',
+      );
     });
   });
 });

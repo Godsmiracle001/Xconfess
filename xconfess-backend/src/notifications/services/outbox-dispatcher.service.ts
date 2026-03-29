@@ -153,9 +153,7 @@ export class OutboxDispatcherService {
       await this.outboxRepo.save(event);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to dispatch event ${event.id}: ${message}`,
-      );
+      this.logger.error(`Failed to dispatch event ${event.id}: ${message}`);
       event.status = OutboxStatus.FAILED;
       event.retryCount += 1;
       event.lastError = message;

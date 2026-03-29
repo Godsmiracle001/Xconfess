@@ -150,7 +150,9 @@ export class UserService {
     try {
       await this.userRepository.save(user);
     } catch {
-      throw new InternalServerErrorException('Error setting reset password token');
+      throw new InternalServerErrorException(
+        'Error setting reset password token',
+      );
     }
   }
 

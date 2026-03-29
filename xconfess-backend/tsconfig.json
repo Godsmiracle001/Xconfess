@@ -23,7 +23,7 @@
     "noFallthroughCasesInSwitch": false,
     "noEmitOnError": false,
     "moduleResolution": "node",
-    "ignoreDeprecations": "",
+    "ignoreDeprecations": "6.0",
     "types": [
       "jest",
       "node"

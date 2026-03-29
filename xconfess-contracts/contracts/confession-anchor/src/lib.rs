@@ -4,8 +4,8 @@ mod errors;
 mod events;
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String,
-    Symbol, Vec,
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, BytesN, Env,
+    String, Symbol, Vec,
 };
 
 #[path = "../../access_control.rs"]
@@ -59,6 +59,50 @@ pub struct ContractCapabilityInfo {
     pub capabilities: Vec<Symbol>,
     pub event_schema_version: u32,
     pub error_registry_version: u32,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum Error {
+    NotOwner = 1,
+    NotAuthorized = 2,
+    AlreadyAdmin = 3,
+    NotAdmin = 4,
+    NotInitialized = 5,
+    CannotDemoteOwner = 6,
+    CannotRevokeLastAdmin = 7,
+    InvalidOwnershipTransfer = 8,
+    AlreadyPaused = 9,
+    NotPaused = 10,
+    Unauthorized = 11,
+    ContractPaused = 12,
+}
+
+impl From<access_control::AccessError> for Error {
+    fn from(value: access_control::AccessError) -> Self {
+        match value {
+            access_control::AccessError::NotOwner => Self::NotOwner,
+            access_control::AccessError::NotAuthorized => Self::NotAuthorized,
+            access_control::AccessError::AlreadyAdmin => Self::AlreadyAdmin,
+            access_control::AccessError::NotAdmin => Self::NotAdmin,
+            access_control::AccessError::NotInitialized => Self::NotInitialized,
+            access_control::AccessError::CannotDemoteOwner => Self::CannotDemoteOwner,
+            access_control::AccessError::CannotRevokeLastAdmin => Self::CannotRevokeLastAdmin,
+            access_control::AccessError::InvalidOwnershipTransfer => Self::InvalidOwnershipTransfer,
+        }
+    }
+}
+
+impl From<emergency_pause::errors::PauseError> for Error {
+    fn from(value: emergency_pause::errors::PauseError) -> Self {
+        match value {
+            emergency_pause::errors::PauseError::AlreadyPaused => Self::AlreadyPaused,
+            emergency_pause::errors::PauseError::NotPaused => Self::NotPaused,
+            emergency_pause::errors::PauseError::Unauthorized => Self::Unauthorized,
+            emergency_pause::errors::PauseError::ContractPaused => Self::ContractPaused,
+        }
+    }
 }
 
 fn get_confession_store(env: &Env) -> soroban_sdk::storage::Instance {
@@ -204,13 +248,13 @@ impl ConfessionAnchor {
     /// Initialize the contract with an owner. Must be called exactly once after deployment.
     /// Sets up the owner address and initializes the admin set.
     /// Panics if already initialized.
-    pub fn initialize(env: Env, owner: Address) -> Result<(), u32> {
-        access_control::init_owner(&env, &owner).map_err(|err| err as u32)
+    pub fn initialize(env: Env, owner: Address) -> Result<(), Error> {
+        access_control::init_owner(&env, &owner).map_err(Into::into)
     }
 
     /// Get the current owner address.
-    pub fn get_owner(env: Env) -> Result<Address, u32> {
-        access_control::get_owner(&env).map_err(|err| err as u32)
+    pub fn get_owner(env: Env) -> Result<Address, Error> {
+        access_control::get_owner(&env).map_err(Into::into)
     }
 
     /// Check if an address is an admin (not including the owner).
@@ -224,19 +268,30 @@ impl ConfessionAnchor {
     }
 
     /// Grant admin role to an address (owner-only).
-    pub fn grant_admin(env: Env, caller: Address, target: Address) -> Result<(), u32> {
-        access_control::grant_admin(&env, &caller, &target).map_err(|err| err as u32)
+    pub fn grant_admin(
+        env: Env,
+        caller: Address,
+        target: Address,
+    ) -> Result<(), Error> {
+        access_control::grant_admin(&env, &caller, &target).map_err(Into::into)
     }
 
     /// Revoke admin role from an address (owner-only).
-    pub fn revoke_admin(env: Env, caller: Address, target: Address) -> Result<(), u32> {
-        access_control::revoke_admin(&env, &caller, &target).map_err(|err| err as u32)
+    pub fn revoke_admin(
+        env: Env,
+        caller: Address,
+        target: Address,
+    ) -> Result<(), Error> {
+        access_control::revoke_admin(&env, &caller, &target).map_err(Into::into)
     }
 
     /// Transfer ownership to a new owner (current owner-only).
-    pub fn transfer_owner(env: Env, caller: Address, new_owner: Address) -> Result<(), u32> {
-        access_control::transfer_ownership(&env, &caller, &new_owner)
-            .map_err(|err| err as u32)
+    pub fn transfer_owner(
+        env: Env,
+        caller: Address,
+        new_owner: Address,
+    ) -> Result<(), Error> {
+        access_control::transfer_ownership(&env, &caller, &new_owner).map_err(Into::into)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -245,15 +300,23 @@ impl ConfessionAnchor {
 
     /// Pause the contract (owner-only). Blocks anchor_confession writes.
     /// Read operations (verify, count) remain available.
-    pub fn pause(env: Env, caller: Address, reason: String) -> Result<(), u32> {
-        access_control::require_owner(&env, &caller).map_err(|err| err as u32)?;
-        emergency_pause::pause(&env, reason).map_err(|err| err as u32)
+    pub fn pause(
+        env: Env,
+        caller: Address,
+        reason: String,
+    ) -> Result<(), Error> {
+        access_control::require_owner(&env, &caller).map_err(Error::from)?;
+        emergency_pause::pause(env, reason).map_err(Into::into)
     }
 
     /// Unpause the contract (owner-only).
-    pub fn unpause(env: Env, caller: Address, reason: String) -> Result<(), u32> {
-        access_control::require_owner(&env, &caller).map_err(|err| err as u32)?;
-        emergency_pause::unpause(&env, reason).map_err(|err| err as u32)
+    pub fn unpause(
+        env: Env,
+        caller: Address,
+        reason: String,
+    ) -> Result<(), Error> {
+        access_control::require_owner(&env, &caller).map_err(Error::from)?;
+        emergency_pause::unpause(env, reason).map_err(Into::into)
     }
 
     /// Check if the contract is paused.
@@ -841,12 +904,14 @@ mod test {
 
         assert_eq!(info.event_schema_version, events::EVENT_SCHEMA_VERSION);
         assert_eq!(info.error_registry_version, errors::ERROR_REGISTRY_VERSION);
-        assert_eq!(info.capabilities.len(), 5);
+        assert_eq!(info.capabilities.len(), 7);
         assert_eq!(info.capabilities.get(0), Some(CAPABILITY_ANCHOR_V1));
         assert_eq!(info.capabilities.get(1), Some(CAPABILITY_VERIFY_V1));
         assert_eq!(info.capabilities.get(2), Some(CAPABILITY_COUNT_V1));
         assert_eq!(info.capabilities.get(3), Some(CAPABILITY_EVENT_V1));
         assert_eq!(info.capabilities.get(4), Some(CAPABILITY_META_V1));
+        assert_eq!(info.capabilities.get(5), Some(CAPABILITY_ADMIN_V1));
+        assert_eq!(info.capabilities.get(6), Some(CAPABILITY_PAUSE_V1));
     }
 
     #[test]

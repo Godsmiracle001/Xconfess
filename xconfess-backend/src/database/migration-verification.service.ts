@@ -50,9 +50,7 @@ export class MigrationVerificationService implements OnModuleInit {
           AND column_name IN ('search_vector', 'view_count');
       `);
 
-      const presentColumns = new Set(
-        columns.map((row) => row.column_name),
-      );
+      const presentColumns = new Set(columns.map((row) => row.column_name));
       const missingColumns = REQUIRED_CONFESSION_COLUMNS.filter(
         (name) => !presentColumns.has(name),
       );
@@ -71,7 +69,11 @@ export class MigrationVerificationService implements OnModuleInit {
       );
 
       const ok = missingColumns.length === 0 && missingIndexes.length === 0;
-      return { ok, missingColumns: [...missingColumns], missingIndexes: [...missingIndexes] };
+      return {
+        ok,
+        missingColumns: [...missingColumns],
+        missingIndexes: [...missingIndexes],
+      };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -96,8 +98,6 @@ export class MigrationVerificationService implements OnModuleInit {
       );
       return;
     }
-    this.logger.log(
-      'schema_readiness_ok table=anonymous_confessions',
-    );
+    this.logger.log('schema_readiness_ok table=anonymous_confessions');
   }
 }

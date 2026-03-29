@@ -70,8 +70,7 @@ export class ExportProcessor {
         `Chunked export ${requestId} completed with ${result.chunkCount} chunks.`,
       );
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'unknown error';
+      const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(`Export ${requestId} failed: ${message}`);
       // Use the service helper so retryCount and lastFailureReason are persisted
       await this.dataExportService.markExportFailed(requestId, message);

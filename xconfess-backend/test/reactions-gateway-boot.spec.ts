@@ -9,7 +9,7 @@ import { ReactionsGateway } from '../src/reaction/reactions.gateway';
 /**
  * Boot-time integration test that verifies ReactionsGateway is properly
  * instantiated and the /reactions namespace is live and accepting connections.
- * 
+ *
  * This test serves as regression protection - if ReactionsGateway is ever
  * removed from the module providers, this test will fail.
  */
@@ -107,7 +107,7 @@ describe('ReactionsGateway Boot Integration', () => {
           if (connectedCount === targetConnections) {
             // Verify all clients are connected
             expect(clients.every((c) => c.connected)).toBe(true);
-            
+
             // Cleanup
             clients.forEach((c) => c.disconnect());
             done();
@@ -307,7 +307,7 @@ describe('ReactionsGateway Boot Integration', () => {
       // This test documents the expected behavior when gateway is missing
       // If ReactionsGateway is removed from ReactionModule providers,
       // app.get(ReactionsGateway) will throw an error
-      
+
       expect(() => {
         const gateway = app.get(ReactionsGateway);
         expect(gateway).toBeDefined();
@@ -317,7 +317,7 @@ describe('ReactionsGateway Boot Integration', () => {
     it('should have gateway accessible from WebSocketHealthController', () => {
       const gateway = app.get(ReactionsGateway);
       expect(gateway).toBeDefined();
-      
+
       // Verify the gateway has the expected interface
       expect(gateway.getConnectionStats).toBeDefined();
       expect(typeof gateway.getConnectionStats).toBe('function');
