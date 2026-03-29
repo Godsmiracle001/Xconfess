@@ -403,17 +403,74 @@ If administrator keys are compromised:
    - Verify old admin access is revoked
    - Update all dependent systems
 
-#### Contract Pause
+#### Emergency Pause Management
 
-For contracts with pause functionality:
+xConfess contracts use a **unified emergency pause model** managed via the `emergency_pause` module. For detailed specifications, see [EMERGENCY_PAUSE_MODEL.md](EMERGENCY_PAUSE_MODEL.md).
 
-```rust
-// Emergency pause
-pub fn emergency_pause(env: Env) -> Result<(), Error>
+**ConfessionRegistry Pause Flow:**
 
-// Resume operations
-pub fn resume(env: Env) -> Result<(), Error>
+1. Admin proposes `CriticalAction::Pause` via governance
+2. Other admins approve the proposal
+3. When quorum is reached, executor calls `gov_execute()`
+4. Governance module calls `emergency_pause::set_paused_internal()`
+5. All write operations now fail with error code 4 (ContractPaused)
+6. Read operations continue normally
+
+**Pause Behavior:**
+
+| Operation | Paused | Running |
+|-----------|--------|---------|
+| `create_confession()` | ❌ Error 4 | ✅ OK |
+| `update_status()` | ❌ Error 4 | ✅ OK |
+| `delete_confession()` | ❌ Error 4 | ✅ OK |
+| `get_confession()` | ✅ OK | ✅ OK |
+| `get_by_hash()` | ✅ OK | ✅ OK |
+| `get_author_confessions()` | ✅ OK | ✅ OK |
+| `get_total_count()` | ✅ OK | ✅ OK |
+
+**Example: Proposing a Pause**
+
+```bash
+# 1. Propose governance action (pause)
+stellar contract invoke \
+  --id $GOVERNANCE_ID \
+  --source-account $ADMIN_KEY \
+  -- propose_critical \
+  --action Pause \
+  --reason "Emergency response: suspected exploit detected"
+
+# 2. Get proposal ID and approve it
+PROPOSAL_ID=$(stellar contract invoke \
+  --id $GOVERNANCE_ID \
+  --source-account $ADMIN_KEY \
+  -- get_proposals_count)
+
+# 3. Other admins approve
+for APPROVER in $ADMIN_ADDRESSES; do
+  stellar contract invoke \
+    --id $GOVERNANCE_ID \
+    --source-account $APPROVER \
+    -- approve_proposal \
+    --proposal_id $PROPOSAL_ID
+done
+
+# 4. Execute after quorum reached
+stellar contract invoke \
+  --id $GOVERNANCE_ID \
+  --source-account $EXECUTOR_KEY \
+  -- execute \
+  --proposal_id $PROPOSAL_ID
+
+# 5. Verify pause is active
+stellar contract invoke \
+  --id $CONFESSION_REGISTRY_ID \
+  -- get_pause_status
 ```
+
+**Other Contracts:**
+- **ConfessionAnchor**: No pause (read-only operations)
+- **ReputationBadges**: No pause (separate governance model)
+- **AnonymousTipping**: No pause (fully decentralized)
 
 ## Best Practices
 

@@ -5,6 +5,7 @@ use super::model::{CriticalAction, GovernanceConfig, Proposal};
 use super::storage::DataKey;
 use crate::access_control::{is_authorized, require_owner};
 use crate::error::ContractError;
+use crate::emergency_pause;
 
 pub fn get_config(e: &Env) -> GovernanceConfig {
     e.storage()
@@ -158,14 +159,10 @@ pub fn execute(e: &Env, executor: Address, id: u64) {
                 .unwrap_or_else(|err| panic!("{}", err as u32));
         }
         CriticalAction::Pause => {
-            e.storage()
-                .instance()
-                .set(&soroban_sdk::symbol_short!("paused"), &true);
+            emergency_pause::set_paused_internal(&e, true);
         }
         CriticalAction::Unpause => {
-            e.storage()
-                .instance()
-                .set(&soroban_sdk::symbol_short!("paused"), &false);
+            emergency_pause::set_paused_internal(&e, false);
         }
     }
 
