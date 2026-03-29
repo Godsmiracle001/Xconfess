@@ -88,6 +88,7 @@ describe('Report Endpoint (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'test-anonymous-user-1')
         .send(payload)
         .expect(201);
 
@@ -96,17 +97,20 @@ describe('Report Endpoint (e2e)', () => {
       expect(response.body.reason).toBe(payload.details);
       expect(response.body.status).toBe('pending');
       expect(response.body.reporterId).toBeNull();
+      expect(response.body.anonymousReporterId).toBe('test-anonymous-user-1');
     });
 
     it('anonymous report returns correct status and message', async () => {
       const response = await request(app.getHttpServer())
         .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'test-anonymous-user-2')
         .send({ reason: ReportReason.INAPPROPRIATE })
         .expect(201);
 
       expect(response.status).toBe(201);
       expect(response.body.status).toBe('pending');
       expect(response.body.reporterId).toBeNull();
+      expect(response.body.anonymousReporterId).toBe('test-anonymous-user-2');
     });
   });
 
@@ -142,21 +146,41 @@ describe('Report Endpoint (e2e)', () => {
   });
 
   describe('24-hour duplicate rejection', () => {
-    it('second anonymous report within 24h returns 400 and expected message', async () => {
+    it('second anonymous report with same anonymous user within 24h returns 400', async () => {
       const payload = { reason: ReportReason.SPAM, details: 'Spam' };
 
       await request(app.getHttpServer())
         .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'same-anonymous-user')
         .send(payload)
         .expect(201);
 
       const second = await request(app.getHttpServer())
         .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'same-anonymous-user')
         .send(payload)
         .expect(400);
 
       expect(second.body.message).toBe(DUPLICATE_REPORT_MESSAGE);
       expect(second.status).toBe(400);
+    });
+
+    it('second anonymous report with different anonymous user succeeds', async () => {
+      const payload = { reason: ReportReason.SPAM, details: 'Spam' };
+
+      await request(app.getHttpServer())
+        .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'anonymous-user-1')
+        .send(payload)
+        .expect(201);
+
+      const second = await request(app.getHttpServer())
+        .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'anonymous-user-2')
+        .send(payload)
+        .expect(201);
+
+      expect(second.status).toBe(201);
     });
 
     it('second authenticated report by same user within 24h returns 400', async () => {
@@ -181,6 +205,7 @@ describe('Report Endpoint (e2e)', () => {
     it('anonymous then authenticated report both succeed (different reporters)', async () => {
       await request(app.getHttpServer())
         .post(`/confessions/${testConfession.id}/report`)
+        .set('x-anonymous-user-id', 'anonymous-user-3')
         .send({ reason: ReportReason.SPAM })
         .expect(201);
 
@@ -219,6 +244,16 @@ describe('Report Endpoint (e2e)', () => {
         .expect(400);
 
       expect(res.status).toBe(400);
+    });
+
+    it('anonymous report without x-anonymous-user-id header returns 400', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/confessions/${testConfession.id}/report`)
+        .send({ reason: ReportReason.SPAM })
+        .expect(400);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Anonymous reports require x-anonymous-user-id header');
     });
   });
 });

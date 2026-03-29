@@ -28,10 +28,15 @@ export class ReportsController {
     @GetUser('id') reporterId: number | null,
     @Body() dto: CreateReportDto,
     @Headers('idempotency-key') rawIdempotencyKey: string | undefined,
+    @Headers('x-anonymous-user-id') anonymousUserId: string | undefined,
     @Req() req: Request,
   ) {
     // Idempotency keys are only honoured for authenticated users.
-    // Anonymous callers would need a stable identity anchor — they don't have one.
+    // Anonymous callers use their anonymous user ID for deduplication.
+    if (reporterId === null && !anonymousUserId) {
+      throw new BadRequestException('Anonymous reports require x-anonymous-user-id header');
+    }
+
     const idempotencyKey =
       rawIdempotencyKey && reporterId !== null
         ? sanitiseIdempotencyKey(rawIdempotencyKey)
@@ -44,6 +49,7 @@ export class ReportsController {
       {
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
+        anonymousUserId: reporterId === null ? anonymousUserId : undefined,
       },
       idempotencyKey,
     );
