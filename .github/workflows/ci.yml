@@ -8,6 +8,7 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  RUST_BACKTRACE: 1
 
 jobs:
   lint:
@@ -26,3 +27,32 @@ jobs:
         run: npm run lint --workspace=xconfess-backend
       - name: Lint frontend
         run: npm run lint --workspace=xconfess-frontend
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: xconfess-contracts
+          cache-targets: true
+      
+      - name: Check contracts
+        run: ./scripts/test-contracts.sh
+      
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-check-logs
+          path: |
+            xconfess-contracts/target/
+          retention-days: 7
