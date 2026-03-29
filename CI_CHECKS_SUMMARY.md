@@ -218,6 +218,7 @@ For issues or questions:
 2. Review test files for examples
 3. Check browser console for runtime errors
 4. Enable mock mode to isolate frontend issues
+5. Use `maintainer/BACKLOG_INDEX.md` to route follow-up backlog work by subsystem owner
 
 ---
 

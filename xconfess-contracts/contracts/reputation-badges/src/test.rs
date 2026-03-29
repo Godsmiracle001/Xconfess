@@ -184,3 +184,27 @@ fn test_transfer_nonexistent_badge() {
     let badge = client.get_badge(&999);
     assert!(badge.is_none());
 }
+
+#[test]
+fn test_revoke_badge() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    // Mint badge
+    let badge_id = client.mint_badge(&user, &BadgeType::GenerousSoul);
+    assert_eq!(client.has_badge(&user, &BadgeType::GenerousSoul), true);
+    assert_eq!(client.get_badge_count(&user), 1);
+
+    // Revoke badge
+    client.revoke_badge(&badge_id);
+
+    // Verify
+    assert_eq!(client.has_badge(&user, &BadgeType::GenerousSoul), false);
+    assert_eq!(client.get_badge_count(&user), 0);
+    assert!(client.get_badge(&badge_id).is_none());
+}

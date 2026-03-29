@@ -119,9 +119,7 @@ describe('Auth Contract (e2e)', () => {
     });
 
     it('should reject request without token', async () => {
-      await request(app.getHttpServer())
-        .get('/auth/me')
-        .expect(401);
+      await request(app.getHttpServer()).get('/auth/me').expect(401);
     });
 
     it('should reject request with invalid token', async () => {
@@ -152,13 +150,14 @@ describe('Auth Contract (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty('message', 'Logged out successfully');
+      expect(response.body).toHaveProperty(
+        'message',
+        'Logged out successfully',
+      );
     });
 
     it('should reject logout without token', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/logout')
-        .expect(401);
+      await request(app.getHttpServer()).post('/auth/logout').expect(401);
     });
   });
 

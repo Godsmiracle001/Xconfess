@@ -28,7 +28,12 @@ import { PasswordReset } from './entities/password-reset.entity';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, PasswordResetService, OptionalJwtAuthGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    PasswordResetService,
+    OptionalJwtAuthGuard,
+  ],
   exports: [AuthService, JwtModule, OptionalJwtAuthGuard],
 })
 export class AuthModule {}

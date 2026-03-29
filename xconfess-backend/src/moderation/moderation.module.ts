@@ -5,25 +5,26 @@ import { ConfigModule } from '@nestjs/config';
 import { AiModerationService } from './ai-moderation.service';
 import { ModerationRepositoryService } from './moderation-repository.service';
 import { ModerationController } from './moderation.controller';
+import { ModerationWebhookController } from './moderation-webhook.controller';
 import { ModerationEventsListener } from './moderation-events.listener';
-import { NotificationService } from '../notifications/services/notification.service';
-import { AuditLogService } from '../audit-log/audit-log.service';
 import { User } from '../user/entities/user.entity';
 import { ModerationLog } from './entities/moderation-log.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { NotificationModule as InAppNotificationModule } from '../notifications/notifications.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([ModerationLog, AnonymousConfession, User]),
     ConfigModule,
+    InAppNotificationModule,
+    AuditLogModule,
   ],
-  controllers: [ModerationController],
+  controllers: [ModerationController, ModerationWebhookController],
   providers: [
     AiModerationService,
     ModerationRepositoryService,
     ModerationEventsListener,
-    NotificationService,
-    AuditLogService,
   ],
   exports: [AiModerationService, ModerationRepositoryService],
 })

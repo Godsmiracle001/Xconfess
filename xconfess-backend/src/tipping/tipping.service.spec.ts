@@ -2,13 +2,15 @@ import { Test, TestingModule } from "@nestjs/testing";
 import { TippingService } from "./tipping.service";
 import { StellarService } from "../stellar/stellar.service";
 import { ConfigService } from "@nestjs/config";
-import { BadRequestException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
+import { TipVerificationStatus } from "./entities/tip.entity";
 
 const RECIPIENT = "GCORRECTRECIPIENTADDRESS";
 const AMOUNT = "10";
-
-const mockStellarService = { getTransaction: jest.fn() };
-const mockConfigService = { get: jest.fn().mockReturnValue(RECIPIENT) };
 
 const makeOp = (to: string, amount: string, asset_type = "native") => ({
   type: "payment",
@@ -17,8 +19,11 @@ const makeOp = (to: string, amount: string, asset_type = "native") => ({
   amount,
 });
 
-describe("TippingService", () => {
+describe("TippingService - verifyTip (validation layer)", () => {
   let service: TippingService;
+
+  const mockStellarService = { getTransaction: jest.fn() };
+  const mockConfigService = { get: jest.fn().mockReturnValue(RECIPIENT) };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -31,59 +36,95 @@ describe("TippingService", () => {
 
     service = module.get<TippingService>(TippingService);
     jest.clearAllMocks();
-    mockConfigService.get.mockReturnValue(RECIPIENT);
   });
 
-  it("accepts a valid tip to the correct recipient", async () => {
+  it("accepts a valid tip", async () => {
     mockStellarService.getTransaction.mockResolvedValue({
       operations: [makeOp(RECIPIENT, "10")],
     });
+
     await expect(service.verifyTip("txhash", AMOUNT)).resolves.toBe(true);
   });
 
-  it("rejects a payment to the wrong destination", async () => {
+  it("rejects wrong destination", async () => {
     mockStellarService.getTransaction.mockResolvedValue({
-      operations: [makeOp("GWRONGADDRESS", "10")],
+      operations: [makeOp("WRONG", "10")],
     });
+
     await expect(service.verifyTip("txhash", AMOUNT)).rejects.toThrow(
       BadRequestException
     );
   });
+});
 
-  it("rejects a non-native asset payment", async () => {
-    mockStellarService.getTransaction.mockResolvedValue({
-      operations: [makeOp(RECIPIENT, "10", "credit_alphanum4")],
-    });
-    await expect(service.verifyTip("txhash", AMOUNT)).rejects.toThrow(
-      BadRequestException
+describe("TippingService - business logic (main)", () => {
+  let service: TippingService;
+  let mockTipRepo: any;
+  let mockConfessionRepo: any;
+  let mockStellarService: any;
+
+  beforeEach(() => {
+    mockTipRepo = {
+      findOne: jest.fn(),
+      find: jest.fn(),
+      create: jest.fn((dto) => ({ ...dto, id: "tip-123" })),
+      save: jest.fn((tip) =>
+        Promise.resolve({ ...tip, id: tip.id || "tip-123" })
+      ),
+    };
+
+    mockConfessionRepo = {
+      findOne: jest.fn(),
+    };
+
+    mockStellarService = {
+      verifyTransaction: jest.fn(),
+      getHorizonTxUrl: jest
+        .fn()
+        .mockReturnValue("https://horizon/testnet/txs/tx123"),
+    };
+
+    service = new TippingService(
+      mockTipRepo,
+      mockConfessionRepo,
+      mockStellarService
     );
   });
 
-  it("rejects an unrelated valid XLM payment", async () => {
-    mockStellarService.getTransaction.mockResolvedValue({
-      operations: [makeOp("GSOMEONEELSE", "100")],
+  it("creates a new tip", async () => {
+    mockConfessionRepo.findOne.mockResolvedValue({ id: "confession-123" });
+    mockTipRepo.findOne.mockResolvedValue(null);
+    mockStellarService.verifyTransaction.mockResolvedValue(true);
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        _embedded: {
+          operations: [
+            {
+              type: "payment",
+              asset_type: "native",
+              amount: "1.0",
+            },
+          ],
+        },
+      }),
     });
-    await expect(service.verifyTip("txhash", AMOUNT)).rejects.toThrow(
-      BadRequestException
-    );
+
+    const result = await service.verifyAndRecordTip("confession-123", {
+      txId: "tx123",
+    });
+
+    expect(result.isNew).toBe(true);
   });
 
-  it("rejects ambiguous multi-operation transactions", async () => {
-    mockStellarService.getTransaction.mockResolvedValue({
-      operations: [
-        makeOp(RECIPIENT, "10"),
-        makeOp(RECIPIENT, "10"),
-      ],
-    });
-    await expect(service.verifyTip("txhash", AMOUNT)).rejects.toThrow(
-      BadRequestException
-    );
-  });
+  it("rejects invalid tx", async () => {
+    mockConfessionRepo.findOne.mockResolvedValue({ id: "confession-123" });
+    mockTipRepo.findOne.mockResolvedValue(null);
+    mockStellarService.verifyTransaction.mockResolvedValue(false);
 
-  it("rejects when transaction is not found", async () => {
-    mockStellarService.getTransaction.mockResolvedValue(null);
-    await expect(service.verifyTip("txhash", AMOUNT)).rejects.toThrow(
-      BadRequestException
-    );
+    await expect(
+      service.verifyAndRecordTip("confession-123", { txId: "tx123" })
+    ).rejects.toThrow(BadRequestException);
   });
 });

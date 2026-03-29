@@ -46,10 +46,20 @@ pub enum StorageKey {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BadgeMintedData {
+pub enum BadgeAction {
+    Grant,
+    Revoke,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BadgeEvent {
+    pub event_version: u32,
     pub badge_id: u64,
-    pub badge_type: BadgeType,
-    pub minted_at: u64,
+    pub badge_type: u32,
+    pub owner: Address,
+    pub action: BadgeAction,
+    pub timestamp: u64,
 }
 
 /// Event data for badge transfer
@@ -113,15 +123,18 @@ impl ReputationBadges {
             .persistent()
             .set(&user_badges_key, &user_badges);
 
-        // Emit BadgeMinted event
-        #[allow(deprecated)]
+        // Emit BadgeGranted event
+        let event_payload = BadgeEvent {
+            event_version: 1,
+            badge_id,
+            badge_type: badge_type.clone() as u32,
+            owner: recipient.clone(),
+            action: BadgeAction::Grant,
+            timestamp: minted_at,
+        };
         env.events().publish(
-            (Symbol::new(&env, "badge_minted"), recipient.clone()),
-            BadgeMintedData {
-                badge_id,
-                badge_type,
-                minted_at,
-            },
+            (Symbol::new(&env, "badge_granted"), recipient.clone()),
+            event_payload,
         );
 
         Ok(badge_id)
@@ -250,6 +263,67 @@ impl ReputationBadges {
     /// Get total number of badges minted
     pub fn get_total_badges(env: Env) -> u64 {
         Self::get_badge_count_internal(&env)
+    }
+
+    /// Revoke a badge
+    pub fn revoke_badge(env: Env, badge_id: u64) -> Result<(), Error> {
+        // Get the badge
+        let badge_key = StorageKey::Badge(badge_id);
+        let badge: Badge = env
+            .storage()
+            .persistent()
+            .get(&badge_key)
+            .ok_or(Error::BadgeNotFound)?;
+
+        let owner = badge.owner.clone();
+        let badge_type = badge.badge_type.clone();
+
+        // Require auth from the current owner or admin
+        // Since we don't have an admin defined in this contract, let's assume the owner
+        // can revoke it or there's some higher level authority. Actually, the contract
+        // does not have admin. We will require the owner to authorize revocation.
+        owner.require_auth();
+
+        // Remove from owner's badge list
+        let user_badges_key = StorageKey::UserBadges(owner.clone());
+        let user_badges: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&user_badges_key)
+            .unwrap_or(Vec::new(&env));
+
+        let mut new_user_badges = Vec::new(&env);
+        for i in 0..user_badges.len() {
+            if let Some(id) = user_badges.get(i) {
+                if id != badge_id {
+                    new_user_badges.push_back(id);
+                }
+            }
+        }
+        env.storage()
+            .persistent()
+            .set(&user_badges_key, &new_user_badges);
+
+        // Remove type ownership
+        let ownership_key = StorageKey::TypeOwnership(owner.clone(), badge_type.clone());
+        env.storage().persistent().remove(&ownership_key);
+
+        // Remove badge from storage
+        env.storage().persistent().remove(&badge_key);
+
+        // Emit BadgeRevoked event
+        let event_payload = BadgeEvent {
+            event_version: 1,
+            badge_id,
+            badge_type: badge_type as u32,
+            owner: owner.clone(),
+            action: BadgeAction::Revoke,
+            timestamp: env.ledger().timestamp(),
+        };
+        env.events()
+            .publish((Symbol::new(&env, "badge_revoked"), owner), event_payload);
+
+        Ok(())
     }
 
     // Internal helper to get badge count

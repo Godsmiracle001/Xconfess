@@ -1,12 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { sendTip, verifyTip, getTipStats, type TipStats } from "@/lib/services/tipping.service";
+import {
+  sendTip,
+  verifyTip,
+  getTipStats,
+  type TipStats,
+} from "@/lib/services/tipping.service";
 import { useWallet } from "@/lib/hooks/useWallet";
+import { useActivityStore } from "@/app/lib/store/activity.store";
+import { v4 as uuidv4 } from "uuid";
 
 interface TipButtonProps {
   confessionId: string;
-  recipientAddress?: string; // Stellar address of confession creator
+  recipientAddress?: string;
   initialStats?: TipStats;
 }
 
@@ -15,45 +22,52 @@ export const TipButton = ({
   recipientAddress,
   initialStats,
 }: TipButtonProps) => {
+  const addActivity = useActivityStore((s) => s.addActivity);
+  const updateActivity = useActivityStore((s) => s.updateActivity);
+
   const [isOpen, setIsOpen] = useState(false);
-  const [tipAmount, setTipAmount] = useState<string>("0.1");
+  const [tipAmount, setTipAmount] = useState("0.1");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
-  const { publicKey, isConnected, connect } = useWallet();
 
-  // Fetch stats on mount and when confession changes
+  const { publicKey, isConnected, isReady, readinessError, connect } =
+    useWallet();
+
   useEffect(() => {
     const fetchStats = async () => {
       const tipStats = await getTipStats(confessionId);
-      if (tipStats) {
-        setStats(tipStats);
-      }
+      if (tipStats) setStats(tipStats);
     };
     fetchStats();
   }, [confessionId]);
 
+  const refreshStats = async () => {
+    const updated = await getTipStats(confessionId);
+    if (updated) setStats(updated);
+  };
+
   const handleTip = async () => {
+    if (isSending) return;
+
     if (!recipientAddress) {
-      setError("Recipient address not available. The confession creator needs to provide their Stellar address.");
+      setError("Recipient address not available");
       return;
     }
 
     const amount = parseFloat(tipAmount);
     if (isNaN(amount) || amount < 0.1) {
-      setError("Minimum tip amount is 0.1 XLM");
+      setError("Minimum tip is 0.1 XLM");
       return;
     }
 
     if (!isConnected) {
-      // Try to connect wallet
       try {
         await connect();
-        // Wait a bit for connection
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      } catch (err) {
-        setError("Please connect your Freighter wallet to send tips");
+      } catch {
+        setError("Connect your wallet");
         return;
       }
     }
@@ -62,36 +76,58 @@ export const TipButton = ({
     setError(null);
     setSuccess(false);
 
+    // ✅ Create activity
+    const activityId = uuidv4();
+    addActivity({
+      id: activityId,
+      type: "tip",
+      status: "submitted",
+      createdAt: Date.now(),
+      confessionId,
+      amount,
+    });
+
     try {
-      // Send tip transaction
       const result = await sendTip(confessionId, amount, recipientAddress);
 
       if (!result.success || !result.txHash) {
         throw new Error(result.error || "Failed to send tip");
       }
 
-      // Verify and record tip on backend
+      // update tx hash
+      updateActivity(activityId, { txHash: result.txHash });
+
       const verifyResult = await verifyTip(confessionId, result.txHash);
 
       if (!verifyResult.success) {
-        throw new Error(
-          verifyResult.error || "Tip sent but failed to verify on backend"
-        );
+        setPendingTxHash(result.txHash);
+
+        updateActivity(activityId, {
+          status: "submitted",
+          updatedAt: Date.now(),
+        });
+
+        throw new Error("Verification pending");
       }
+
+      // ✅ success
+      updateActivity(activityId, {
+        status: "confirmed",
+        updatedAt: Date.now(),
+      });
 
       setSuccess(true);
-      setIsOpen(false);
       setTipAmount("0.1");
+      setPendingTxHash(null);
+      await refreshStats();
 
-      // Refresh stats
-      const updatedStats = await getTipStats(confessionId);
-      if (updatedStats) {
-        setStats(updatedStats);
-      }
-
-      // Clear success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
+      updateActivity(activityId, {
+        status: "failed",
+        updatedAt: Date.now(),
+      });
+
       setError(err.message || "Failed to send tip");
     } finally {
       setIsSending(false);
@@ -106,93 +142,41 @@ export const TipButton = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={!recipientAddress}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all min-w-[44px] min-h-[44px] justify-center touch-manipulation"
-        aria-label="Tip confession"
-        title={!recipientAddress ? "Recipient address not available" : "Tip this confession"}
+        className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
       >
-        <span className="text-lg">💰</span>
-        {tipCount > 0 && (
-          <span className="text-sm font-medium">{tipCount}</span>
-        )}
-        {totalAmount > 0 && (
-          <span className="text-xs opacity-75">
-            {totalAmount.toFixed(1)} XLM
-          </span>
-        )}
+        💰 {tipCount > 0 && tipCount}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-zinc-800 rounded-lg shadow-xl p-4 z-50 border border-zinc-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Send Tip</h3>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-white"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-          </div>
+        <div className="absolute right-0 mt-2 w-80 bg-zinc-800 p-4 rounded">
+          <h3 className="text-white mb-2">Send Tip</h3>
 
-          {!isConnected && (
-            <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded text-sm text-yellow-200">
-              Please connect your Freighter wallet to send tips
-            </div>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {success && <p className="text-green-400 text-sm">Success 🎉</p>}
+
+          {pendingTxHash && (
+            <p className="text-yellow-400 text-sm">
+              Verification pending...
+            </p>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Amount (XLM)
-              </label>
-              <input
-                type="number"
-                min="0.1"
-                step="0.1"
-                value={tipAmount}
-                onChange={(e) => setTipAmount(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="0.1"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                Minimum: 0.1 XLM
-              </p>
-            </div>
+          <input
+            type="number"
+            value={tipAmount}
+            onChange={(e) => setTipAmount(e.target.value)}
+            className="w-full p-2 bg-zinc-900 text-white mt-2"
+          />
 
-            {error && (
-              <div className="p-3 bg-red-900/30 border border-red-700 rounded text-sm text-red-200">
-                {error}
-              </div>
-            )}
+          <button
+            onClick={handleTip}
+            disabled={isSending || (isConnected && !isReady)}
+            className="w-full mt-3 bg-purple-600 py-2 rounded"
+          >
+            {isSending ? "Sending..." : `Tip ${tipAmount} XLM`}
+          </button>
 
-            {success && (
-              <div className="p-3 bg-green-900/30 border border-green-700 rounded text-sm text-green-200">
-                Tip sent successfully! 🎉
-              </div>
-            )}
-
-            <button
-              onClick={handleTip}
-              disabled={isSending || !isConnected}
-              className="w-full px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed rounded font-medium text-white transition-all"
-            >
-              {isSending ? "Sending..." : `Send ${tipAmount} XLM Tip`}
-            </button>
-
-            {stats && (
-              <div className="pt-3 border-t border-zinc-700 text-sm text-gray-400">
-                <div className="flex justify-between">
-                  <span>Total Tips:</span>
-                  <span className="text-white font-medium">
-                    {totalAmount.toFixed(2)} XLM
-                  </span>
-                </div>
-                <div className="flex justify-between mt-1">
-                  <span>Tip Count:</span>
-                  <span className="text-white font-medium">{tipCount}</span>
-                </div>
-              </div>
-            )}
+          <div className="text-xs text-gray-400 mt-3">
+            {totalAmount.toFixed(2)} XLM • {tipCount} tips
           </div>
         </div>
       )}

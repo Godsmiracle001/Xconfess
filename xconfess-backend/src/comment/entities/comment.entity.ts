@@ -1,17 +1,19 @@
 import {
-  Entity,
   Column,
-  PrimaryGeneratedColumn,
   CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
   ManyToOne,
   OneToMany,
-  JoinColumn,
+  PrimaryGeneratedColumn,
   RelationId,
 } from 'typeorm';
-import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
+import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 
 @Entity('comments')
+@Index(['confession', 'createdAt', 'id']) // Composite index for stable ordering
 export class Comment {
   @PrimaryGeneratedColumn()
   id: number;

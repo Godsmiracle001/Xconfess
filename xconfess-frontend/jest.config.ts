@@ -2,6 +2,9 @@
 const config = {
   preset: "ts-jest",
   testEnvironment: "jsdom",
+  testEnvironmentOptions: {
+    customExportConditions: [""],
+  },
   rootDir: ".",
   testMatch: [
     "**/app/**/__tests__/**/*.test.ts",
@@ -19,9 +22,20 @@ const config = {
       {
         tsconfig: {
           jsx: "react-jsx",
+          allowJs: true,
+        },
+      },
+    ],
+    ".+node_modules.+(until-async|@mswjs|msw).+\\.[jt]sx?$": [
+      "ts-jest",
+      {
+        tsconfig: {
+          jsx: "react-jsx",
+          allowJs: true,
         },
       },
     ],
   },
+  transformIgnorePatterns: [],
 };
 module.exports = config;

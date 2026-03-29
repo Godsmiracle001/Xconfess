@@ -15,4 +15,4 @@ export class ForgotPasswordDto {
   static validate(dto: ForgotPasswordDto): boolean {
     return !!(dto.email || dto.userId);
   }
-} 
+}

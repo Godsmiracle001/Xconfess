@@ -1,0 +1,470 @@
+# Contract Administration Guide
+
+Practical guide for administrators managing xConfess smart contracts in production environments.
+
+## Quick Reference
+
+### Common Administrative Commands
+
+```bash
+# Check contract status
+stellar contract info --id $CONTRACT_ID --network $NETWORK
+
+# Get current administrator
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- get_admin
+
+# Transfer administrator rights
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+
+# Check contract version
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- get_version
+```
+
+### Environment Setup
+
+```bash
+# Required environment variables
+export STELLAR_NETWORK="testnet"  # or "mainnet"
+export ADMIN_KEY="your-admin-secret-key"
+export CONTRACT_ID="your-contract-id"
+
+# Optional for multiple contracts
+export CONFESSION_ANCHOR_ID="confession-contract-id"
+export REPUTATION_BADGES_ID="reputation-contract-id"
+export ANONYMOUS_TIPPING_ID="tipping-contract-id"
+```
+
+## Contract-Specific Administration
+
+### ConfessionAnchor Contract
+
+#### Daily Operations
+
+```bash
+# Check confession statistics
+stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_confession_count
+
+# Monitor recent activity
+stellar contract events --id $CONFESSION_ANCHOR_ID --limit 100 --topic "confession_anchor"
+```
+
+#### Administrative Functions
+
+| Function | Purpose | Required Role |
+|-----------|---------|--------------|
+| `transfer_admin` | Change administrator | Current Admin |
+| `get_admin` | View current admin | Any |
+| `get_version` | Check contract version | Any |
+| `get_capabilities` | View supported features | Any |
+
+#### Example: Admin Transfer
+
+```bash
+# Step 1: Verify current admin
+CURRENT_ADMIN=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_admin --json | jq -r '.admin')
+
+# Step 2: Transfer to new admin
+stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+
+# Step 3: Verify transfer
+NEW_ADMIN=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $NEW_ADMIN_SECRET -- get_admin --json | jq -r '.admin')
+echo "Admin transferred from $CURRENT_ADMIN to $NEW_ADMIN"
+```
+
+### ReputationBadges Contract
+
+#### Badge Management
+
+```bash
+# List all badge types
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- list_badge_types
+
+# Create new badge
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  create_badge \
+  --name "Community Leader" \
+  --description "Awarded to active community members" \
+  --criteria "100+ helpful posts"
+
+# Award badge to user
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  award_badge \
+  --user $USER_ADDRESS \
+  --badge_id $BADGE_ID
+```
+
+#### Reputation Management
+
+```bash
+# Check user reputation
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  get_user_reputation --user $USER_ADDRESS
+
+# Manual reputation adjustment (emergency use)
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  adjust_reputation \
+  --user $USER_ADDRESS \
+  --amount 50 \
+  --reason "Manual adjustment for lost reputation"
+```
+
+### AnonymousTipping Contract
+
+#### Monitoring Only
+
+The AnonymousTipping contract has no administrative functions - it's fully decentralized.
+
+```bash
+# Monitor tip activity
+stellar contract events --id $ANONYMOUS_TIPPING_ID --limit 50 --topic "tip_settl"
+
+# Check total tips for address
+stellar contract invoke --id $ANONYMOUS_TIPPING_ID --source-account $ANY_KEY -- \
+  get_tips --recipient $USER_ADDRESS
+
+# View latest settlement
+stellar contract invoke --id $ANONYMOUS_TIPPING_ID --source-account $ANY_KEY -- \
+  latest_settlement_nonce
+```
+
+## Security Operations
+
+### Administrator Key Management
+
+#### Key Rotation Procedure
+
+```bash
+# 1. Generate new admin key
+stellar keys generate --name new-admin-$(date +%Y%m%d)
+
+# 2. Fund new account on testnet
+stellar network fund new-admin-$(date +%Y%m%d) --network testnet
+
+# 3. Transfer admin rights (from old admin)
+stellar contract invoke --id $CONTRACT_ID --source-account $OLD_ADMIN_KEY -- \
+  transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+
+# 4. Verify transfer
+stellar contract invoke --id $CONTRACT_ID --source-account $NEW_ADMIN_SECRET -- get_admin
+
+# 5. Update environment variables
+export ADMIN_KEY=$NEW_ADMIN_SECRET
+```
+
+#### Multi-Signature Setup (Optional)
+
+For high-security deployments:
+
+```bash
+# Multi-sig admin setup example
+MULTISIG_ADDRESS="MXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+# Configure contract with multi-sig admin
+stellar contract invoke --id $CONTRACT_ID --source-account $CURRENT_ADMIN -- \
+  transfer_admin --new_admin $MULTISIG_ADDRESS
+```
+
+### Emergency Procedures
+
+#### Compromise Response
+
+```bash
+# Emergency: Transfer admin to safe address
+SAFE_ADDRESS="GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+stellar contract invoke --id $CONTRACT_ID --source-account $COMPROMISED_ADMIN_KEY -- \
+  transfer_admin --new_admin $SAFE_ADDRESS
+
+# Verify transfer completed
+stellar contract invoke --id $CONTRACT_ID --source-account $SAFE_ADMIN_SECRET -- get_admin
+```
+
+#### Contract Pause (If Implemented)
+
+```bash
+# Emergency pause
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- emergency_pause
+
+# Check pause status
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- is_paused
+
+# Resume when safe
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- resume
+```
+
+## Monitoring and Alerting
+
+### Setting Up Monitoring
+
+#### Event Monitoring Script
+
+```bash
+#!/bin/bash
+# monitor-contracts.sh
+
+CONTRACTS="$CONFESSION_ANCHOR_ID $REPUTATION_BADGES_ID $ANONYMOUS_TIPPING_ID"
+ADMIN_KEY="$ADMIN_KEY"
+NETWORK="testnet"
+
+echo "Starting contract monitoring..."
+echo "Network: $NETWORK"
+echo "Contracts: $CONTRACTS"
+echo "---"
+
+for contract_id in $CONTRACTS; do
+    echo "Checking contract: $contract_id"
+    
+    # Get contract info
+    stellar contract info --id $contract_id --network $NETWORK
+    
+    # Check recent events
+    stellar contract events --id $contract_id --network $NETWORK --limit 5
+    
+    echo "---"
+done
+```
+
+#### Health Check Script
+
+```bash
+#!/bin/bash
+# health-check.sh
+
+check_contract_health() {
+    local contract_id=$1
+    local contract_name=$2
+    
+    echo "Checking $contract_name health..."
+    
+    # Check if contract is responsive
+    if stellar contract info --id $contract_id --network $NETWORK >/dev/null 2>&1; then
+        echo "✅ $contract_name: Responsive"
+    else
+        echo "❌ $contract_name: Unresponsive"
+        return 1
+    fi
+    
+    # Check admin access (for admin contracts)
+    if [[ "$contract_name" != "AnonymousTipping" ]]; then
+        if stellar contract invoke --id $contract_id --source-account $ADMIN_KEY -- get_admin >/dev/null 2>&1; then
+            echo "✅ $contract_name: Admin access OK"
+        else
+            echo "❌ $contract_name: Admin access FAILED"
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Check all contracts
+check_contract_health "$CONFESSION_ANCHOR_ID" "ConfessionAnchor"
+check_contract_health "$REPUTATION_BADGES_ID" "ReputationBadges"
+check_contract_health "$ANONYMOUS_TIPPING_ID" "AnonymousTipping"
+
+echo "Health check completed."
+```
+
+### Alert Configuration
+
+#### Key Metrics to Monitor
+
+1. **ConfessionAnchor**
+   - Confessions per hour
+   - Failed confession attempts
+   - Storage utilization percentage
+   - Admin action frequency
+
+2. **ReputationBadges**
+   - Badges awarded per day
+   - Reputation changes
+   - Administrative adjustments
+   - User registration rates
+
+3. **AnonymousTipping**
+   - Tips per hour
+   - Total tip volume
+   - Settlement success rate
+   - Gas usage patterns
+
+#### Alert Thresholds
+
+```bash
+# Example alert configuration
+ALERT_CONFESSIONS_PER_HOUR=100
+ALERT_TIPS_PER_HOUR=500
+ALERT_ADMIN_ACTIONS_PER_DAY=10
+ALERT_GAS_SPIKE_MULTIPLIER=3.0
+
+# Monitoring logic would check these thresholds and trigger alerts
+```
+
+## Troubleshooting Guide
+
+### Common Administrative Issues
+
+#### "Not Authorized" Errors
+
+**Symptoms**: Administrative calls fail with authorization errors
+
+**Diagnosis**:
+```bash
+# Check current admin
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- get_admin
+
+# Check if you're using correct key
+echo "Using key: $ADMIN_KEY"
+echo "Contract ID: $CONTRACT_ID"
+echo "Network: $STELLAR_NETWORK"
+```
+
+**Solutions**:
+1. Verify ADMIN_KEY environment variable
+2. Check contract ID is correct
+3. Ensure network matches deployment
+4. Confirm admin rights weren't transferred
+
+#### "Contract Not Found" Errors
+
+**Symptoms**: Contract address returns not found
+
+**Diagnosis**:
+```bash
+# Verify contract exists
+stellar contract info --id $CONTRACT_ID --network $STELLAR_NETWORK
+
+# Check network configuration
+stellar network list
+```
+
+**Solutions**:
+1. Verify contract ID is correct
+2. Check network is properly configured
+3. Ensure contract is deployed to correct network
+4. Wait for network propagation
+
+#### Gas/Transaction Issues
+
+**Symptoms**: Transactions fail or take too long
+
+**Diagnosis**:
+```bash
+# Check network status
+stellar network status
+
+# Check current fees
+stellar network fees
+
+# Test with simple transaction
+stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- get_version
+```
+
+**Solutions**:
+1. Increase gas limit for complex operations
+2. Check network congestion
+3. Verify account has sufficient XLM
+4. Retry during off-peak hours
+
+### Performance Issues
+
+#### Slow Response Times
+
+**Diagnosis**:
+```bash
+# Measure response time
+time stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- get_version
+
+# Check network latency
+stellar network ping
+```
+
+**Optimization**:
+1. Use closer RPC nodes
+2. Batch operations where possible
+3. Consider contract upgrades for efficiency
+4. Monitor during different time periods
+
+## Backup and Recovery
+
+### Configuration Backup
+
+```bash
+# Backup current configuration
+backup-configs.sh() {
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_dir="backups/$timestamp"
+    
+    mkdir -p $backup_dir
+    
+    # Save contract IDs
+    cat > $backup_dir/contracts.env << EOF
+CONFESSION_ANCHOR_ID=$CONFESSION_ANCHOR_ID
+REPUTATION_BADGES_ID=$REPUTATION_BADGES_ID
+ANONYMOUS_TIPPING_ID=$ANONYMOUS_TIPPING_ID
+STELLAR_NETWORK=$STELLAR_NETWORK
+EOF
+    
+    # Save admin addresses
+    stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_admin > $backup_dir/confession_admin.txt
+    stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- get_admin > $backup_dir/reputation_admin.txt
+    
+    echo "Configuration backed up to: $backup_dir"
+}
+
+backup-configs
+```
+
+### Recovery Procedures
+
+```bash
+# Restore from backup
+restore-configs() {
+    local backup_dir=$1
+    
+    if [[ ! -d "$backup_dir" ]]; then
+        echo "Backup directory not found: $backup_dir"
+        return 1
+    fi
+    
+    # Restore environment
+    source $backup_dir/contracts.env
+    
+    echo "Configuration restored from: $backup_dir"
+    echo "Current admin addresses:"
+    echo "ConfessionAnchor: $(cat $backup_dir/confession_admin.txt)"
+    echo "ReputationBadges: $(cat $backup_dir/reputation_admin.txt)"
+}
+
+# Usage
+restore-configs "backups/20240125_143022"
+```
+
+## Best Practices Summary
+
+### Daily Operations
+- [ ] Check contract health status
+- [ ] Review administrative actions
+- [ ] Monitor key metrics
+- [ ] Verify backup integrity
+
+### Weekly Operations
+- [ ] Rotate admin keys (if policy requires)
+- [ ] Review and update documentation
+- [ ] Analyze usage patterns
+- [ ] Test recovery procedures
+
+### Monthly Operations
+- [ ] Full security audit
+- [ ] Performance optimization review
+- [ ] Update emergency contacts
+- [ ] Review and update alert thresholds
+
+### Security Checklist
+- [ ] Admin keys stored securely
+- [ ] Multi-factor authentication enabled
+- [ ] Access logs reviewed regularly
+- [ ] Emergency procedures documented
+- [ ] Backup procedures tested
+- [ ] Key rotation schedule followed
+
+This guide provides the essential information for effective contract administration while maintaining security and operational excellence.

@@ -5,13 +5,22 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { Message } from './entities/message.entity';
 import { CreateMessageDto, ReplyMessageDto } from './dto/message.dto';
 import { User } from '../user/entities/user.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { UserAnonymousUser } from '../user/entities/user-anonymous-link.entity';
+import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../common/entities/outbox-event.entity';
+import {
+  MessageRepository,
+  ThreadViewerRole,
+} from './repository/message.repository';
 
 @Injectable()
 export class MessagesService {
@@ -22,8 +31,31 @@ export class MessagesService {
     private readonly confessionRepository: Repository<AnonymousConfession>,
     @InjectRepository(UserAnonymousUser)
     private readonly userAnonRepo: Repository<UserAnonymousUser>,
+    @InjectRepository(OutboxEvent)
+    private readonly outboxRepo: Repository<OutboxEvent>,
+    private readonly customMessageRepository: MessageRepository,
     private readonly anonymousUserService: AnonymousUserService,
+    private readonly dataSource: DataSource,
   ) {}
+
+  private resolveThreadViewerRole(
+    confessionAuthorId: string | undefined,
+    senderId: string,
+    userAnonIds: string[],
+  ): ThreadViewerRole | null {
+    const isAuthor =
+      !!confessionAuthorId && userAnonIds.includes(confessionAuthorId);
+    const isSender = userAnonIds.includes(senderId);
+
+    if (!isAuthor && !isSender) {
+      return null;
+    }
+
+    // Canonical ownership model:
+    // - Author view owns author-side read state
+    // - Sender view owns sender-side read state
+    return isAuthor ? 'AUTHOR' : 'SENDER';
+  }
 
   async create(
     createMessageDto: CreateMessageDto,
@@ -31,21 +63,57 @@ export class MessagesService {
   ): Promise<Message> {
     const confession = await this.confessionRepository.findOne({
       where: { id: createMessageDto.confession_id },
-      relations: ['anonymousUser'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+      ],
     });
     if (!confession) throw new NotFoundException('Confession not found');
+
+    const authorUser = confession.anonymousUser?.userLinks?.[0]?.user;
+    if (authorUser && !authorUser.canReceiveReplies()) {
+      throw new ForbiddenException('This user is not accepting messages');
+    }
 
     // Get or create anonymous identity for this session
     const sender = await this.anonymousUserService.getOrCreateForUserSession(
       user.id,
     );
 
-    const message = this.messageRepository.create({
-      sender,
-      confession,
-      content: createMessageDto.content,
+    return this.dataSource.transaction(async (manager) => {
+      const messageRepo = manager.getRepository(Message);
+      const outboxRepo = manager.getRepository(OutboxEvent);
+
+      const message = messageRepo.create({
+        sender,
+        confession,
+        content: createMessageDto.content,
+      });
+
+      const savedMessage = await messageRepo.save(message);
+
+      // Create Outbox Event for notification to confession author
+      const recipientEmail = this.getRecipientEmail(confession.anonymousUser);
+      if (recipientEmail) {
+        await outboxRepo.save(
+          outboxRepo.create({
+            type: 'message_notification',
+            payload: {
+              messageId: savedMessage.id,
+              confessionId: confession.id,
+              recipientEmail,
+              senderId: sender.id,
+              messagePreview: createMessageDto.content.substring(0, 100),
+            },
+            idempotencyKey: `message:${savedMessage.id}`,
+            status: OutboxStatus.PENDING,
+          }),
+        );
+      }
+
+      return savedMessage;
     });
-    return this.messageRepository.save(message);
   }
 
   async findForConfessionThread(
@@ -67,12 +135,20 @@ export class MessagesService {
     });
     const anonIds = userAnons.map((ua) => ua.anonymousUserId);
 
-    const isAuthor = confession.anonymousUser?.id && anonIds.includes(confession.anonymousUser.id);
-    const isSender = anonIds.includes(senderId);
-
-    if (!isAuthor && !isSender) {
+    const viewerRole = this.resolveThreadViewerRole(
+      confession.anonymousUser?.id,
+      senderId,
+      anonIds,
+    );
+    if (!viewerRole) {
       throw new ForbiddenException('You are not part of this conversation');
     }
+
+    await this.customMessageRepository.markThreadRead(
+      confessionId,
+      senderId,
+      viewerRole,
+    );
 
     return this.messageRepository.find({
       where: {
@@ -105,6 +181,18 @@ export class MessagesService {
     messages.forEach((m) => {
       const threadId = `${m.confession.id}_${m.sender.id}`;
       if (!threadsMap.has(threadId)) {
+        const role = this.resolveThreadViewerRole(
+          m.confession.anonymousUser?.id,
+          m.sender.id,
+          anonIds,
+        );
+        const hasUnreadForRole =
+          role === 'AUTHOR'
+            ? !m.authorReadAt
+            : role === 'SENDER'
+              ? !!m.hasReply && !m.senderReadAt
+              : false;
+
         threadsMap.set(threadId, {
           confessionId: m.confession.id,
           senderId: m.sender.id,
@@ -113,9 +201,27 @@ export class MessagesService {
             (m.confession.message.length > 50 ? '...' : ''),
           lastMessage: m.content,
           lastMessageAt: m.createdAt,
-          hasUnread: false,
-          isAuthor: anonIds.includes(m.confession.anonymousUser?.id),
+          hasUnread: hasUnreadForRole,
+          unreadCount: hasUnreadForRole ? 1 : 0,
+          isAuthor: role === 'AUTHOR',
         });
+      } else {
+        const existing = threadsMap.get(threadId);
+        const role = this.resolveThreadViewerRole(
+          m.confession.anonymousUser?.id,
+          m.sender.id,
+          anonIds,
+        );
+        const messageUnread =
+          role === 'AUTHOR'
+            ? !m.authorReadAt
+            : role === 'SENDER'
+              ? !!m.hasReply && !m.senderReadAt
+              : false;
+        if (messageUnread) {
+          existing.hasUnread = true;
+          existing.unreadCount += 1;
+        }
       }
     });
 
@@ -129,7 +235,13 @@ export class MessagesService {
     }
     const message = await this.messageRepository.findOne({
       where: { id: dto.message_id },
-      relations: ['confession', 'confession.anonymousUser'],
+      relations: [
+        'confession',
+        'confession.anonymousUser',
+        'sender',
+        'sender.userLinks',
+        'sender.userLinks.user',
+      ],
     });
     if (!message) throw new NotFoundException('Message not found');
     if (message.hasReply) throw new ForbiddenException('Already replied');
@@ -146,10 +258,42 @@ export class MessagesService {
 
     // Use a transaction to ensure atomicity
     return this.messageRepository.manager.transaction(async (manager) => {
+      const messageRepo = manager.getRepository(Message);
+      const outboxRepo = manager.getRepository(OutboxEvent);
+
       message.hasReply = true;
       message.replyContent = dto.reply.trim();
       message.repliedAt = new Date();
-      return manager.save(message);
+      const savedReply = await messageRepo.save(message);
+
+      // Create Outbox Event for notification to the original sender
+      const recipientEmail = this.getRecipientEmail(message.sender);
+      if (recipientEmail) {
+        await outboxRepo.save(
+          outboxRepo.create({
+            type: 'reply_notification',
+            payload: {
+              messageId: savedReply.id,
+              confessionId: message.confession.id,
+              recipientEmail,
+              replyPreview: dto.reply.substring(0, 100),
+            },
+            idempotencyKey: `reply:${savedReply.id}`,
+            status: OutboxStatus.PENDING,
+          }),
+        );
+      }
+
+      return savedReply;
     });
+  }
+
+  private getRecipientEmail(anonymousUser: AnonymousUser): string | null {
+    if (!anonymousUser) return null;
+    const link = anonymousUser.userLinks?.[0];
+    if (link?.user) {
+      return link.user.getEmail();
+    }
+    return null;
   }
 }

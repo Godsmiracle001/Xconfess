@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AuditLog, AuditAction } from '../entities/audit-log.entity';
+import { AuditLog, AuditActionType } from '../../audit-log/audit-log.entity';
 import { Request } from 'express';
 
 @Injectable()
@@ -15,7 +15,7 @@ export class ModerationService {
 
   async logAction(
     adminId: number,
-    action: AuditAction,
+    action: AuditActionType,
     entityType: string | null,
     entityId: string | null,
     metadata: Record<string, any> | null,
@@ -27,7 +27,11 @@ export class ModerationService {
       action,
       entityType,
       entityId,
-      metadata,
+      metadata: {
+        ...(metadata || {}),
+        ...(entityType ? { entityType } : {}),
+        ...(entityId ? { entityId } : {}),
+      },
       notes,
       ipAddress: request?.ip || request?.socket?.remoteAddress || null,
       userAgent: request?.headers['user-agent'] || null,
@@ -40,13 +44,14 @@ export class ModerationService {
 
   async getAuditLogs(
     adminId?: number,
-    action?: AuditAction,
+    action?: AuditActionType,
     entityType?: string,
     entityId?: string,
     limit = 100,
     offset = 0,
   ): Promise<[AuditLog[], number]> {
-    const query = this.auditLogRepository.createQueryBuilder('log')
+    const query = this.auditLogRepository
+      .createQueryBuilder('log')
       .leftJoinAndSelect('log.admin', 'admin')
       .orderBy('log.createdAt', 'DESC')
       .take(limit)

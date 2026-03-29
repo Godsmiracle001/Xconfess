@@ -2,7 +2,8 @@
 import { createHash } from 'crypto';
 
 // Regex patterns for PII and secrets
-const EMAIL_REGEX = /([a-zA-Z0-9._%+-]{2})[a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+const EMAIL_REGEX =
+  /([a-zA-Z0-9._%+-]{2})[a-zA-Z0-9._%+-]*@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
 const TOKEN_REGEX = /([A-Za-z0-9]{3})[A-Za-z0-9\-_]{4,}([A-Za-z0-9]{3})/g;
 const TEMPLATE_VAR_REGEX = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
@@ -81,7 +82,14 @@ export class UserIdMasker {
       return obj;
     }
 
-    const sensitiveFields = ['userId', 'email', 'recipientEmail', 'token', 'accessToken', 'refreshToken'];
+    const sensitiveFields = [
+      'userId',
+      'email',
+      'recipientEmail',
+      'token',
+      'accessToken',
+      'refreshToken',
+    ];
     const masked: any = Array.isArray(obj) ? [] : { ...obj };
 
     for (const key of Object.keys(obj)) {

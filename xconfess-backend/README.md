@@ -40,6 +40,21 @@ For operational details on managing email templates and rollouts, see the [Templ
 
 > NestJS-based backend for the xConfess anonymous confession platform.
 
+## Auth Endpoint Split (`/users/*` vs `/auth/*`)
+
+Both route groups are active in this codebase:
+
+- `/api/users/*`: user lifecycle endpoints (`register`, `login`, `profile`, account status, user notification preferences)
+- `/api/auth/*`: auth-centric endpoints (`login`, `me`, `logout`, password reset flow)
+
+Examples:
+
+- `POST /api/users/register`
+- `POST /api/users/login`
+- `POST /api/auth/login`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
 ## Active Modules
 
 | Module        | Path                 | Description                                            |
@@ -62,7 +77,8 @@ For operational details on managing email templates and rollouts, see the [Templ
 | Analytics     | `src/analytics/`     | View counts, trending                                  |
 | Data Export   | `src/data-export/`   | GDPR data export                                       |
 | WebSocket     | `src/websocket/`     | Real-time event gateway                                |
-| Notifications | `src/notifications/` | Notification system (Bull/Redis — disabled by default) |
+| Notification (outbox/DLQ replay) | `src/notification/` | Active notification queue, replay, and retention cleanup |
+| Notifications (Bull queue APIs) | `src/notifications/` | Additional notification endpoints and DLQ admin queue tooling |
 
 ## Project Setup
 
@@ -139,6 +155,8 @@ npm run migration:revert
 ## API Documentation
 
 When running locally, Swagger docs are available at `/api/api-docs`.
+
+For the exact controller-derived route list and DTO-accurate payload examples, see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
 ## 📄 License
 

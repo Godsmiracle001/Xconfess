@@ -1,11 +1,11 @@
-import { Request, Response } from "express";
-import { body, validationResult } from "express-validator";
+import { Request, Response } from 'express';
+import { body, validationResult } from 'express-validator';
 
 export const updateProfileValidator = [
-  body("isAnonymous")
+  body('isAnonymous')
     .optional()
     .isBoolean()
-    .withMessage("isAnonymous must be boolean"),
+    .withMessage('isAnonymous must be boolean'),
 ];
 
 export const updateProfileController = (req: Request, res: Response) => {
@@ -15,5 +15,5 @@ export const updateProfileController = (req: Request, res: Response) => {
   }
 
   // profile update logic here
-  res.json({ message: "Profile updated!" });
+  res.json({ message: 'Profile updated!' });
 };

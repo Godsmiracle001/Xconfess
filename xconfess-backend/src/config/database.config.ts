@@ -9,7 +9,9 @@ export const getTypeOrmConfig = (
 ): TypeOrmModuleOptions => {
   const nodeEnv = (configService.get<string>('NODE_ENV') || '').toLowerCase();
   const appEnv = (configService.get<string>('APP_ENV') || '').toLowerCase();
-  const syncOptIn = (configService.get<string>('TYPEORM_SYNCHRONIZE') || '').toLowerCase();
+  const syncOptIn = (
+    configService.get<string>('TYPEORM_SYNCHRONIZE') || ''
+  ).toLowerCase();
 
   const isLocalDevEnv =
     nodeEnv === 'development' ||
@@ -30,8 +32,10 @@ export const getTypeOrmConfig = (
     password: configService.get<string>('DB_PASSWORD'),
     database: configService.get<string>('DB_NAME'),
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-    migrations: [process.cwd() + '/migrations/*.{ts,js}'],
+
+    migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
     migrationsRun: !['test', 'ci'].includes(nodeEnv),
+
     synchronize,
     autoLoadEntities: true,
     extra: {

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
   Delete,
   Param,
   Query,
@@ -12,18 +13,64 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AdminGuard } from './guards/admin.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { AdminService } from './services/admin.service';
 import { ModerationService } from './services/moderation.service';
+import { ModerationTemplateService } from '../comment/moderation-template.service';
 import { ResolveReportDto } from './dto/resolve-report.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { BulkResolveDto } from './dto/bulk-resolve.dto';
 import { ReportStatus, ReportType } from './entities/report.entity';
+import { AuditActionType } from '../audit-log/audit-log.entity';
+import { TemplateCategory } from '../comment/entities/moderation-note-template.entity';
 import { Request } from 'express';
 import { GetUser } from '../auth/get-user.decorator';
 import { RequestUser } from '../auth/interfaces/jwt-payload.interface';
+import { IsString, IsEnum, IsOptional } from 'class-validator';
+
+class CreateTemplateDto {
+  @IsString()
+  name: string;
+
+  @IsString()
+  content: string;
+
+  @IsEnum(TemplateCategory)
+  category: TemplateCategory;
+}
+
+class UpdateTemplateDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  content?: string;
+
+  @IsOptional()
+  @IsEnum(TemplateCategory)
+  category?: TemplateCategory;
+
+  @IsOptional()
+  isActive?: boolean;
+}
 
 type AuthedRequest = Request & { user?: RequestUser };
+
+const auditActionTypeValues = new Set<string>(
+  Object.values(AuditActionType) as string[],
+);
+
+function parseAuditAction(value?: string): AuditActionType | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  return auditActionTypeValues.has(value)
+    ? (value as AuditActionType)
+    : undefined;
+}
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -31,6 +78,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly moderationService: ModerationService,
+    private readonly moderationTemplateService: ModerationTemplateService,
   ) {}
 
   // Reports
@@ -79,6 +127,7 @@ export class AdminController {
       id,
       adminId,
       dto.resolutionNotes || null,
+      dto.templateId,
       req,
     );
   }
@@ -208,6 +257,40 @@ export class AdminController {
     return this.adminService.unbanUser(parseInt(id, 10), adminId, req);
   }
 
+  // Moderation Note Templates
+  @Get('templates')
+  async getTemplates(@Query('includeInactive') includeInactive?: string) {
+    return this.moderationTemplateService.findAll(includeInactive === 'true');
+  }
+
+  @Get('templates/:id')
+  async getTemplateById(@Param('id') id: string) {
+    return this.moderationTemplateService.findById(parseInt(id, 10));
+  }
+
+  @Post('templates')
+  @HttpCode(HttpStatus.CREATED)
+  async createTemplate(
+    @Body() dto: CreateTemplateDto,
+    @GetUser('id') adminId: number,
+  ) {
+    return this.moderationTemplateService.create(dto, adminId);
+  }
+
+  @Patch('templates/:id')
+  async updateTemplate(
+    @Param('id') id: string,
+    @Body() dto: UpdateTemplateDto,
+  ) {
+    return this.moderationTemplateService.update(parseInt(id, 10), dto);
+  }
+
+  @Delete('templates/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteTemplate(@Param('id') id: string) {
+    await this.moderationTemplateService.delete(parseInt(id, 10));
+  }
+
   // Analytics
   @Get('analytics')
   async getAnalytics(
@@ -231,7 +314,7 @@ export class AdminController {
   ) {
     const [logs, total] = await this.moderationService.getAuditLogs(
       adminId ? parseInt(adminId, 10) : undefined,
-      action as any,
+      parseAuditAction(action),
       entityType,
       entityId,
       parseInt(limit || '100', 10),

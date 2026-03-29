@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -22,8 +22,8 @@ import {
   ValidationErrors,
 } from "@/app/lib/utils/validation";
 import { useStellarWallet } from "@/app/lib/hooks/useStellarWallet";
-import { Draft } from "@/app/lib/hooks/useDrafts";
-import { Eye, EyeOff, Send, Loader2 } from "lucide-react";
+import { useDrafts, Draft } from "@/app/lib/hooks/useDrafts";
+import { Eye, EyeOff, Send, Loader2, CloudDownload } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { getErrorMessage } from "@/app/lib/utils/errorHandler";
@@ -49,9 +49,72 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // Issue #454: State for backend reconciliation
+  const [newerCloudDraft, setNewerCloudDraft] = useState<{
+    title?: string;
+    body?: string;
+    content?: string;
+    gender?: Gender;
+    scheduledFor?: string;
+    updatedAt?: string;
+  } | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { anchor } = useStellarWallet();
   const toast = useGlobalToast();
+  const { drafts } = useDrafts();
+
+  // Issue #454: Backend synchronization check
+  const checkForNewerDrafts = useCallback(async () => {
+    try {
+      // Fetch latest drafts from the backend
+      const response = await apiClient.get('/confessions/drafts');
+      const cloudDrafts = response.data;
+      
+      if (cloudDrafts && cloudDrafts.length > 0) {
+        const latestCloudDraft = cloudDrafts[0];
+        const latestLocalDraft = drafts[0];
+
+        // Compare timestamps. If cloud is newer, trigger prompt.
+        if (
+          !latestLocalDraft || 
+          new Date(latestCloudDraft.updatedAt).getTime() > latestLocalDraft.savedAt
+        ) {
+          setNewerCloudDraft(latestCloudDraft);
+        }
+      }
+    } catch (error) {
+      // Silently fail if endpoint doesn't exist or user isn't logged in
+      console.debug("Could not sync drafts from backend:", error);
+    }
+  }, [drafts]);
+
+  // Issue #454: Trigger reconciliation on component mount and tab focus (device wake)
+  useEffect(() => {
+    checkForNewerDrafts();
+    
+    const handleFocus = () => {
+      checkForNewerDrafts();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [checkForNewerDrafts]);
+
+  const recoverCloudDraft = () => {
+    if (newerCloudDraft) {
+      setTitle(newerCloudDraft.title || "");
+      setBody(newerCloudDraft.body || newerCloudDraft.content || ""); 
+      if (newerCloudDraft.gender) setGender(newerCloudDraft.gender as Gender);
+      
+      // Preserve scheduled metadata locally (inform the user)
+      if (newerCloudDraft.scheduledFor) {
+        toast.info("Restored draft with scheduled publish metadata.");
+      }
+      
+      setNewerCloudDraft(null);
+    }
+  };
 
   // Removed premature validation effect
   useEffect(() => {
@@ -74,6 +137,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     setTitle(draft.title || "");
     setBody(draft.body);
     setGender(draft.gender);
+    setNewerCloudDraft(null); // Dismiss sync prompt if loading locally
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
@@ -169,8 +233,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     }
   };
 
-
-
   // This function closes the when the "esc" key is pressed
   useEffect(() => {
     if (!isPreviewMode) return;
@@ -193,8 +255,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     };
   }, [isPreviewMode]);
 
-
-
   return (
     <Card className={cn("w-full", className)}>
       <CardHeader>
@@ -205,6 +265,25 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Issue #454: Cloud Draft Reconciliation Prompt */}
+        {newerCloudDraft && (
+          <div className="mb-6 p-4 rounded-lg bg-blue-900/20 border border-blue-500/30 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-blue-200 font-medium">A newer draft was saved on another device/tab.</p>
+              <p className="text-xs text-blue-300/70 mt-1">Do you want to load the cloud version to prevent data loss?</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setNewerCloudDraft(null)} className="text-zinc-400 hover:text-white">
+                Dismiss
+              </Button>
+              <Button size="sm" onClick={recoverCloudDraft} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <CloudDownload className="w-4 h-4 mr-2" />
+                Load Cloud Draft
+              </Button>
+            </div>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title Field */}
           <div>
@@ -357,7 +436,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   />
                   <span>{g}</span>
                 </label>
-
               ))}
             </div>
           </div>

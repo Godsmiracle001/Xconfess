@@ -11,6 +11,10 @@ interface FilterChipsProps {
   query?: string;
   onRemoveFilter: (key: FilterChipKey) => void;
   onClearAll: () => void;
+  statusChip?: {
+    label: string;
+    tone?: "warning" | "info";
+  } | null;
   className?: string;
 }
 
@@ -56,6 +60,7 @@ export function FilterChips({
   query,
   onRemoveFilter,
   onClearAll,
+  statusChip,
   className,
 }: FilterChipsProps) {
   const chips: { key: FilterChipKey; label: string }[] = [];
@@ -87,6 +92,19 @@ export function FilterChips({
       role="list"
       aria-label="Active filters"
     >
+      {statusChip && (
+        <span
+          role="listitem"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ${
+            statusChip.tone === "warning"
+              ? "bg-amber-900/30 text-amber-200 border border-amber-700/60"
+              : "bg-blue-900/20 text-blue-200 border border-blue-700/40"
+          }`}
+        >
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-80" />
+          <span>{statusChip.label}</span>
+        </span>
+      )}
       {chips.map(({ key, label }) => (
         <span
           key={`${key}-${label}`}

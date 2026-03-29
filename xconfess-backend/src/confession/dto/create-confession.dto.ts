@@ -17,7 +17,10 @@ export class CreateConfessionDto {
   @MaxLength(1000, { message: 'Confession cannot exceed 1000 characters' })
   message: string;
 
-  @ApiPropertyOptional({ enum: Gender, description: 'Gender of the confession author' })
+  @ApiPropertyOptional({
+    enum: Gender,
+    description: 'Gender of the confession author',
+  })
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
@@ -33,7 +36,9 @@ export class CreateConfessionDto {
   @IsString({ each: true })
   tags?: string[];
 
-  @ApiPropertyOptional({ description: 'Stellar transaction hash for anchoring' })
+  @ApiPropertyOptional({
+    description: 'Stellar transaction hash for anchoring',
+  })
   @IsOptional()
   @IsString()
   stellarTxHash?: string;

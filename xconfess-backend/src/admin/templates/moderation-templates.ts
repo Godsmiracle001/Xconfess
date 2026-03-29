@@ -22,7 +22,8 @@ export const MODERATION_TEMPLATES = {
 };
 
 export function getTemplate(action: string, index = 0): string | null {
-  const templates = MODERATION_TEMPLATES[action as keyof typeof MODERATION_TEMPLATES];
+  const templates =
+    MODERATION_TEMPLATES[action as keyof typeof MODERATION_TEMPLATES];
   if (!templates || templates.length === 0) {
     return null;
   }

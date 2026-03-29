@@ -58,9 +58,12 @@ describe('ReportModule', () => {
       ],
     }).compile();
 
-    const reportsController = moduleRef.get<ReportsController>(ReportsController);
-    const adminReportsController = moduleRef.get<AdminReportsController>(AdminReportsController);
-    
+    const reportsController =
+      moduleRef.get<ReportsController>(ReportsController);
+    const adminReportsController = moduleRef.get<AdminReportsController>(
+      AdminReportsController,
+    );
+
     expect(reportsController).toBeDefined();
     expect(adminReportsController).toBeDefined();
 
@@ -102,7 +105,7 @@ describe('ReportModule', () => {
     // Verify that the module can create repositories for both entities
     const reportRepository = moduleRef.get('ReportRepository');
     const confessionRepository = moduleRef.get('AnonymousConfessionRepository');
-    
+
     expect(reportRepository).toBeDefined();
     expect(confessionRepository).toBeDefined();
 

@@ -29,19 +29,23 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
           const ids = await this.draftService.enqueueDueDraftIds();
           await Promise.all(
             ids.map((id) =>
-              this.queue.add('publish-one', { id }, {
-                attempts: 5,
-                backoff: { type: 'exponential', delay: 1000 },
-                removeOnComplete: true,
-                removeOnFail: false,
-              }),
+              this.queue.add(
+                'publish-one',
+                { id },
+                {
+                  attempts: 5,
+                  backoff: { type: 'exponential', delay: 1000 },
+                  removeOnComplete: true,
+                  removeOnFail: false,
+                },
+              ),
             ),
           );
           return { enqueued: ids.length };
         }
 
         if (job.name === 'publish-one') {
-          const id = (job.data as any)?.id as string;
+          const id = job.data?.id as string;
           if (!id) return;
           await this.draftService.publishScheduledDraftById(id);
           return;
@@ -76,7 +80,10 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
         );
       } catch (err) {
         const trace = err instanceof Error ? err.stack : String(err);
-        this.logger.error('Failed to schedule publish-due recurring job', trace);
+        this.logger.error(
+          'Failed to schedule publish-due recurring job',
+          trace,
+        );
       }
     })();
   }

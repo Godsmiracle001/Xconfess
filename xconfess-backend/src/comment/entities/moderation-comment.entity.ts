@@ -46,4 +46,4 @@ export class ModerationComment {
 
   @CreateDateColumn()
   createdAt: Date;
-} 
+}

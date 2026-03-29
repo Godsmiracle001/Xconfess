@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as redisStore from 'cache-manager-redis-store';
 import type { RedisClientOptions } from 'redis';
 import { CacheService } from './cache.service';
+import { CacheDiagnosticsService } from './cache-diagnostics.service';
 
 @Global()
 @Module({
@@ -28,7 +29,7 @@ import { CacheService } from './cache.service';
       },
     }),
   ],
-  providers: [CacheService],
-  exports: [NestCacheModule, CacheService],
+  providers: [CacheService, CacheDiagnosticsService],
+  exports: [NestCacheModule, CacheService, CacheDiagnosticsService],
 })
 export class CacheModule {}

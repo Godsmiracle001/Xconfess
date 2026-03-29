@@ -1,9 +1,12 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const authHeader = request.headers.get("authorization");
+
     const res = await fetch(`${process.env.BACKEND_URL}/analytics`, {
       cache: "no-store",
+      headers: authHeader ? { Authorization: authHeader } : {},
     });
 
     if (!res.ok) {
@@ -15,9 +18,11 @@ export async function GET() {
 
     const data = await res.json();
 
-    // Return backend data exactly as-is — no estimates or invented comparisons
+    // ✅ Preserve your intent: no estimation, no transformation
     return NextResponse.json(data);
-  } catch {
+  } catch (error) {
+    console.error("Analytics Fetch Error:", error);
+
     return NextResponse.json(
       { available: false, reason: "unavailable" },
       { status: 200 }
