@@ -4,12 +4,16 @@ import { EncryptionService } from './encryption.service';
 
 describe('EncryptionService', () => {
   let service: EncryptionService;
+  const validEncryptionKey =
+    '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
   const mockConfigService = {
-    get: jest.fn().mockReturnValue('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+    get: jest.fn(),
   };
 
   beforeEach(async () => {
+    mockConfigService.get.mockReturnValue(validEncryptionKey);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EncryptionService,
@@ -63,5 +67,63 @@ describe('EncryptionService', () => {
 
   it('should throw error for invalid encrypted format', () => {
     expect(() => service.decrypt('invalid-format')).toThrow();
+  });
+
+  it('should reject ciphertext values with invalid payload shape', () => {
+    const invalidCiphertexts = [
+      'deadbeef',
+      'deadbeef:',
+      ':deadbeef:cafebabe',
+      'deadbeef:feedface:',
+      'deadbeef:feedface:cafebabe:extra',
+    ];
+
+    for (const ciphertext of invalidCiphertexts) {
+      expect(() => service.decrypt(ciphertext)).toThrow(
+        'Invalid encrypted data format',
+      );
+    }
+  });
+
+  it('should throw for malformed ciphertext parts with valid shape', () => {
+    const malformedCiphertexts = [
+      'not-hex:abcdef0123456789abcdef01234567:cafebabe',
+      '0011:invalid-tag:cafebabe',
+      '00112233445566778899aabbccddeeff:00112233445566778899aabbccddeeff:zz',
+    ];
+
+    for (const ciphertext of malformedCiphertexts) {
+      expect(() => service.decrypt(ciphertext)).toThrow();
+    }
+  });
+
+  it('should enforce ENCRYPTION_KEY presence at construction time', async () => {
+    mockConfigService.get.mockReturnValue(undefined);
+
+    await expect(
+      Test.createTestingModule({
+        providers: [
+          EncryptionService,
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile(),
+    ).rejects.toThrow(
+      'CONFESSION_ENCRYPTION_KEY must be set in environment variables',
+    );
+  });
+
+  it('should enforce ENCRYPTION_KEY size at construction time', async () => {
+    mockConfigService.get.mockReturnValue('001122');
+
+    await expect(
+      Test.createTestingModule({
+        providers: [
+          EncryptionService,
+          { provide: ConfigService, useValue: mockConfigService },
+        ],
+      }).compile(),
+    ).rejects.toThrow(
+      'CONFESSION_ENCRYPTION_KEY must be 32 bytes (64 hex characters)',
+    );
   });
 });

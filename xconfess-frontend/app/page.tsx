@@ -3,7 +3,15 @@
 import { OnboardingFlow } from "./components/onboarding/OnboardingFlow";
 import dynamic from "next/dynamic";
 import { ConfessionFeed } from "./components/confession/ConfessionFeed";
-import { ErrorBoundary } from "./components/confession/ErrorBoundary";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { Button } from "./components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "./components/ui/card";
 
 const EnhancedConfessionForm = dynamic(
   () =>
@@ -29,20 +37,32 @@ export default function Home() {
       <OnboardingFlow />
 
       <main className="p-4 md:p-8 flex flex-col items-center space-y-6">
-        <div className="confession-feed w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-700 rounded-xl shadow-md p-6">
-          <h2 className="text-xl md:text-2xl font-bold text-center">
-            Confession Feed
-          </h2>
-          <p className="text-center">
-            Browse anonymous confessions from the community.
-          </p>
-        </div>
+        <Card className="confession-feed w-full max-w-xl bg-white dark:bg-zinc-900 border-zinc-700 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-xl md:text-2xl text-center text-zinc-900 dark:text-zinc-100">
+              Confession Feed
+            </CardTitle>
+            <CardDescription className="text-center">
+              Browse anonymous confessions from the community.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-4">
+            <Button className="create-confession-button">Post Confession</Button>
+            <div className="reaction-buttons flex gap-4">
+              <Button variant="outline" size="sm">
+                👍 Like
+              </Button>
+              <Button variant="outline" size="sm">
+                ❤️ Love
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        <button className="create-confession-button">Post Confession</button>
-
-        <div className="reaction-buttons flex gap-4">
-          <button>👍 Like</button>
-          <button>❤️ Love</button>
+        <div className="w-full max-w-xl flex justify-end">
+          <Button variant="ghost" className="wallet-connect">
+            Connect Wallet
+          </Button>
         </div>
 
         <ErrorBoundary>
@@ -63,8 +83,6 @@ export default function Home() {
             </div>
           </div>
         </ErrorBoundary>
-
-        <button className="wallet-connect">Connect Wallet</button>
       </main>
     </>
   );

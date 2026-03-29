@@ -6,7 +6,11 @@ export class CreateMessageDto {
   @IsUUID()
   confession_id: string;
 
-  @ApiProperty({ description: 'Message content', minLength: 1, maxLength: 1000 })
+  @ApiProperty({
+    description: 'Message content',
+    minLength: 1,
+    maxLength: 1000,
+  })
   @IsString()
   @MinLength(1)
   @MaxLength(1000)

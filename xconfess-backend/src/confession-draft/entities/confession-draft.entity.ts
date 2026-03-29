@@ -7,6 +7,7 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  VersionColumn,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 
@@ -58,4 +59,10 @@ export class ConfessionDraft {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @VersionColumn()
+  version: number;
+
+  @Column({ type: 'jsonb', default: [] })
+  revisions: { content: string; version: number; createdAt: Date }[];
 }

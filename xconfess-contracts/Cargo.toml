@@ -1,7 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-  "contracts/*",
+  "contracts/confession-anchor",
+  "contracts/confession-registry",
+  "contracts/anonymous-tipping",
+  "contracts/reputation-badges"
 ]
 
 [workspace.dependencies]
@@ -21,8 +24,3 @@ lto = true
 [profile.release-with-logs]
 inherits = "release"
 debug-assertions = true
-
-[dev-dependencies]
-proptest = "1.4.0"
-rand = "0.8"
-rand_chacha = "0.3"

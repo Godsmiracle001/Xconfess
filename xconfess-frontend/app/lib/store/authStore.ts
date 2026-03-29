@@ -15,8 +15,37 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
-      setAuth: (user) => set({ user, isAuthenticated: true }),
-      clearAuth: () => set({ user: null, isAuthenticated: false }),
+      isLoading: false,
+      error: null,
+
+      setUser: (user) =>
+        set({
+          user,
+          isAuthenticated: !!user,
+          error: null,
+        }),
+
+      setAuthenticated: (value) =>
+        set({ isAuthenticated: value, error: value ? null : undefined }),
+
+      setLoading: (isLoading) => set({ isLoading }),
+
+      setError: (error) => set({ error }),
+
+      logout: () => {
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+        });
+      },
+
+      hydrateFromStorage: () => {
+        // Hydration from localStorage is disabled for security
+        // State will be populated by AuthProvider from session cookie
+        if (typeof window === "undefined") return;
+      },
     }),
     {
       name: "auth-store",

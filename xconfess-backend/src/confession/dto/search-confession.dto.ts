@@ -157,7 +157,7 @@ export class SearchConfessionDto {
   tags?: string[];
 
   @ApiPropertyOptional({
-    description: 'Show only anonymous confessions (not implemented yet)',
+    description: 'Show only anonymous confessions',
     example: true,
     default: false,
   })

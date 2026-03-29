@@ -2,6 +2,11 @@
  * Authentication-related TypeScript types
  */
 
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
 /**
  * User object returned from the backend
  */
@@ -9,6 +14,7 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  role: UserRole;
   is_active: boolean;
   createdAt: string;
   updatedAt: string;

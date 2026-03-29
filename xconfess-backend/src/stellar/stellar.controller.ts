@@ -1,9 +1,20 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { StellarService } from './stellar.service';
 import { ContractService } from './contract.service';
 import { VerifyTransactionDto } from './dto/verify-transaction.dto';
 import { InvokeContractDto } from './dto/invoke-contract.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.guard';
 
 @ApiTags('Stellar')
 @Controller('stellar')
@@ -11,7 +22,8 @@ export class StellarController {
   constructor(
     private stellarService: StellarService,
     private contractService: ContractService,
-  ) { }
+    private configService: ConfigService,
+  ) {}
 
   @Get('config')
   @ApiOperation({ summary: 'Get Stellar network configuration' })
@@ -43,10 +55,25 @@ export class StellarController {
 
   @Post('invoke-contract')
   @ApiOperation({ summary: 'Invoke Soroban contract (admin only)' })
-  // @UseGuards(AdminGuard) // Add proper authentication
+  @UseGuards(JwtAuthGuard, StellarInvokeContractGuard)
   async invokeContract(@Body() dto: InvokeContractDto) {
-    // TODO: Add proper authentication and authorization
-    // For now, this is a protected endpoint
-    throw new Error('Not implemented - requires authentication');
+    const signerSecret = this.configService.get<string>(
+      'STELLAR_SERVER_SECRET',
+    );
+    if (!signerSecret) {
+      throw new BadRequestException(
+        'Stellar server signer secret is not configured',
+      );
+    }
+
+    return this.contractService.invokeContract(
+      {
+        contractId: dto.contractId,
+        functionName: dto.functionName,
+        args: dto.args,
+        sourceAccount: dto.sourceAccount,
+      },
+      signerSecret,
+    );
   }
 }

@@ -1,0 +1,55 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: staging
+      run_build:
+        description: Build artifacts before deploy
+        required: true
+        default: "false"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build backend
+        if: inputs.run_build == 'true'
+        run: npm run build --workspace=xconfess-backend
+      - name: Build frontend
+        if: inputs.run_build == 'true'
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:5000
+        run: npm run build --workspace=xconfess-frontend
+      - name: Upload backend artifact
+        if: inputs.run_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: xconfess-backend-dist
+          path: xconfess-backend/dist
+      - name: Upload frontend artifact
+        if: inputs.run_build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: xconfess-frontend-build
+          path: xconfess-frontend/.next
+      - name: Deploy
+        run: |
+          echo "Deploy placeholder for ${GITHUB_REPOSITORY} to ${{ inputs.environment }}."
+          echo "Add provider-specific deployment steps here."

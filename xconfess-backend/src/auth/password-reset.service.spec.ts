@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PasswordResetService } from './password-reset.service';
 import { PasswordReset } from './entities/password-reset.entity';
-import { User } from '../user/entities/user.entity';
+import { User, UserRole } from '../user/entities/user.entity';
 import { BadRequestException } from '@nestjs/common';
 import { CryptoUtil } from '../common/crypto.util';
 
@@ -12,7 +12,7 @@ describe('PasswordResetService', () => {
   let passwordResetRepository: Repository<PasswordReset>;
   let userRepository: Repository<User>;
 
-  const mockUser: User = {
+  const mockUser = {
     id: 1,
     username: 'testuser',
     emailEncrypted: CryptoUtil.encrypt('test@example.com').encrypted,
@@ -20,13 +20,19 @@ describe('PasswordResetService', () => {
     emailTag: CryptoUtil.encrypt('test@example.com').tag,
     emailHash: CryptoUtil.hash('test@example.com'),
     password: 'hashedpassword',
-    isAdmin: false,
+    role: UserRole.USER,
     is_active: true,
     resetPasswordToken: null,
     resetPasswordExpires: null,
+    notificationPreferences: {},
+    privacySettings: {
+      isDiscoverable: true,
+      canReceiveReplies: true,
+      showReactions: true,
+    },
     createdAt: new Date(),
     updatedAt: new Date(),
-  };
+  } as any as User;
 
   const mockPasswordReset: PasswordReset = {
     id: 1,
@@ -180,6 +186,83 @@ describe('PasswordResetService', () => {
       await expect(service.findValidToken('test-token-123')).rejects.toThrow(
         'Error finding token: Database error',
       );
+    });
+  });
+
+  describe('consumeValidToken', () => {
+    it('returns invalid when token does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      const res = await service.consumeValidToken('missing-token');
+      expect(res.reset).toBeNull();
+      expect(res.reason).toBe('invalid');
+    });
+
+    it('returns reused when token is already used', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockPasswordReset,
+        used: true,
+      });
+
+      const res = await service.consumeValidToken('test-token-123');
+      expect(res.reset).toBeNull();
+      expect(res.reason).toBe('reused');
+    });
+
+    it('returns expired when token has expired', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockPasswordReset,
+        expiresAt: new Date(Date.now() - 10 * 60 * 1000),
+        used: false,
+      });
+
+      const res = await service.consumeValidToken('test-token-123');
+      expect(res.reset).toBeNull();
+      expect(res.reason).toBe('expired');
+    });
+
+    it('atomically consumes and returns valid', async () => {
+      const existing = {
+        ...mockPasswordReset,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        used: false,
+      };
+      const consumed = {
+        ...existing,
+        used: true,
+        usedAt: new Date(),
+      };
+
+      mockRepository.findOne
+        .mockResolvedValueOnce(existing as any)
+        .mockResolvedValueOnce(consumed as any);
+      mockRepository.update.mockResolvedValue({ affected: 1 });
+
+      const res = await service.consumeValidToken('test-token-123');
+      expect(res.reset).toEqual(
+        expect.objectContaining({
+          ...consumed,
+          usedAt: expect.any(Date),
+        }),
+      );
+      expect(res.reason).toBe('valid');
+      expect(mockRepository.update).toHaveBeenCalledWith(
+        expect.objectContaining({ token: 'test-token-123' }),
+        { used: true, usedAt: expect.any(Date) },
+      );
+    });
+
+    it('returns reused when concurrent update affected 0 rows', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        ...mockPasswordReset,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        used: false,
+      });
+      mockRepository.update.mockResolvedValue({ affected: 0 });
+
+      const res = await service.consumeValidToken('test-token-123');
+      expect(res.reset).toBeNull();
+      expect(res.reason).toBe('reused');
     });
   });
 

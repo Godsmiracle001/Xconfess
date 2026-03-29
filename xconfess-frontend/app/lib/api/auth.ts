@@ -18,18 +18,17 @@ export interface AuthResponse {
 }
 
 export function saveToken(token: string): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(AUTH_TOKEN_KEY, token);
+  // Persistence is now handled via HttpOnly session cookies
 }
 
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(AUTH_TOKEN_KEY);
+export async function getToken(): Promise<string | null> {
+  // In client-side, we don't have direct access to HttpOnly tokens.
+  // We should rely on the session API to verify authentication.
+  return null;
 }
 
-export function removeToken(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(AUTH_TOKEN_KEY);
+export async function removeToken(): Promise<void> {
+  await fetch("/api/auth/session", { method: "DELETE" }).catch(() => { });
 }
 
 export function decodeToken(token: string): AuthTokenPayload | null {
@@ -49,27 +48,30 @@ export function decodeToken(token: string): AuthTokenPayload | null {
   }
 }
 
-export function isAuthenticated(): boolean {
-  const token = getToken();
-  if (!token) return false;
-
-  const payload = decodeToken(token);
-  if (!payload) return false;
-
-  return payload.exp * 1000 > Date.now();
+export async function isAuthenticated(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/auth/session");
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
-export function getCurrentUser(): AuthTokenPayload | null {
-  const token = getToken();
-  if (!token) return null;
-  if (!isAuthenticated()) return null;
-  return decodeToken(token);
+export async function getCurrentUser(): Promise<AuthTokenPayload | null> {
+  try {
+    const response = await fetch("/api/auth/session");
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.user;
+  } catch {
+    return null;
+  }
 }
 
 export async function login(
   credentials: LoginCredentials,
 ): Promise<AuthTokenPayload> {
-  const response = await fetch(`${API_URL}/auth/login`, {
+  const response = await fetch("/api/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
@@ -82,13 +84,8 @@ export async function login(
     throw new Error(error.message ?? "Login failed");
   }
 
-  const data: AuthResponse = await response.json();
-  saveToken(data.access_token);
-
-  const payload = decodeToken(data.access_token);
-  if (!payload) throw new Error("Invalid token received from server");
-
-  return payload;
+  const data = await response.json();
+  return data.user;
 }
 
 export function logout(): void {
@@ -99,16 +96,16 @@ export async function authFetch(
   path: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const token = getToken();
   const headers = new Headers(options.headers);
 
   if (!headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  return fetch(`${API_URL}${path}`, { ...options, headers });
+  // Session cookies are automatically included by the browser
+  return fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include"
+  });
 }

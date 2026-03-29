@@ -32,4 +32,4 @@ export class GetConfessionsDto {
   @IsOptional()
   @IsEnum(Gender)
   gender?: Gender;
-} 
+}

@@ -10,16 +10,22 @@ export class EncryptionService {
   private readonly key: Buffer;
 
   constructor(private configService: ConfigService) {
-    const keyString = this.configService.get<string>('ENCRYPTION_KEY');
+    const keyString = this.configService.get<string>(
+      'CONFESSION_ENCRYPTION_KEY',
+    );
 
     if (!keyString) {
-      throw new Error('ENCRYPTION_KEY must be set in environment variables');
+      throw new Error(
+        'CONFESSION_ENCRYPTION_KEY must be set in environment variables',
+      );
     }
 
     this.key = Buffer.from(keyString, 'hex');
 
     if (this.key.length !== 32) {
-      throw new Error('ENCRYPTION_KEY must be 32 bytes (64 hex characters)');
+      throw new Error(
+        'CONFESSION_ENCRYPTION_KEY must be 32 bytes (64 hex characters)',
+      );
     }
   }
 
@@ -54,7 +60,10 @@ export class EncryptionService {
     return decipher.update(encrypted, 'hex', 'utf8') + decipher.final('utf8');
   }
 
-  encryptFields<T extends Record<string, unknown>>(obj: T, fields: string[]): T {
+  encryptFields<T extends Record<string, unknown>>(
+    obj: T,
+    fields: string[],
+  ): T {
     const result = { ...obj };
 
     for (const field of fields) {
@@ -67,7 +76,10 @@ export class EncryptionService {
     return result;
   }
 
-  decryptFields<T extends Record<string, unknown>>(obj: T, fields: string[]): T {
+  decryptFields<T extends Record<string, unknown>>(
+    obj: T,
+    fields: string[],
+  ): T {
     const result = { ...obj };
 
     for (const field of fields) {

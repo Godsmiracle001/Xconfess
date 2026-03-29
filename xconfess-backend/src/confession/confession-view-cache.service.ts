@@ -8,11 +8,20 @@ export class ConfessionViewCacheService {
    * Checks if the user/IP has viewed recently and marks as viewed if not.
    * Returns true if this is a new view (should increment view count).
    */
-  async checkAndMarkView(confessionId: string, userOrIp: string): Promise<boolean> {
+  async checkAndMarkView(
+    confessionId: string,
+    userOrIp: string,
+  ): Promise<boolean> {
     const key = `confession:viewed:${confessionId.replace(/:/g, '_')}:${userOrIp.replace(/:/g, '_')}`;
     try {
       // SET key value EX 3600 NX returns 'OK' if set, null if exists
-      const result = await this.redis.set(key, '1', 'EX', this.VIEW_CACHE_EXPIRY, 'NX');
+      const result = await this.redis.set(
+        key,
+        '1',
+        'EX',
+        this.VIEW_CACHE_EXPIRY,
+        'NX',
+      );
       return result === 'OK';
     } catch (error) {
       console.error('Redis error in checkAndMarkView:', error);
@@ -23,12 +32,15 @@ export class ConfessionViewCacheService {
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
-    @Inject('VIEW_CACHE_EXPIRY') cacheExpiry: number = 60 * 60
+    @Inject('VIEW_CACHE_EXPIRY') cacheExpiry: number = 60 * 60,
   ) {
     this.VIEW_CACHE_EXPIRY = cacheExpiry;
   }
 
-  async hasViewedRecently(confessionId: string, userOrIp: string): Promise<boolean> {
+  async hasViewedRecently(
+    confessionId: string,
+    userOrIp: string,
+  ): Promise<boolean> {
     const key = `confession:viewed:${confessionId.replace(/:/g, '_')}:${userOrIp.replace(/:/g, '_')}`;
     try {
       const exists = await this.redis.exists(key);

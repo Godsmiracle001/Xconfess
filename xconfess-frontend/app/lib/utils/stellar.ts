@@ -1,5 +1,10 @@
 import * as StellarSDK from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
+import {
+  freighterGetPublicKey,
+  freighterSignTransaction,
+  isFreighterInstalled,
+} from "@/lib/wallet/freighterAdapter";
 
 export function hashConfession(content: string, timestamp?: number): string {
   const ts = timestamp || Date.now();
@@ -22,29 +27,13 @@ export function getStellarServer(): StellarSDK.Horizon.Server {
 }
 
 export async function isFreighterAvailable(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const freighter = (window as any).freighterApi;
-    return !!freighter;
-  } catch {
-    return false;
-  }
+  return isFreighterInstalled();
 }
 
 export async function getPublicKey(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const freighter = (window as any).freighterApi;
-    if (!freighter) return null;
-
-    const publicKey = await freighter.getPublicKey();
-    return publicKey || null;
-  } catch (error) {
-    console.error("Failed to get public key:", error);
+    return await freighterGetPublicKey();
+  } catch {
     return null;
   }
 }
@@ -62,17 +51,17 @@ export async function anchorConfession(
       };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const freighter = (window as any).freighterApi;
-    if (!freighter) {
+    if (!isFreighterInstalled()) {
       return {
         success: false,
         error: "Freighter wallet not found",
       };
     }
 
-    const publicKey = await freighter.getPublicKey();
-    if (!publicKey) {
+    let publicKey: string;
+    try {
+      publicKey = await freighterGetPublicKey();
+    } catch {
       return {
         success: false,
         error: "Failed to get public key from wallet",
@@ -118,7 +107,7 @@ export async function anchorConfession(
       .build();
 
     const preparedTx = await sorobanServer.prepareTransaction(transaction);
-    const signedTx = await freighter.signTransaction(
+    const signedTx = await freighterSignTransaction(
       preparedTx.toXDR(),
       network,
     );

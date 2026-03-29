@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { io, Socket } from 'socket.io-client';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { WebSocketAdapter } from '../src/websocket.adapter';
+import { WebSocketAdapter } from '../src/websocket/websocket.adapter';
 import { ConfigService } from '@nestjs/config';
+import { ReactionsGateway } from '../src/reaction/reactions.gateway';
+import { buildWebSocketServerOptions } from '../src/websocket/websocket.adapter';
 
 describe('Reactions Integration (e2e)', () => {
   let app: INestApplication;
@@ -21,7 +23,7 @@ describe('Reactions Integration (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     const configService = app.get(ConfigService);
     const wsAdapter = new WebSocketAdapter(app, configService);
     app.useWebSocketAdapter(wsAdapter);
@@ -130,7 +132,7 @@ describe('Reactions Integration (e2e)', () => {
 
     it('should broadcast reaction:removed when user removes reaction', (done) => {
       // First add a reaction
-      request(app.getHttpServer())
+      void request(app.getHttpServer())
         .post('/api/v1/reactions')
         .set('Authorization', `Bearer ${authToken}`)
         .send({
@@ -150,14 +152,15 @@ describe('Reactions Integration (e2e)', () => {
 
             // Remove reaction
             setTimeout(() => {
-              request(app.getHttpServer())
+              void request(app.getHttpServer())
                 .delete(`/api/v1/reactions/${confessionId}`)
                 .set('Authorization', `Bearer ${authToken}`)
                 .expect(200)
                 .catch((err) => done(err));
             }, 100);
           });
-        });
+        })
+        .catch((err) => done(err));
     });
   });
 
@@ -299,8 +302,10 @@ describe('Reactions Integration (e2e)', () => {
               .get('/api/v1/websocket/stats')
               .expect(200)
               .then((response) => {
-                expect(response.body.totalConnections).toBeGreaterThanOrEqual(targetConnections);
-                
+                expect(response.body.totalConnections).toBeGreaterThanOrEqual(
+                  targetConnections,
+                );
+
                 // Cleanup
                 clients.forEach((c) => c.disconnect());
                 done();
@@ -377,6 +382,154 @@ describe('Reactions Integration (e2e)', () => {
       expect(response.body).toHaveProperty('totalConnections');
       expect(response.body).toHaveProperty('connectionsPerIP');
       expect(response.body).toHaveProperty('activeRooms');
+    });
+  });
+});
+
+describe('ReactionsGateway fanout and reconnect unit coverage', () => {
+  const createGateway = () => {
+    const configService: any = {
+      get: jest.fn().mockReturnValue('http://localhost:3000'),
+    };
+    const wsLogger: any = {
+      logSubscriptionRejected: jest.fn(),
+      logSubscriptionGranted: jest.fn(),
+      logEvent: jest.fn(),
+    };
+    return new ReactionsGateway(configService, wsLogger);
+  };
+
+  const createSocketClient = (id: string, ip = '127.0.0.1') =>
+    ({
+      id,
+      handshake: {
+        address: ip,
+        headers: {},
+      },
+      emit: jest.fn(),
+      join: jest.fn(),
+      leave: jest.fn(),
+      disconnect: jest.fn(),
+    }) as any;
+
+  it('reconnects after network interruption and re-subscribes to room', () => {
+    const gateway = createGateway();
+    const disconnectedClient = createSocketClient('socket-old');
+    const reconnectedClient = createSocketClient('socket-new');
+
+    gateway.handleConnection(disconnectedClient);
+    gateway.handleSubscribeToConfession(disconnectedClient, {
+      confessionId: 'c-1',
+    });
+    gateway.handleDisconnect(disconnectedClient);
+
+    gateway.handleConnection(reconnectedClient);
+    gateway.handleSubscribeToConfession(reconnectedClient, {
+      confessionId: 'c-1',
+    });
+
+    expect(disconnectedClient.join).toHaveBeenCalledWith('confession:c-1');
+    expect(reconnectedClient.join).toHaveBeenCalledWith('confession:c-1');
+    expect(reconnectedClient.emit).toHaveBeenCalledWith(
+      'subscribed',
+      expect.objectContaining({ confessionId: 'c-1' }),
+    );
+  });
+
+  it('broadcastReactionAdded fans out only to target channel', () => {
+    const gateway = createGateway();
+    const emit = jest.fn();
+    const to = jest.fn().mockReturnValue({ emit });
+    (gateway as any).server = { to };
+
+    gateway.broadcastReactionAdded('conf-123', {
+      reactionId: 'r-1',
+      userId: 'u-1',
+      reactionType: 'like',
+      timestamp: new Date(),
+      totalCount: 3,
+    });
+
+    expect(to).toHaveBeenCalledTimes(1);
+    expect(to).toHaveBeenCalledWith('confession:conf-123');
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(
+      'reaction:added',
+      expect.objectContaining({
+        confessionId: 'conf-123',
+        totalCount: 3,
+      }),
+    );
+  });
+
+  it('broadcast fanout counts match intended subscriber scope across channels', () => {
+    const gateway = createGateway();
+    const roomEmitters = new Map<string, jest.Mock>();
+    const to = jest.fn((room: string) => {
+      if (!roomEmitters.has(room)) {
+        roomEmitters.set(room, jest.fn());
+      }
+      return { emit: roomEmitters.get(room)! };
+    });
+    (gateway as any).server = { to };
+
+    gateway.broadcastReactionAdded('room-a', {
+      reactionId: 'r-a1',
+      userId: 'u-1',
+      reactionType: 'like',
+      timestamp: new Date(),
+      totalCount: 1,
+    });
+    gateway.broadcastReactionRemoved('room-a', {
+      reactionId: 'r-a1',
+      userId: 'u-1',
+      reactionType: 'like',
+      timestamp: new Date(),
+      totalCount: 0,
+    });
+    gateway.broadcastConfessionUpdated('room-b', {
+      reactionCounts: { wow: 2 },
+      totalReactions: 2,
+      timestamp: new Date(),
+    });
+
+    const roomAEmitter = roomEmitters.get('confession:room-a');
+    const roomBEmitter = roomEmitters.get('confession:room-b');
+
+    expect(to).toHaveBeenCalledWith('confession:room-a');
+    expect(to).toHaveBeenCalledWith('confession:room-b');
+    expect(roomAEmitter).toBeDefined();
+    expect(roomBEmitter).toBeDefined();
+    expect(roomAEmitter).toHaveBeenCalledTimes(2);
+    expect(roomBEmitter).toHaveBeenCalledTimes(1);
+    expect(roomAEmitter).toHaveBeenNthCalledWith(
+      1,
+      'reaction:added',
+      expect.objectContaining({ confessionId: 'room-a' }),
+    );
+    expect(roomAEmitter).toHaveBeenNthCalledWith(
+      2,
+      'reaction:removed',
+      expect.objectContaining({ confessionId: 'room-a' }),
+    );
+    expect(roomBEmitter).toHaveBeenCalledWith(
+      'confession:updated',
+      expect.objectContaining({ confessionId: 'room-b' }),
+    );
+  });
+
+  it('websocket adapter options keep reconnect-friendly transport and heartbeat defaults', () => {
+    const options = buildWebSocketServerOptions('https://frontend.example');
+
+    expect(options.transports).toEqual(['websocket', 'polling']);
+    expect(options.allowUpgrades).toBe(true);
+    expect(options.pingTimeout).toBe(60000);
+    expect(options.pingInterval).toBe(25000);
+    expect(options.upgradeTimeout).toBe(10000);
+    expect(options.cors).toEqual({
+      origin: 'https://frontend.example',
+      credentials: true,
+      methods: ['GET', 'POST'],
     });
   });
 });

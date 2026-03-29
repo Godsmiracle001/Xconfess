@@ -18,7 +18,10 @@ export class AnonymousUserService {
     return this.anonymousUserRepository.save(anon);
   }
 
-  async getOrCreateForUserSession(userId: number, sessionWindowHours: number = 24): Promise<AnonymousUser> {
+  async getOrCreateForUserSession(
+    userId: number,
+    sessionWindowHours: number = 24,
+  ): Promise<AnonymousUser> {
     // Calculate the session window cutoff time
     const sessionCutoff = new Date();
     sessionCutoff.setHours(sessionCutoff.getHours() - sessionWindowHours);

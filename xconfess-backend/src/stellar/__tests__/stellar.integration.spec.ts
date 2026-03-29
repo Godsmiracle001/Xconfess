@@ -62,7 +62,8 @@ describe('Stellar Integration Tests', () => {
       }
     });
   });
-});import { Test } from '@nestjs/testing';
+});
+import { Test } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
 import * as StellarSDK from '@stellar/stellar-sdk';
 import { StellarModule } from '../stellar.module';

@@ -10,4 +10,3 @@ describe('moderation-templates', () => {
     expect(getTemplate('nonexistent', 0)).toBeNull();
   });
 });
-

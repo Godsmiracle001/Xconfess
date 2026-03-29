@@ -20,14 +20,14 @@ describe('Auth Logging PII Protection (e2e)', () => {
     // Capture log messages
     logger = new Logger('TestLogger');
     const originalLog = logger.log;
-    
+
     logger.log = (message: string, context?: any) => {
       logMessages.push(message);
       if (context) {
         logMessages.push(`Context: ${JSON.stringify(context)}`);
       }
     };
-    
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -67,13 +67,15 @@ describe('Auth Logging PII Protection (e2e)', () => {
         })
         .expect(200);
 
-      expect(response.body.message).toContain('password reset email has been sent');
+      expect(response.body.message).toContain(
+        'password reset email has been sent',
+      );
 
       // Check that no PII is logged
       const logContent = logMessages.join(' ');
       expect(logContent).not.toContain('test@example.com');
       expect(logContent).not.toContain('email:');
-      
+
       // Should contain masked user ID
       expect(logContent).toContain('maskedUserId');
       expect(logContent).toContain('user_');
@@ -87,13 +89,15 @@ describe('Auth Logging PII Protection (e2e)', () => {
         })
         .expect(200);
 
-      expect(response.body.message).toContain('password reset email has been sent');
+      expect(response.body.message).toContain(
+        'password reset email has been sent',
+      );
 
       // Check that no PII is logged
       const logContent = logMessages.join(' ');
       expect(logContent).not.toContain('test@example.com');
       expect(logContent).not.toContain(String(testUser.id));
-      
+
       // Should contain masked user ID
       expect(logContent).toContain('maskedUserId');
       expect(logContent).toContain('user_');
@@ -101,11 +105,9 @@ describe('Auth Logging PII Protection (e2e)', () => {
 
     it('should not log PII in password reset success', async () => {
       // First request password reset
-      await request(app.getHttpServer())
-        .post('/auth/forgot-password')
-        .send({
-          email: 'test@example.com',
-        });
+      await request(app.getHttpServer()).post('/auth/forgot-password').send({
+        email: 'test@example.com',
+      });
 
       // Get the token from the email service (this would require mocking in real scenario)
       // For this test, we'll simulate getting the token and resetting password
@@ -123,7 +125,7 @@ describe('Auth Logging PII Protection (e2e)', () => {
       const logContent = logMessages.join(' ');
       expect(logContent).not.toContain('test@example.com');
       expect(logContent).not.toContain('email:');
-      
+
       // Should contain masked user ID and token info
       expect(logContent).toContain('maskedUserId');
       expect(logContent).toContain('tokenId');
@@ -141,7 +143,7 @@ describe('Auth Logging PII Protection (e2e)', () => {
       const logContent = logMessages.join(' ');
       expect(logContent).not.toContain('nonexistent@example.com');
       expect(logContent).not.toContain('email:');
-      
+
       // Should contain warning about non-existent user
       expect(logContent).toContain('non-existent user');
     });
@@ -176,16 +178,16 @@ describe('Auth Logging PII Protection (e2e)', () => {
         .expect(200);
 
       const logContent = logMessages.join(' ');
-      
+
       // Should use user_ prefix with hash
       expect(logContent).toMatch(/user_[a-f0-9]{12}/);
-      
+
       // Should be consistent length (user_ + 12 char hash)
       const maskedIdMatches = logContent.match(/user_[a-f0-9]{12}/g);
       expect(maskedIdMatches).toBeTruthy();
-      
+
       if (maskedIdMatches) {
-        maskedIdMatches.forEach(match => {
+        maskedIdMatches.forEach((match) => {
           expect(match.length).toBe(18); // user_ + 12 chars
         });
       }
@@ -203,11 +205,11 @@ describe('Auth Logging PII Protection (e2e)', () => {
         .expect(200); // Still returns 200 for security
 
       const logContent = logMessages.join(' ');
-      
+
       // Should not contain the invalid email in logs
       expect(logContent).not.toContain('invalid-email');
       expect(logContent).not.toContain('email:');
-      
+
       // Should contain error information without PII
       if (logContent.includes('error')) {
         expect(logContent).toContain('error');
@@ -218,19 +220,17 @@ describe('Auth Logging PII Protection (e2e)', () => {
 
   describe('Observable Data Points', () => {
     it('should log only safe, non-PII data points', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/forgot-password')
-        .send({
-          email: 'test@example.com',
-        });
+      await request(app.getHttpServer()).post('/auth/forgot-password').send({
+        email: 'test@example.com',
+      });
 
       const logContent = logMessages.join(' ');
-      
+
       // Safe data points that should be present
       expect(logContent).toContain('maskedUserId');
       expect(logContent).toContain('ipAddress');
       expect(logContent).toContain('userAgent');
-      
+
       // PII data points that should NOT be present
       expect(logContent).not.toContain('email:');
       expect(logContent).not.toContain('test@example.com');

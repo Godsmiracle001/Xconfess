@@ -1,8 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, MoreThan } from 'typeorm';
 import { PasswordReset } from './entities/password-reset.entity';
 import * as crypto from 'crypto';
+
+export type PasswordResetConsumeReason =
+  | 'valid'
+  | 'invalid'
+  | 'expired'
+  | 'reused';
 
 @Injectable()
 export class PasswordResetService {
@@ -86,6 +92,48 @@ export class PasswordResetService {
       this.logger.error(`Error finding token: ${errorMessage}`);
       throw new Error(`Error finding token: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Atomically consumes a reset token if it is valid.
+   * This prevents concurrent reuse by marking `used=true` in a single DB update.
+   */
+  async consumeValidToken(
+    token: string,
+    now: Date = new Date(),
+  ): Promise<{
+    reset: PasswordReset | null;
+    reason: PasswordResetConsumeReason;
+  }> {
+    const existing = await this.passwordResetRepository.findOne({
+      where: { token },
+      relations: ['user'],
+    });
+
+    if (!existing) return { reset: null, reason: 'invalid' };
+    if (existing.used) return { reset: null, reason: 'reused' };
+    if (existing.expiresAt <= now) return { reset: null, reason: 'expired' };
+
+    // Atomic consume:
+    // Only the first concurrent consumer will get affected=1.
+    const updateResult = await this.passwordResetRepository.update(
+      { token, used: false, expiresAt: MoreThan(now) },
+      { used: true, usedAt: now },
+    );
+
+    if (!updateResult.affected) {
+      // Token was likely consumed concurrently between the initial read and update.
+      return { reset: null, reason: 'reused' };
+    }
+
+    const consumed = await this.passwordResetRepository.findOne({
+      where: { token },
+      relations: ['user'],
+    });
+
+    // consumed should exist; if it doesn't, treat as invalid (defensive fallback).
+    if (!consumed) return { reset: null, reason: 'invalid' };
+    return { reset: consumed, reason: 'valid' };
   }
 
   async markTokenAsUsed(tokenId: number): Promise<void> {

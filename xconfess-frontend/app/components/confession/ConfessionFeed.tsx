@@ -68,10 +68,12 @@ export const ConfessionFeed = () => {
       {/* Error State */}
       {error && (
         <ErrorState
-          error={error ?? "Failed to load confessions"}
+          error={error.message ?? "Failed to load confessions"}
+          correlationId={error.correlationId}
           title="Failed to load confessions"
           description="Something went wrong while fetching confessions."
           showRetry
+          onRetry={handleRetry}
         />
       )}
 

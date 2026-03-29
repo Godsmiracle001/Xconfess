@@ -38,13 +38,14 @@ export class RateLimitGuard implements CanActivate {
     const key = `${clientId}:${method}`;
 
     // Get custom rate limit if defined for the endpoint
-    const customRateLimit = this.reflector.get<{ limit: number; window: number }>(
-      'rateLimit',
-      context.getHandler(),
-    );
+    const customRateLimit = this.reflector.get<{
+      limit: number;
+      window: number;
+    }>('rateLimit', context.getHandler());
 
     // Determine rate limit based on endpoint decorator or HTTP method fallback
-    const { limit, window } = customRateLimit || this.getRateLimitForMethod(method);
+    const { limit, window } =
+      customRateLimit || this.getRateLimitForMethod(method);
 
     const now = Date.now();
     const entry = this.rateLimitStore.get(key);

@@ -3,7 +3,11 @@ import { UserService } from './user.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
-import { InternalServerErrorException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { EmailService } from '../email/email.service';
 import { CryptoUtil } from '../common/crypto.util';
@@ -158,7 +162,9 @@ describe('UserService', () => {
 
   describe('updatePassword', () => {
     it('should successfully update password and clear reset token fields', async () => {
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('new-hashed-password' as never);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockResolvedValue('new-hashed-password' as never);
       mockRepository.update.mockResolvedValue({ affected: 1 });
 
       await service.updatePassword(1, 'newpassword123');
@@ -172,7 +178,9 @@ describe('UserService', () => {
     });
 
     it('should throw InternalServerErrorException on database error', async () => {
-      jest.spyOn(bcrypt, 'hash').mockResolvedValue('new-hashed-password' as never);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockResolvedValue('new-hashed-password' as never);
       mockRepository.update.mockRejectedValue(new Error('Database error'));
 
       await expect(service.updatePassword(1, 'newpassword123')).rejects.toThrow(
@@ -235,7 +243,11 @@ describe('UserService', () => {
       // Check that hash matches CryptoUtil.hash
       expect(result.emailHash).toBe(CryptoUtil.hash(validUserData.email));
       // Decrypt and check
-      const decrypted = CryptoUtil.decrypt(result.emailEncrypted, result.emailIv, result.emailTag);
+      const decrypted = CryptoUtil.decrypt(
+        result.emailEncrypted,
+        result.emailIv,
+        result.emailTag,
+      );
       expect(decrypted).toBe(validUserData.email);
     });
 
@@ -272,7 +284,11 @@ describe('UserService', () => {
       mockRepository.findOne.mockResolvedValue(mockUser);
 
       await expect(
-        service.create(validUserData.email, validUserData.password, validUserData.username),
+        service.create(
+          validUserData.email,
+          validUserData.password,
+          validUserData.username,
+        ),
       ).rejects.toThrow(ConflictException);
       expect(mockRepository.create).not.toHaveBeenCalled();
       expect(mockRepository.save).not.toHaveBeenCalled();
@@ -284,16 +300,26 @@ describe('UserService', () => {
       mockRepository.save.mockRejectedValue(new Error('Database error'));
 
       await expect(
-        service.create(validUserData.email, validUserData.password, validUserData.username),
+        service.create(
+          validUserData.email,
+          validUserData.password,
+          validUserData.username,
+        ),
       ).rejects.toThrow(InternalServerErrorException);
     });
 
     it('should throw InternalServerErrorException on password hashing error', async () => {
       mockRepository.findOne.mockResolvedValue(null);
-      jest.spyOn(bcrypt, 'hash').mockRejectedValue(new Error('Hashing error') as never);
+      jest
+        .spyOn(bcrypt, 'hash')
+        .mockRejectedValue(new Error('Hashing error') as never);
 
       await expect(
-        service.create(validUserData.email, validUserData.password, validUserData.username),
+        service.create(
+          validUserData.email,
+          validUserData.password,
+          validUserData.username,
+        ),
       ).rejects.toThrow(InternalServerErrorException);
     });
 
@@ -301,7 +327,9 @@ describe('UserService', () => {
       mockRepository.findOne.mockResolvedValue(null);
       mockRepository.create.mockReturnValue(mockUser);
       mockRepository.save.mockResolvedValue(mockUser);
-      mockEmailService.sendWelcomeEmail.mockRejectedValue(new Error('Email error'));
+      mockEmailService.sendWelcomeEmail.mockRejectedValue(
+        new Error('Email error'),
+      );
 
       const result = await service.create(
         validUserData.email,
@@ -318,7 +346,11 @@ describe('UserService', () => {
       mockRepository.create.mockReturnValue({ ...mockUser, username: '' });
       mockRepository.save.mockResolvedValue({ ...mockUser, username: '' });
 
-      const result = await service.create(validUserData.email, validUserData.password, '');
+      const result = await service.create(
+        validUserData.email,
+        validUserData.password,
+        '',
+      );
 
       expect(result.username).toBe('');
       expect(result.emailEncrypted).toBeDefined();
@@ -338,10 +370,20 @@ describe('UserService', () => {
     it('should handle special characters in username', async () => {
       const specialUsername = 'test-user_123';
       mockRepository.findOne.mockResolvedValue(null);
-      mockRepository.create.mockReturnValue({ ...mockUser, username: specialUsername });
-      mockRepository.save.mockResolvedValue({ ...mockUser, username: specialUsername });
+      mockRepository.create.mockReturnValue({
+        ...mockUser,
+        username: specialUsername,
+      });
+      mockRepository.save.mockResolvedValue({
+        ...mockUser,
+        username: specialUsername,
+      });
 
-      const result = await service.create(validUserData.email, validUserData.password, specialUsername);
+      const result = await service.create(
+        validUserData.email,
+        validUserData.password,
+        specialUsername,
+      );
 
       expect(result.username).toBe(specialUsername);
       expect(result.emailEncrypted).toBeDefined();
@@ -380,7 +422,9 @@ describe('UserService', () => {
       const result = await service.deactivateAccount(userId);
 
       expect(result.is_active).toBe(false);
-      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { id: userId },
+      });
       expect(mockRepository.save).toHaveBeenCalled();
     });
 
@@ -388,7 +432,9 @@ describe('UserService', () => {
       const userId = 999;
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.deactivateAccount(userId)).rejects.toThrow(NotFoundException);
+      await expect(service.deactivateAccount(userId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -413,7 +459,9 @@ describe('UserService', () => {
       const result = await service.reactivateAccount(userId);
 
       expect(result.is_active).toBe(true);
-      expect(mockRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(mockRepository.findOne).toHaveBeenCalledWith({
+        where: { id: userId },
+      });
       expect(mockRepository.save).toHaveBeenCalled();
     });
 
@@ -421,7 +469,9 @@ describe('UserService', () => {
       const userId = 999;
       mockRepository.findOne.mockResolvedValue(null);
 
-      await expect(service.reactivateAccount(userId)).rejects.toThrow(NotFoundException);
+      await expect(service.reactivateAccount(userId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

@@ -1,4 +1,13 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, IsEmail, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsEmail,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { NotificationType } from '../entities/notification.entity';
 
 export class CreateNotificationDto {

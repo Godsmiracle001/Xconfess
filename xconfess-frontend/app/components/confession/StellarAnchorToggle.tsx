@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useStellarWallet } from "@/app/lib/hooks/useStellarWallet";
-import { getPublicKey } from "@/app/lib/utils/stellar";
+import { freighterGetPublicKey } from "@/lib/wallet/freighterAdapter";
 import { Button } from "@/app/components/ui/button";
 import { ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
@@ -35,8 +35,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
       setIsConnecting(true);
       try {
         await connect();
-        // Check connection state after connect attempt
-        const connected = await getPublicKey();
+        const connected = await freighterGetPublicKey().catch(() => null);
         if (connected) {
           onToggle(true);
         }

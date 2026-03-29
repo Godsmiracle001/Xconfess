@@ -35,4 +35,3 @@ export class UserAnonymousUser {
   @CreateDateColumn()
   createdAt: Date;
 }
-

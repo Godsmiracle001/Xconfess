@@ -26,13 +26,15 @@ export class QueryAnalyzer {
       this.logger.warn('Slow Queries Found:');
       slowQueries.forEach((q) => {
         this.logger.warn(
-          `  ${q.mean_exec_time.toFixed(2)}ms avg (${q.calls} calls): ${q.query.substring(0, 100)}...`
+          `  ${q.mean_exec_time.toFixed(2)}ms avg (${q.calls} calls): ${q.query.substring(0, 100)}...`,
         );
       });
 
       return slowQueries;
     } catch (error) {
-      this.logger.error('pg_stat_statements extension not available. Enable it for query analysis.');
+      this.logger.error(
+        'pg_stat_statements extension not available. Enable it for query analysis.',
+      );
       return [];
     }
   }
@@ -71,7 +73,7 @@ export class QueryAnalyzer {
       this.logger.warn('Tables with high sequential scans:');
       tableScans.forEach((t) => {
         this.logger.warn(
-          `  ${t.tablename}: ${t.seq_scan} scans, ${t.seq_tup_read} rows read`
+          `  ${t.tablename}: ${t.seq_scan} scans, ${t.seq_tup_read} rows read`,
         );
       });
 

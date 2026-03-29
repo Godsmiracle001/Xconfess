@@ -26,29 +26,33 @@ describe('Core Journey (e2e)', () => {
   const reactionId = '33333333-3333-4333-8333-333333333333';
 
   const mockUserService = {
-    findByEmail: jest.fn(async (email: string) => usersByEmail.get(email) ?? null),
+    findByEmail: jest.fn(
+      async (email: string) => usersByEmail.get(email) ?? null,
+    ),
     findByUsername: jest.fn(
       async (username: string) => usersByUsername.get(username) ?? null,
     ),
-    create: jest.fn(async (email: string, _password: string, username: string) => {
-      const encrypted = CryptoUtil.encrypt(email);
-      const user = {
-        id: 1,
-        username,
-        password: 'hashed',
-        emailEncrypted: encrypted.encrypted,
-        emailIv: encrypted.iv,
-        emailTag: encrypted.tag,
-        emailHash: CryptoUtil.hash(email),
-        role: UserRole.USER,
-        is_active: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      usersByEmail.set(email, user);
-      usersByUsername.set(username, user);
-      return user;
-    }),
+    create: jest.fn(
+      async (email: string, _password: string, username: string) => {
+        const encrypted = CryptoUtil.encrypt(email);
+        const user = {
+          id: 1,
+          username,
+          password: 'hashed',
+          emailEncrypted: encrypted.encrypted,
+          emailIv: encrypted.iv,
+          emailTag: encrypted.tag,
+          emailHash: CryptoUtil.hash(email),
+          role: UserRole.USER,
+          is_active: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        usersByEmail.set(email, user);
+        usersByUsername.set(username, user);
+        return user;
+      },
+    ),
     findById: jest.fn(async (id: number) => {
       for (const user of usersByEmail.values()) {
         if (user.id === id) return user;
@@ -157,7 +161,9 @@ describe('Core Journey (e2e)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
   });
 

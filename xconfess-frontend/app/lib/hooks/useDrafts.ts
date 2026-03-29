@@ -10,6 +10,8 @@ export interface Draft {
   gender?: Gender;
   savedAt: number;
   characterCount: number;
+  scheduledFor?: string; // Issue #454: Preserves scheduling metadata
+  timezone?: string;     // Issue #454: Preserves scheduling metadata
 }
 
 const STORAGE_KEY = "xconfess-drafts";
@@ -29,6 +31,23 @@ export function useDrafts() {
     }
     return [];
   });
+
+  // Issue #454: Listen for draft updates from other tabs
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const newDrafts = JSON.parse(e.newValue) as Draft[];
+          setDrafts(newDrafts);
+        } catch (error) {
+          console.error("Failed to sync drafts from storage:", error);
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   const saveDrafts = useCallback((newDrafts: Draft[]) => {
     try {

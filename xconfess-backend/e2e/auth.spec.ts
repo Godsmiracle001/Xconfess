@@ -9,7 +9,7 @@ test.describe('Authentication Flow', () => {
 
     await expect(page).toHaveURL('/dashboard');
 
-    await page.click('[data-testid="logout-btn"]');
+     await page.click('[data-testid="logout-btn"]');
     await expect(page).toHaveURL('/login');
   });
 });

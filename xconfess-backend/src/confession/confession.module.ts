@@ -20,6 +20,7 @@ import { AnonymousContextMiddleware } from '../middleware/anonymous-context.midd
 import { ModerationModule } from '../moderation/moderation.module';
 import { UserModule } from '../user/user.module';
 import { StellarModule } from '../stellar/stellar.module';
+import { SearchDiscoveryModule } from '../search-discovery/search-discovery.module';
 // In-memory mock Redis for development without Redis server
 const REDIS_TOKEN = 'default_IORedisModuleConnectionToken';
 class MockRedis {
@@ -65,6 +66,7 @@ class MockRedis {
     ModerationModule,
     UserModule,
     StellarModule,
+    SearchDiscoveryModule,
   ],
   controllers: [ConfessionController],
   providers: [

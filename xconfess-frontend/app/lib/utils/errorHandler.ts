@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios from 'axios';
 
 export interface ErrorResponse {
   message: string;
@@ -6,6 +6,71 @@ export interface ErrorResponse {
   statusCode: number;
   details?: Record<string, unknown>;
 }
+
+export const STATUS_ERROR_MESSAGES: Record<number, string> = {
+  400: 'Invalid request. Please check your input.',
+  401: 'Your session has expired. Please log in again.',
+  403: 'You do not have permission to perform this action.',
+  404: 'The requested resource was not found.',
+  409: 'This action conflicts with existing data.',
+  413: 'The file is too large. Please upload a smaller file.',
+  422: 'Please check your input and try again.',
+  429: 'Too many requests. Please wait a moment and try again.',
+  500: 'Server error. Please try again later.',
+  502: 'Bad gateway. Please try again later.',
+  503: 'Service unavailable. Please try again later.',
+};
+
+/** Shown on failed sign-in (wrong credentials, etc.) — never raw API/auth strings. */
+export const LOGIN_ATTEMPT_FAILED_MESSAGE =
+  'Unable to sign in. Please check your email and password.';
+
+const JWT_LIKE =
+  /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
+
+/**
+ * Removes JWT-shaped fragments and bearer tokens from free text for logs/beacons.
+ */
+export const redactSensitiveStrings = (input: string): string => {
+  return input
+    .replace(JWT_LIKE, '[REDACTED_JWT]')
+    .replace(/bearer\s+[^\s]+/gi, 'Bearer [REDACTED]');
+};
+
+function looksLikeInternalAuthLeak(message: string): boolean {
+  const m = message.trim();
+  if (!m) return false;
+  if (/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/.test(m)) return true;
+  const lower = m.toLowerCase();
+  if (/^invalid token\.?$/.test(lower)) return true;
+  if (/^not authenticated/.test(lower)) return true;
+  if (/malformed (jwt|token)/i.test(m)) return true;
+  if (/^(jwt|json web token)\s/.test(lower)) return true;
+  if (lower.includes('bearer ') && m.length < 200) return true;
+  return false;
+}
+
+export const STATUS_ERROR_CODES: Record<number, string> = {
+  400: 'VALIDATION_ERROR',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT',
+  413: 'PAYLOAD_TOO_LARGE',
+  422: 'UNPROCESSABLE_ENTITY',
+  429: 'TOO_MANY_REQUESTS',
+  500: 'SERVER_ERROR',
+  502: 'BAD_GATEWAY',
+  503: 'SERVICE_UNAVAILABLE',
+};
+
+export const getStatusMessage = (statusCode: number): string => {
+  return STATUS_ERROR_MESSAGES[statusCode] || 'An unexpected error occurred. Please try again.';
+};
+
+export const getStatusCodeString = (statusCode: number): string => {
+  return STATUS_ERROR_CODES[statusCode] || 'UNKNOWN_ERROR';
+};
 
 export class AppError extends Error {
   public readonly code: string;
@@ -26,48 +91,72 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Technical detail for logs and support — redacted, safe to ship to analytics without secrets.
+ */
+export const getDiagnosticMessageForLog = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    const raw =
+      typeof data === 'object' && data !== null
+        ? JSON.stringify(data)
+        : String(data ?? '');
+    const line = `[axios] ${error.response?.status ?? 'no_response'} ${error.config?.method ?? ''} ${error.config?.url ?? ''} ${raw.slice(0, 500)}`;
+    return redactSensitiveStrings(line);
+  }
+  if (error instanceof AppError) {
+    const detailStr = JSON.stringify(error.details ?? {}).slice(0, 500);
+    return redactSensitiveStrings(
+      `[AppError] ${error.statusCode} ${error.code} ${error.message} ${detailStr}`
+    );
+  }
+  if (error instanceof Error) {
+    return redactSensitiveStrings(error.message);
+  }
+  return redactSensitiveStrings(String(error));
+};
+
 export const getErrorMessage = (error: unknown): string => {
   if (error instanceof AppError) {
+    if (error.statusCode === 401) {
+      const hasLoginBody =
+        error.details &&
+        typeof error.details === 'object' &&
+        'responseBody' in error.details;
+      return hasLoginBody ? LOGIN_ATTEMPT_FAILED_MESSAGE : STATUS_ERROR_MESSAGES[401];
+    }
+    if (error.statusCode === 403) {
+      return STATUS_ERROR_MESSAGES[403];
+    }
     return error.message;
   }
 
   if (axios.isAxiosError(error)) {
-    const axiosError = error as AxiosError<{ message?: string; error?: string }>;
-    
-    // Handle specific error status codes
-    switch (axiosError.response?.status) {
-      case 400:
-        return axiosError.response?.data?.message || 'Invalid request. Please check your input.';
-      case 401:
-        return 'Your session has expired. Please log in again.';
-      case 403:
-        return 'You do not have permission to perform this action.';
-      case 404:
-        return 'The requested resource was not found.';
-      case 409:
-        return 'This action conflicts with existing data.';
-      case 413:
-        return 'The file is too large. Please upload a smaller file.';
-      case 422:
-        return axiosError.response?.data?.message || 'Please check your input and try again.';
-      case 429:
-        return 'Too many requests. Please wait a moment and try again.';
-      case 500:
-        return 'Server error. Please try again later.';
-      case 502:
-        return 'Bad gateway. Please try again later.';
-      case 503:
-        return 'Service unavailable. Please try again later.';
-      default:
-        if (axiosError.message === 'Network Error') {
-          return 'Network error. Please check your internet connection.';
-        }
-        return axiosError.response?.data?.message || 'An error occurred. Please try again.';
+    const status = error.response?.status;
+    const defaultMessage = status ? getStatusMessage(status) : 'Network error. Please check your internet connection.';
+    const data = error.response?.data as { message?: string; error?: string } | undefined;
+    const apiMessage = data?.message || data?.error;
+    const isAuthFailure = status === 401 || status === 403;
+    if (
+      !isAuthFailure &&
+      apiMessage &&
+      typeof apiMessage === 'string' &&
+      apiMessage.trim().length > 0
+    ) {
+      return apiMessage;
     }
+    if (error.message === 'Network Error') {
+      return 'Network error. Please check your internet connection.';
+    }
+    return defaultMessage;
   }
 
   if (error instanceof Error) {
-    return error.message;
+    const raw = error.message || 'An unexpected error occurred. Please try again.';
+    if (looksLikeInternalAuthLeak(raw)) {
+      return STATUS_ERROR_MESSAGES[401];
+    }
+    return raw;
   }
 
   return 'An unexpected error occurred. Please try again.';
@@ -80,20 +169,7 @@ export const getErrorCode = (error: unknown): string => {
 
   if (axios.isAxiosError(error)) {
     const statusCode = error.response?.status;
-    const codeMap: Record<number, string> = {
-      400: 'VALIDATION_ERROR',
-      401: 'UNAUTHORIZED',
-      403: 'FORBIDDEN',
-      404: 'NOT_FOUND',
-      409: 'CONFLICT',
-      413: 'PAYLOAD_TOO_LARGE',
-      422: 'UNPROCESSABLE_ENTITY',
-      429: 'TOO_MANY_REQUESTS',
-      500: 'SERVER_ERROR',
-      502: 'BAD_GATEWAY',
-      503: 'SERVICE_UNAVAILABLE',
-    };
-    return codeMap[statusCode ?? 0] || 'NETWORK_ERROR';
+    return statusCode ? getStatusCodeString(statusCode) : 'NETWORK_ERROR';
   }
 
   return 'UNKNOWN_ERROR';
@@ -109,6 +185,37 @@ export const getErrorStatusCode = (error: unknown): number => {
   }
 
   return 500;
+};
+
+export const toAppError = (error: unknown, contextMessage?: string): AppError => {
+  if (error instanceof AppError) {
+    return error;
+  }
+
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status ?? 500;
+    const message = getErrorMessage(error);
+    const code = getErrorCode(error);
+    const details: Record<string, unknown> = {
+      url: error.config?.url,
+      method: error.config?.method,
+      correlationId: (error.config as any)?.correlationId,
+      responseData: error.response?.data,
+    };
+    return new AppError(message, code, status, details);
+  }
+
+  if (error instanceof Error) {
+    const status = 500;
+    const message = contextMessage || error.message || 'An unexpected error occurred. Please try again.';
+    return new AppError(message, error.name || 'UNKNOWN_ERROR', status, { stack: error.stack });
+  }
+
+  return new AppError(
+    contextMessage || 'An unexpected error occurred. Please try again.',
+    'UNKNOWN_ERROR',
+    500,
+  );
 };
 
 export const isNetworkError = (error: unknown): boolean => {
@@ -143,6 +250,7 @@ export const logError = (
 ): void => {
   const timestamp = new Date().toISOString();
   const message = getErrorMessage(error);
+  const diagnosticMessage = getDiagnosticMessageForLog(error);
   const code = getErrorCode(error);
   const statusCode = getErrorStatusCode(error);
 
@@ -150,6 +258,7 @@ export const logError = (
     timestamp,
     context,
     message,
+    diagnosticMessage,
     code,
     statusCode,
     ...additionalInfo,

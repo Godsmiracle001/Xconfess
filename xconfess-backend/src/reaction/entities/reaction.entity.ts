@@ -1,6 +1,13 @@
 import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+} from 'typeorm';
 
 @Entity()
 export class Reaction {
@@ -10,7 +17,9 @@ export class Reaction {
   @Column()
   emoji: string;
 
-  @ManyToOne(() => AnonymousConfession, (confession) => confession.reactions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => AnonymousConfession, (confession) => confession.reactions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'confession_id' })
   confession: AnonymousConfession;
 

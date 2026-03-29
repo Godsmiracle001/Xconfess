@@ -1,129 +1,90 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import {
-  isFreighterAvailable,
-  getPublicKey,
-  anchorConfession,
-  hashConfession,
-} from "@/app/lib/utils/stellar";
+import { useCallback, useState } from "react";
+import { useWallet } from "@/lib/hooks/useWallet";
+import { anchorConfession, hashConfession } from "@/app/lib/utils/stellar";
 
 export interface StellarWalletState {
   isAvailable: boolean;
   isConnected: boolean;
   publicKey: string | null;
+  network: string;
   isLoading: boolean;
   error: string | null;
+  isReady: boolean;
+  readinessError: string | null;
 }
 
+/**
+ * Stellar anchoring + wallet UX built on the canonical `useWallet` hook
+ * so tipping and anchoring share connection, network, and readiness rules.
+ */
 export function useStellarWallet() {
-  const [state, setState] = useState<StellarWalletState>({
-    isAvailable: false,
-    isConnected: false,
-    publicKey: null,
-    isLoading: true,
-    error: null,
-  });
-
-  useEffect(() => {
-    const checkWallet = async () => {
-      const available = await isFreighterAvailable();
-      setState((prev) => ({
-        ...prev,
-        isAvailable: available,
-        isLoading: false,
-      }));
-    };
-
-    checkWallet();
-  }, []);
+  const wallet = useWallet();
+  const [anchorError, setAnchorError] = useState<string | null>(null);
 
   const connect = useCallback(async () => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const available = await isFreighterAvailable();
-      if (!available) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: "Freighter wallet not found. Please install Freighter extension.",
-        }));
-        return;
-      }
-
-      const publicKey = await getPublicKey();
-      if (!publicKey) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: "Failed to connect wallet. Please check Freighter.",
-        }));
-        return;
-      }
-
-      setState((prev) => ({
-        ...prev,
-        isConnected: true,
-        publicKey,
-        isLoading: false,
-        error: null,
-      }));
-    } catch (error: any) {
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: error.message || "Failed to connect wallet",
-      }));
-    }
-  }, []);
+    setAnchorError(null);
+    await wallet.connect();
+  }, [wallet]);
 
   const anchor = useCallback(
-    async (content: string): Promise<{ success: boolean; txHash?: string; error?: string }> => {
-      if (!state.isConnected || !state.publicKey) {
-        setState((prev) => ({
-          ...prev,
-          error: "Wallet not connected",
-        }));
-        return {
-          success: false,
-          error: "Wallet not connected",
-        };
+    async (
+      content: string,
+    ): Promise<{ success: boolean; txHash?: string; error?: string }> => {
+      if (!wallet.isConnected || !wallet.publicKey) {
+        const err = "Wallet not connected";
+        setAnchorError(err);
+        return { success: false, error: err };
       }
 
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+      if (!wallet.isReady) {
+        const err = wallet.readinessError || "Wallet not ready";
+        setAnchorError(err);
+        return { success: false, error: err };
+      }
 
+      setAnchorError(null);
+      wallet.clearError();
       try {
         const timestamp = Date.now();
         const hash = hashConfession(content, timestamp);
         const result = await anchorConfession(hash, timestamp);
 
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: result.error || null,
-        }));
+        if (result.error) {
+          setAnchorError(result.error);
+        } else {
+          setAnchorError(null);
+        }
 
         return result;
-      } catch (error: any) {
-        const errorMessage = error.message || "Failed to anchor confession";
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: errorMessage,
-        }));
-
-        return {
-          success: false,
-          error: errorMessage,
-        };
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to anchor confession";
+        setAnchorError(errorMessage);
+        return { success: false, error: errorMessage };
       }
     },
-    [state.isConnected, state.publicKey]
+    [
+      wallet.isConnected,
+      wallet.publicKey,
+      wallet.isReady,
+      wallet.readinessError,
+      wallet.clearError,
+    ],
   );
 
+  const combinedError = wallet.error || anchorError;
+
   return {
-    ...state,
+    isAvailable: wallet.isFreighterInstalled,
+    isConnected: wallet.isConnected,
+    publicKey: wallet.publicKey,
+    network: wallet.network,
+    isLoading: wallet.isLoading,
+    error: combinedError,
+    isReady: wallet.isReady,
+    readinessError: wallet.readinessError,
     connect,
     anchor,
   };

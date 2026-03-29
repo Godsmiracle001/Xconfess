@@ -1,4 +1,4 @@
-import { calculateBadges, Badge } from "./badge.service";
+import { calculateBadges, Badge } from './badge.service';
 
 interface Confession {
   id: string;
@@ -11,7 +11,7 @@ export function calculateUserStats(confessions: Confession[]) {
 
   const totalReactions = confessions.reduce(
     (sum, c) => sum + c.reactionCount,
-    0
+    0,
   );
 
   const mostPopularConfession =
@@ -32,7 +32,7 @@ export function calculateUserStats(confessions: Confession[]) {
 
 function calculateStreak(confessions: Confession[]): number {
   const days = new Set(
-    confessions.map(c => c.createdAt.toISOString().split("T")[0])
+    confessions.map((c) => c.createdAt.toISOString().split('T')[0]),
   );
   return days.size;
 }
