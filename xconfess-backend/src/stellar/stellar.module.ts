@@ -6,9 +6,10 @@ import { StellarService } from './stellar.service';
 import { ContractService } from './contract.service';
 import { StellarController } from './stellar.controller';
 import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.guard';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, AuditLogModule],
   providers: [
     StellarConfigService,
     TransactionBuilderService,
