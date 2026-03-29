@@ -612,7 +612,7 @@ export class AuditLogService {
         templateKey,
         templateVersion: failedVersion,
         changeType: 'fallback_activation',
-        actorId: context?.actor?.id || context?.userId || 'template-fallback',
+        actorId: String(context?.actor?.id || context?.userId || 'template-fallback'),
         actorType:
           context?.actor?.type || (context?.userId ? 'admin' : 'system'),
         before: { activeVersion: failedVersion },
@@ -1095,8 +1095,8 @@ export class AuditLogService {
           metadataActorType === 'user' || metadataActorType === 'admin'
             ? metadataActorId
             : null,
-        label: dto.metadata?.actorLabel,
-        source: dto.metadata?.actorSource,
+        label: dto.metadata?.actorLabel as string | undefined,
+        source: dto.metadata?.actorSource as string | null | undefined,
       });
     }
 

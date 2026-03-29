@@ -101,6 +101,11 @@ export class User {
     return this.privacySettings.showReactions !== false;
   }
 
+  hasDataProcessingConsent(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.dataProcessingConsent !== false;
+  }
+
   @CreateDateColumn()
   createdAt!: Date;
 
