@@ -15,6 +15,7 @@ Use this checklist before any staging or production release that affects the bac
 
 - [ ] Run dependency install from the repo root: `npm ci`
 - [ ] Review the latest CI results for `.github/workflows/ci.yml`.
+  - **Note:** CI now automatically runs contract check, build, and test gates. Ensure all contract checks pass before proceeding.
 - [ ] Confirm no unresolved blockers remain in code review or release notes.
 - [ ] Verify any required environment variable or secret changes are prepared before deployment.
 
@@ -39,9 +40,10 @@ Use this checklist before any staging or production release that affects the bac
 
 ### Contract Readiness
 
+- [ ] Confirm all automated contract gates passed in CI (check, build, test for wasm32 target).
 - [ ] Review `maintainer/issues/125-docs-contract-release-and-upgrade-runbook.md` before any contract release or upgrade.
-- [ ] Run contract tests: `./scripts/test-contracts.sh`
-- [ ] Build the contract artifacts: `./scripts/contracts-release.sh build`
+- [ ] Optionally run local contract tests for deep validation: `./scripts/test-contracts.sh --verbose`
+- [ ] Build the contract artifacts locally to verify: `./scripts/contracts-release.sh build`
 - [ ] Verify the generated artifact manifest exists at `deployments/contract-wasm-manifest.json`.
 - [ ] Confirm the manifest SHA-256 hashes match the artifacts being promoted.
 - [ ] Confirm the target network, deployer identity, and funding state before deployment.

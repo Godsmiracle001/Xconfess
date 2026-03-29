@@ -393,7 +393,7 @@ stellar contract invoke --id $CONTRACT_ID --source-account $ADMIN_KEY -- transfe
 
 | Contract | Admin Functions | Documentation |
 |----------|----------------|---------------|
-| ConfessionAnchor | transfer_admin, get_admin, get_version | [Lifecycle Guide](./CONTRACT_LIFECYCLE.md#confessionanchor-contract) |
+| ConfessionAnchor | initialize, transfer_owner, grant_admin, revoke_admin, pause, unpause | [Lifecycle Guide](./CONTRACT_LIFECYCLE.md#confessionanchor-contract), [Admin Guide](./ADMIN_GUIDE.md#confessionanchor-contract) |
 | ReputationBadges | initialize, transfer_admin, create_badge, award_badge, adjust_reputation | [Lifecycle Guide](./CONTRACT_LIFECYCLE.md#reputationbadges-contract), [Model Guide](./REPUTATION_BADGES_MODEL.md) |
 | AnonymousTipping | None (decentralized) | [Lifecycle Guide](./CONTRACT_LIFECYCLE.md#anonymoustipping-contract) |
 

@@ -4,8 +4,15 @@ mod errors;
 mod events;
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, BytesN, Env, String, Symbol, Vec,
+    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String,
+    Symbol, Vec,
 };
+
+#[path = "../../access_control.rs"]
+mod access_control;
+
+#[path = "../../emergency_pause/mod.rs"]
+mod emergency_pause;
 
 pub const CONTRACT_SEMVER_MAJOR: u32 = 1;
 pub const CONTRACT_SEMVER_MINOR: u32 = 0;
@@ -17,6 +24,18 @@ const CAPABILITY_VERIFY_V1: Symbol = symbol_short!("verifyv1");
 const CAPABILITY_COUNT_V1: Symbol = symbol_short!("countv1");
 const CAPABILITY_EVENT_V1: Symbol = symbol_short!("eventsv1");
 const CAPABILITY_META_V1: Symbol = symbol_short!("meta_v1");
+const CAPABILITY_ADMIN_V1: Symbol = symbol_short!("adminv1");
+const CAPABILITY_PAUSE_V1: Symbol = symbol_short!("pausev1");
+
+/// Storage keys for confession-anchor state
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    /// Owner address
+    Owner,
+    /// Admin set: Map<Address, ()>
+    Admins,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,6 +87,8 @@ fn supported_capabilities(env: &Env) -> Vec<Symbol> {
     out.push_back(CAPABILITY_COUNT_V1);
     out.push_back(CAPABILITY_EVENT_V1);
     out.push_back(CAPABILITY_META_V1);
+    out.push_back(CAPABILITY_ADMIN_V1);
+    out.push_back(CAPABILITY_PAUSE_V1);
     out
 }
 
@@ -82,7 +103,12 @@ impl ConfessionAnchor {
     /// Returns a `Symbol` status:
     /// - "anchored" when stored successfully.
     /// - "exists" if the hash was already anchored (no-op).
+    /// - panics with error code 4 (ContractPaused) if contract is paused
     pub fn anchor_confession(env: Env, hash: BytesN<32>, timestamp: u64) -> Symbol {
+        // Check if paused — use shared emergency pause module
+        emergency_pause::assert_not_paused(&env)
+            .unwrap_or_else(|err| panic!("{}", err as u32));
+
         let storage = get_confession_store(&env);
 
         // Enforce uniqueness: if already anchored, do not overwrite.
@@ -169,6 +195,70 @@ impl ConfessionAnchor {
 
     pub fn get_error_registry_version(_env: Env) -> u32 {
         errors::ERROR_REGISTRY_VERSION
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Initialization & Admin Management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Initialize the contract with an owner. Must be called exactly once after deployment.
+    /// Sets up the owner address and initializes the admin set.
+    /// Panics if already initialized.
+    pub fn initialize(env: Env, owner: Address) -> Result<(), u32> {
+        access_control::init_owner(&env, &owner).map_err(|err| err as u32)
+    }
+
+    /// Get the current owner address.
+    pub fn get_owner(env: Env) -> Result<Address, u32> {
+        access_control::get_owner(&env).map_err(|err| err as u32)
+    }
+
+    /// Check if an address is an admin (not including the owner).
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        access_control::is_admin(&env, &address)
+    }
+
+    /// Get count of active admins (excluding the owner).
+    pub fn get_admin_count(env: Env) -> u32 {
+        access_control::count_admins(&env)
+    }
+
+    /// Grant admin role to an address (owner-only).
+    pub fn grant_admin(env: Env, caller: Address, target: Address) -> Result<(), u32> {
+        access_control::grant_admin(&env, &caller, &target).map_err(|err| err as u32)
+    }
+
+    /// Revoke admin role from an address (owner-only).
+    pub fn revoke_admin(env: Env, caller: Address, target: Address) -> Result<(), u32> {
+        access_control::revoke_admin(&env, &caller, &target).map_err(|err| err as u32)
+    }
+
+    /// Transfer ownership to a new owner (current owner-only).
+    pub fn transfer_owner(env: Env, caller: Address, new_owner: Address) -> Result<(), u32> {
+        access_control::transfer_ownership(&env, &caller, &new_owner)
+            .map_err(|err| err as u32)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Pause/Resume Management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Pause the contract (owner-only). Blocks anchor_confession writes.
+    /// Read operations (verify, count) remain available.
+    pub fn pause(env: Env, caller: Address, reason: String) -> Result<(), u32> {
+        access_control::require_owner(&env, &caller).map_err(|err| err as u32)?;
+        emergency_pause::pause(&env, reason).map_err(|err| err as u32)
+    }
+
+    /// Unpause the contract (owner-only).
+    pub fn unpause(env: Env, caller: Address, reason: String) -> Result<(), u32> {
+        access_control::require_owner(&env, &caller).map_err(|err| err as u32)?;
+        emergency_pause::unpause(&env, reason).map_err(|err| err as u32)
+    }
+
+    /// Check if the contract is paused.
+    pub fn is_paused(env: Env) -> bool {
+        emergency_pause::is_paused(&env)
     }
 }
 
