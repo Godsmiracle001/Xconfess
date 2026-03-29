@@ -1,6 +1,8 @@
 // src/stellar/interfaces/stellar-config.interface.ts
 // Stellar configuration and types for network and contract integration
 
+import type { ContractArg } from '../utils/parameter.encoder';
+
 export enum StellarNetwork {
   TESTNET = 'testnet',
   MAINNET = 'mainnet',
@@ -30,7 +32,7 @@ export interface ITransactionOptions {
 export interface IContractInvocation {
   contractId: string;
   functionName: string;
-  args: any[];
+  args: ContractArg[];
   sourceAccount: string;
 }
 
