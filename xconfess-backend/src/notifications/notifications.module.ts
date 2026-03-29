@@ -9,6 +9,7 @@ import { EmailNotificationService } from './services/email-notification.service'
 import { NotificationController } from './notifications.controller';
 import { NotificationProcessor } from './processors/notification.processor';
 import { NotificationGateway } from './gateways/notification.gateway';
+import { DlqAdminController } from './dlq-admin.controller';
 
 /**
  * Retry / backoff strategy
@@ -56,7 +57,7 @@ import { NotificationGateway } from './gateways/notification.gateway';
 
     ConfigModule,
   ],
-  controllers: [NotificationController],
+  controllers: [NotificationController, DlqAdminController],
   providers: [
     NotificationService,
     EmailNotificationService,
