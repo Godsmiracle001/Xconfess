@@ -68,85 +68,81 @@ stellar contract deploy \
 ```rust
 // Initialize the reputation badges contract
 pub fn init(env: Env, admin: Address) {
-    // Sets up badge system
-    // Configures reputation thresholds
-    // Initializes admin controls
+    // Sets the contract administrator
+    // Initializes badge counter
+    // Sets up access control
 }
 ```
 
 #### Required Parameters
 
-- `admin: Address` - Administrator address for badge management
+- `admin: Address` - Administrator address for badge and reputation management
 
 #### Initialization Process
 
-1. Deploy with administrator address
+1. Deploy contract and call `initialize(admin_address)`
 2. Contract configures:
-   - Badge type definitions
-   - Reputation calculation parameters
-   - Administrative access controls
+   - Sets specified address as admin
+   - Initializes badge counter to 0
+   - Prepares reputation storage (all users start with 0 reputation)
+   - Sets up access control checks
 
-### AnonymousTipping Contract
+#### Authorization Model
 
-#### Initialization Requirements
+The ReputationBadges contract has two authorization models:
 
-```rust
-// Initialize the anonymous tipping contract
-pub fn init(env: Env) {
-    // Sets up settlement nonce
-    // Initializes tip tracking
-    // No admin required - fully decentralized
-}
-```
+**Admin-Managed Operations** (require admin authorization):
+- `initialize()` - Set up the contract admin
+- `transfer_admin()` - Change admin
+- `create_badge()` - Define badge metadata
+- `award_badge()` - Grant badges to users
+- `adjust_reputation()` - Adjust user reputation scores
 
-#### Initialization Process
+**User-Driven Operations** (user self-authorizes):
+- `mint_badge()` - Users self-mint badges they've earned
+- `transfer_badge()` - Owner transfers badge to another user
+- `revoke_badge()` - Owner revokes their own badge
 
-1. Deploy contract (no administrator required)
-2. Contract automatically:
-   - Initializes settlement nonce to 0
-   - Sets up tip tracking storage
-   - Ready for anonymous tipping
+**Public Operations** (no auth required):
+- `get_user_reputation()` - Read user reputation
+- `get_badges()` - List user's badges
+- `has_badge()` - Check if user has specific badge type
+- `get_admin()` - Read current admin
 
 #### Example Initialization
 
 ```bash
-# Deploy AnonymousTipping contract
-stellar contract deploy \
-  --wasm target/wasm32-unknown-unknown/release/anonymous_tipping.wasm \
+# 1. Deploy ReputationBadges contract
+CONTRACT_ID=$(stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/reputation_badges.wasm \
   --source-account $DEPLOYER_KEY \
-  --network testnet
+  --network testnet \
+  | jq -r '.contractId')
+
+# 2. Initialize with admin
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $ADMIN_KEY \
+  -- initialize \
+  --admin $ADMIN_ADDRESS
+
+# 3. Set up badge types (optional but recommended)
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $ADMIN_KEY \
+  -- create_badge \
+  --badge_type ConfessionStarter \
+  --name "First Confession" \
+  --description "Posted your first confession" \
+  --criteria "Post at least one confession"
+
+echo "ReputationBadges initialized and ready"
 ```
-
-## Administrative Functions
-
-### ConfessionAnchor Administration
-
-#### Admin Management
-
-```rust
-// Transfer administrative rights
-pub fn transfer_admin(env: Env, new_admin: Address) -> Result<(), Error>
-
-// Check current administrator
-pub fn get_admin(env: Env) -> Address
-```
-
-#### Administrative Capabilities
-
-- **Transfer Admin**: Change contract administrator
-- **View Admin**: Get current administrator address
-- **Emergency Functions**: Contract pause/resume (if implemented)
-- **Configuration**: Update contract parameters
-
-#### Access Control
-
-- Only administrator can call privileged functions
-- All administrative actions emit events for audit trail
-- Role-based access prevents privilege escalation
 
 ### ReputationBadges Administration
 
 #### Badge Management
+
 
 ```rust
 // Create new badge type

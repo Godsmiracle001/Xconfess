@@ -73,40 +73,114 @@ echo "Admin transferred from $CURRENT_ADMIN to $NEW_ADMIN"
 
 ### ReputationBadges Contract
 
-#### Badge Management
+#### Initialization
 
 ```bash
-# List all badge types
-stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- list_badge_types
+# Initialize the contract with an admin
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  initialize \
+  --admin $ADMIN_ADDRESS
+```
 
-# Create new badge
+#### Badge Type Management
+
+```bash
+# Define badge metadata (admin only)
 stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
   create_badge \
-  --name "Community Leader" \
-  --description "Awarded to active community members" \
-  --criteria "100+ helpful posts"
+  --badge_type ConfessionStarter \
+  --name "First Confession" \
+  --description "Your first confession was posted" \
+  --criteria "Post at least one confession"
 
-# Award badge to user
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  create_badge \
+  --badge_type PopularVoice \
+  --name "Popular Voice" \
+  --description "Your confessions resonated with 100+ people" \
+  --criteria "Receive 100+ reactions"
+
+# Supported badge types:
+# - ConfessionStarter
+# - PopularVoice
+# - GenerousSoul
+# - CommunityHero
+# - TopReactor
+```
+
+#### Badge Award Management
+
+```bash
+# Award a badge to a user (admin only - recipient does not need to authorize)
 stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
   award_badge \
-  --user $USER_ADDRESS \
-  --badge_id $BADGE_ID
+  --recipient $USER_ADDRESS \
+  --badge_type PopularVoice
+
+# Check what badges a user owns
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  get_badges --owner $USER_ADDRESS
+
+# Check if user has a specific badge type
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  has_badge --owner $USER_ADDRESS --badge_type ConfessionStarter
+
+# Get badge count for user
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  get_badge_count --owner $USER_ADDRESS
 ```
 
 #### Reputation Management
 
 ```bash
 # Check user reputation
-stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
   get_user_reputation --user $USER_ADDRESS
 
-# Manual reputation adjustment (emergency use)
+# Adjust user reputation (admin only) - positive or negative
 stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
   adjust_reputation \
   --user $USER_ADDRESS \
-  --amount 50 \
-  --reason "Manual adjustment for lost reputation"
+  --amount 100 \
+  --reason "Exceptional community contribution"
+
+# Negative adjustment for policy violations
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ADMIN_KEY -- \
+  adjust_reputation \
+  --user $REPORTED_USER \
+  --amount -50 \
+  --reason "Policy violation: inappropriate content"
 ```
+
+#### Admin Management
+
+```bash
+# Get current admin
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $ANY_KEY -- \
+  get_admin
+
+# Transfer admin rights (current admin and new admin must authorize)
+stellar contract invoke --id $REPUTATION_BADGES_ID --source-account $CURRENT_ADMIN_KEY -- \
+  transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+```
+
+#### Authorization Model
+
+| Function | Required Role | Requires Auth |
+|----------|--------------|---------------|
+| `initialize` | None (one-time) | Yes (admin autho-rizes) |
+| `get_admin` | Public | No |
+| `transfer_admin` | Current admin | Yes (both parties) |
+| `create_badge` | Admin only | Yes |
+| `award_badge` | Admin only | Yes |
+| `mint_badge` | Any user | Yes (self-auth) |
+| `get_user_reputation` | Public | No |
+| `adjust_reputation` | Admin only | Yes |
+| `transfer_badge` | Badge owner | Yes (owner auth) |
+| `revoke_badge` | Badge owner | Yes (owner auth) |
+
+Note: `mint_badge` allows users to self-mint badges they've earned without admin involvement, while `award_badge` is admin-driven for community management and off-chain verification.
+
 
 ### AnonymousTipping Contract
 
