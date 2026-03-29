@@ -11,7 +11,7 @@ The XConfess smart contract uses a role-based access control (RBAC) system with 
 - **Capabilities:**
   - Can assign or revoke the `Admin` role to other addresses.
   - Can completely transfer the `Owner` role to a new address.
-  - Can pause or resume the contract (if implemented).
+  - Can pause or resume the contract to block write operations during maintenance or emergencies.
 - **Trust Assumption:** The Owner is assumed to be fully trusted and controlled by the core platform administrators. Compromise of the Owner key compromises the administration of the contract but does not forge existing confession anchors.
 
 ### 1.2 Admin

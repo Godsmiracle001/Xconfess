@@ -29,36 +29,78 @@ Each contract has specific initialization requirements and administrative capabi
 
 ```rust
 // Initialize the confession anchor contract
-pub fn init(env: Env, admin: Address) {
-    // Sets the contract administrator
-    // Initializes confession counter
-    // Sets up access control
+pub fn initialize(env: Env, owner: Address) {
+    // Sets the contract owner (full administrative control)
+    // Initializes the admin set (Map)
+    // Sets up access control checks
+    // Storage auto-renews via TTL
 }
 ```
 
 #### Required Parameters
 
-- `admin: Address` - The administrator address with full control over contract settings
+- `owner: Address` - The owner address with full administrative control
 
 #### Initialization Process
 
-1. Deploy contract with administrator address
-2. Contract automatically sets up:
-   - Access control with admin as initial owner
-   - Confession counter initialized to 0
-   - Version information stored
+1. Deploy contract to testnet/mainnet
+2. Call `initialize(owner_address)` immediately after deployment
+3. Contract configures:
+   - Sets specified address as owner
+   - Initializes admin set to empty map
+   - Prepares version and capability information
+   - Enables pause/resume functionality
+
+#### Authorization Model
+
+**Owner Operations** (require owner signature):
+- `transfer_owner()` - Transfer ownership to new address
+- `grant_admin()` - Add addresses to admin set
+- `revoke_admin()` - Remove addresses from admin set
+- `pause()` - Block write operations (emergency pause)
+- `unpause()` - Resume write operations
+
+**Public Operations** (no authentication required):
+- `anchor_confession()` - Submit confession hash (blocks if paused)
+- `verify_confession()` - Lookup confession hash
+- `get_confession_count()` - Read total anchored count
+- `get_owner()` - Read current owner address
+- `is_admin()` - Check if address has admin role
+- `get_admin_count()` - Count active admins
+- `is_paused()` - Check pause status
+- `get_version()` - Read version info
+- `get_capabilities()` - List supported features
 
 #### Example Initialization
 
 ```bash
-# Deploy ConfessionAnchor contract
-stellar contract deploy \
+# 1. Deploy ConfessionAnchor contract
+CONTRACT_ID=$(stellar contract deploy \
   --wasm target/wasm32-unknown-unknown/release/confession_anchor.wasm \
-  --source-account $ADMIN_KEY \
+  --source-account $DEPLOYER_KEY \
   --network testnet \
-  -- \
-  init \
-  --admin $ADMIN_ADDRESS
+  | jq -r '.contractId')
+
+# 2. Initialize with owner
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $OWNER_KEY \
+  -- initialize \
+  --owner $OWNER_ADDRESS
+
+# 3. Grant admin roles (optional)
+stellar contract invoke \
+  --id $CONTRACT_ID \
+  --source-account $OWNER_KEY \
+  -- grant_admin \
+  --caller $OWNER_ADDRESS \
+  --target $ADMIN_ADDRESS
+
+# 4. Verify initialization
+stellar contract invoke --id $CONTRACT_ID -- get_owner
+stellar contract invoke --id $CONTRACT_ID -- get_admin_count
+
+echo "ConfessionAnchor initialized and ready"
 ```
 
 ### ReputationBadges Contract

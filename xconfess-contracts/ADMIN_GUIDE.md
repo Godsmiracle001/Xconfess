@@ -38,38 +38,132 @@ export ANONYMOUS_TIPPING_ID="tipping-contract-id"
 
 ### ConfessionAnchor Contract
 
+#### Initialization
+
+```bash
+# Initialize the contract with an owner (called immediately after deployment)
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- initialize \
+  --owner $OWNER_ADDRESS
+```
+
 #### Daily Operations
 
 ```bash
 # Check confession statistics
-stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_confession_count
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_confession_count
 
 # Monitor recent activity
 stellar contract events --id $CONFESSION_ANCHOR_ID --limit 100 --topic "confession_anchor"
+
+# Check current owner
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_owner
+
+# Check if contract is paused
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- is_paused
 ```
 
 #### Administrative Functions
 
 | Function | Purpose | Required Role |
 |-----------|---------|--------------|
-| `transfer_admin` | Change administrator | Current Admin |
-| `get_admin` | View current admin | Any |
+| `transfer_owner` | Change contract owner | Current Owner |
+| `grant_admin` | Grant admin role | Owner |
+| `revoke_admin` | Remove admin role | Owner |
+| `get_owner` | View current owner | Any |
+| `is_admin` | Check if address is admin | Any |
+| `get_admin_count` | Count active admins | Any |
+| `pause` | Block write operations | Owner |
+| `unpause` | Resume write operations | Owner |
+| `is_paused` | Check pause status | Any |
 | `get_version` | Check contract version | Any |
 | `get_capabilities` | View supported features | Any |
 
-#### Example: Admin Transfer
+#### Example: Owner Transfer
 
 ```bash
-# Step 1: Verify current admin
-CURRENT_ADMIN=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- get_admin --json | jq -r '.admin')
+# Step 1: Verify current owner
+CURRENT_OWNER=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_owner --json | jq -r '.result.ok')
 
-# Step 2: Transfer to new admin
-stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $ADMIN_KEY -- transfer_admin --new_admin $NEW_ADMIN_ADDRESS
+# Step 2: Transfer ownership
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- transfer_owner \
+  --caller $OWNER_ADDRESS \
+  --new_owner $NEW_OWNER_ADDRESS
 
 # Step 3: Verify transfer
-NEW_ADMIN=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID --source-account $NEW_ADMIN_SECRET -- get_admin --json | jq -r '.admin')
-echo "Admin transferred from $CURRENT_ADMIN to $NEW_ADMIN"
+NEW_OWNER=$(stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_owner --json | jq -r '.result.ok')
+echo "Owner transferred from $CURRENT_OWNER to $NEW_OWNER"
 ```
+
+#### Admin Management
+
+```bash
+# Grant admin role
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- grant_admin \
+  --caller $OWNER_ADDRESS \
+  --target $NEW_ADMIN_ADDRESS
+
+# Check if address is admin
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- is_admin --address $ADMIN_ADDRESS
+
+# Get active admin count
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_admin_count
+
+# Revoke admin role
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- revoke_admin \
+  --caller $OWNER_ADDRESS \
+  --target $ADMIN_ADDRESS
+```
+
+#### Pause/Unpause Management
+
+```bash
+# Pause the contract (blocks new confession anchoring, allows reads)
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- pause \
+  --caller $OWNER_ADDRESS \
+  --reason "Emergency response: system maintenance"
+
+# Verify pause status
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- is_paused
+
+# While paused, read operations still work:
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- verify_confession --hash 0x...
+stellar contract invoke --id $CONFESSION_ANCHOR_ID -- get_confession_count
+
+# Resume operations when ready
+stellar contract invoke \
+  --id $CONFESSION_ANCHOR_ID \
+  --source-account $OWNER_KEY \
+  -- unpause \
+  --caller $OWNER_ADDRESS \
+  --reason "Maintenance complete, resuming normal operations"
+```
+
+#### Pause Behavior
+
+| Operation | While Paused |
+|-----------|-------------|
+| `anchor_confession()` | ❌ Blocked (error code 4) |
+| `verify_confession()` | ✅ Allowed |
+| `get_confession_count()` | ✅ Allowed |
+| `get_version()` | ✅ Allowed |
+| `get_capabilities()` | ✅ Allowed |
+
+Read operations remain available to maintain visibility into contract state during maintenance or emergency windows.
 
 ### ReputationBadges Contract
 
