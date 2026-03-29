@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import {
   isValidReactionType,
   REACTION_EMOJI_MAP,

@@ -42,16 +42,11 @@ export function ConfessionDetailClient({
     setConfession(initialConfession);
   }, [initialConfession]);
 
- const [refetchError, setRefetchError] = useState(false);
-
 const refetch = async () => {
   setRefetching(true);
-  setRefetchError(false);
   const result = await getConfessionById(confessionId);
   if (result.ok && result.data) {
     setConfession(result.data);
-  } else {
-    setRefetchError(true);
   }
   setRefetching(false);
 };
@@ -109,7 +104,7 @@ const refetch = async () => {
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <p className="text-white text-lg leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">
+            <p className="text-white text-lg leading-relaxed whitespace-pre-wrap wrap-break-word overflow-wrap-anywhere">
               {confession.content}
             </p>
 

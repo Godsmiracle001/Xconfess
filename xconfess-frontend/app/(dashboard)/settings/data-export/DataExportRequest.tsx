@@ -33,6 +33,30 @@ export default function DataExportRequest() {
   const focusRecoveryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isPageVisibleRef = useRef(true);
 
+  const handleStatusChange = useCallback((jobId: string, newStatus: DataExportStatus, oldStatus: DataExportStatus) => {
+    // Only show notification for meaningful transitions
+    const meaningfulTransitions: Record<DataExportStatus, DataExportStatus[]> = {
+      'PENDING': ['PROCESSING'],
+      'PROCESSING': ['READY', 'FAILED'],
+      'READY': [],
+      'FAILED': [],
+      'EXPIRED': []
+    };
+    
+    if (meaningfulTransitions[oldStatus]?.includes(newStatus)) {
+      const message = newStatus === 'READY' 
+        ? 'Your data export is ready for download!'
+        : newStatus === 'FAILED'
+        ? 'Your data export failed. Please try again.'
+        : `Export status changed to ${newStatus.toLowerCase()}`;
+      
+      // Use toast notification here - would need to integrate with toast system
+      addToast(message, newStatus === 'READY' ? 'success' : newStatus === 'FAILED' ? 'error' : 'info');
+      
+      setLastNotifiedStatus((prev: Record<string, DataExportStatus>) => ({ ...prev, [jobId]: newStatus }));
+    }
+  }, [addToast]);
+
   const loadHistory = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
       setRefreshing(true);
@@ -73,7 +97,7 @@ export default function DataExportRequest() {
         setLoadingHistory(false);
       }
     }
-  }, [lastNotifiedStatus]);
+  }, [lastNotifiedStatus, handleStatusChange]);
 
   useEffect(() => {
     // Restore active job from localStorage on mount
@@ -95,7 +119,7 @@ export default function DataExportRequest() {
     };
     
     initialize();
-  }, [loadHistory]);
+  }, [loadHistory, history]);
 
   const hasInProgressJob = useMemo(
     () => history.some((item: DataExportHistoryItem) => item.status === 'PENDING' || item.status === 'PROCESSING'),
@@ -169,29 +193,6 @@ export default function DataExportRequest() {
     };
   }, [hasInProgressJob, loadHistory]);
 
-  const handleStatusChange = useCallback((jobId: string, newStatus: DataExportStatus, oldStatus: DataExportStatus) => {
-    // Only show notification for meaningful transitions
-    const meaningfulTransitions: Record<DataExportStatus, DataExportStatus[]> = {
-      'PENDING': ['PROCESSING'],
-      'PROCESSING': ['READY', 'FAILED'],
-      'READY': [],
-      'FAILED': [],
-      'EXPIRED': []
-    };
-    
-    if (meaningfulTransitions[oldStatus]?.includes(newStatus)) {
-      const message = newStatus === 'READY' 
-        ? 'Your data export is ready for download!'
-        : newStatus === 'FAILED'
-        ? 'Your data export failed. Please try again.'
-        : `Export status changed to ${newStatus.toLowerCase()}`;
-      
-      // Use toast notification here - would need to integrate with toast system
-      addToast(message, newStatus === 'READY' ? 'success' : newStatus === 'FAILED' ? 'error' : 'info');
-      
-      setLastNotifiedStatus((prev: Record<string, DataExportStatus>) => ({ ...prev, [jobId]: newStatus }));
-    }
-  }, []);
   
   const handleRequestExport = async () => {
     // Guard against concurrent submissions from fast double-clicks or slow networks.
@@ -202,8 +203,8 @@ export default function DataExportRequest() {
     setError(null);
     try {
       const response = await dataExportApi.requestExport();
-      if (response.jobId) {
-        localStorage.setItem(STORAGE_KEY, response.jobId);
+      if (response.requestId) {
+        localStorage.setItem(STORAGE_KEY, response.requestId);
       }
       addToast('Export request submitted successfully!', 'success');
       await loadHistory(true);

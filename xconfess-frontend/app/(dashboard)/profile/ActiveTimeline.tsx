@@ -83,7 +83,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
     setActivities([]);
     setConfessions([]);
     fetchActivities(1);
-  }, [activeTab]);
+  }, [activeTab, fetchActivities]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -200,7 +200,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
                   className="p-6 hover:bg-gray-50 transition"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 p-3 bg-blue-100 rounded-lg">
+                    <div className="shrink-0 p-3 bg-blue-100 rounded-lg">
                       <MessageSquare className="w-5 h-5 text-blue-700" />
                     </div>
 
@@ -255,7 +255,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className={`flex-shrink-0 p-3 rounded-lg ${getActivityColor(activity.type)}`}
+                      className={`shrink-0 p-3 rounded-lg ${getActivityColor(activity.type)}`}
                     >
                       {getActivityIcon(activity.type)}
                     </div>

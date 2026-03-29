@@ -46,6 +46,7 @@ export interface UserResponse {
     isDiscoverable: boolean;
     canReceiveReplies: boolean;
     showReactions: boolean;
+    dataProcessingConsent: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -82,6 +83,7 @@ export class UserController {
         isDiscoverable: user.isDiscoverable(),
         canReceiveReplies: user.canReceiveReplies(),
         showReactions: user.shouldShowReactions(),
+        dataProcessingConsent: user.hasDataProcessingConsent(),
       },
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -93,25 +95,42 @@ export class UserController {
   async register(
     @Body() registerDto: RegisterDto,
   ): Promise<{ user: UserResponse }> {
-    const existingEmail = await this.userService.findByEmail(registerDto.email);
-    if (existingEmail) {
-      throw new ConflictException('Email already in use');
+    try {
+      if (!registerDto.email || !registerDto.email.includes('@')) {
+        throw new BadRequestException('Invalid email format');
+      }
+      if (!registerDto.password || registerDto.password.length < 6) {
+        throw new BadRequestException('Password must be at least 6 characters');
+      }
+      if (!registerDto.username) {
+        throw new BadRequestException('Username is required');
+      }
+
+      const existingEmail = await this.userService.findByEmail(registerDto.email);
+      if (existingEmail) {
+        throw new ConflictException('Email already in use');
+      }
+
+      const existingUsername = await this.userService.findByUsername(
+        registerDto.username,
+      );
+      if (existingUsername) {
+        throw new ConflictException('Username already in use');
+      }
+
+      const user = await this.userService.create(
+        registerDto.email,
+        registerDto.password,
+        registerDto.username,
+      );
+
+      return { user: this.formatUserResponse(user) };
+    } catch (error) {
+      if (error instanceof ConflictException || error instanceof BadRequestException)
+        throw error;
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new BadRequestException('Registration failed: ' + message);
     }
-
-    const existingUsername = await this.userService.findByUsername(
-      registerDto.username,
-    );
-    if (existingUsername) {
-      throw new ConflictException('Username already in use');
-    }
-
-    const user = await this.userService.create(
-      registerDto.email,
-      registerDto.password,
-      registerDto.username,
-    );
-
-    return { user: this.formatUserResponse(user) };
   }
 
   @Post('login')

@@ -2,8 +2,9 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
-  Logger,
+  ConflictException,
   NotFoundException,
+  Logger,
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -68,8 +69,13 @@ export class UserService {
     password: string,
     username: string,
   ): Promise<User> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await this.findByEmail(normalizedEmail);
+    if (existing) {
+      throw new ConflictException('Email already in use');
+    }
+
     try {
-      const normalizedEmail = email.trim().toLowerCase();
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const { encrypted, iv, tag } = CryptoUtil.encrypt(normalizedEmail);
@@ -138,7 +144,11 @@ export class UserService {
 
     user.resetPasswordToken = token;
     user.resetPasswordExpires = expiresAt;
-    await this.userRepository.save(user);
+    try {
+      await this.userRepository.save(user);
+    } catch {
+      throw new InternalServerErrorException('Error setting reset password token');
+    }
   }
 
   /**
@@ -152,7 +162,12 @@ export class UserService {
     user.password = hashedPassword;
     user.resetPasswordToken = null;
     user.resetPasswordExpires = null;
-    await this.userRepository.save(user);
+
+    try {
+      await this.userRepository.save(user);
+    } catch {
+      throw new InternalServerErrorException('Error updating password');
+    }
   }
 
   // =========================

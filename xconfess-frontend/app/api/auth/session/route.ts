@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         });
 
         return NextResponse.json({ user: data.user });
-    } catch (error) {
+    } catch {
         return NextResponse.json(
             { message: "An unexpected error occurred during login" },
             { status: 500 }
@@ -77,7 +77,7 @@ export async function GET() {
 
         const user = await response.json();
         return NextResponse.json({ authenticated: true, user });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ authenticated: false }, { status: 500 });
     }
 }

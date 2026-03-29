@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, act, within } from "@testing-library/react";
+import { render, screen, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
 
@@ -26,6 +26,7 @@ jest.mock("next/link", () => {
     children: React.ReactNode;
     [key: string]: unknown;
   }) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require("react");
     return React.createElement("a", { href, ...rest }, children);
   };
@@ -42,6 +43,7 @@ jest.mock("@/app/lib/hooks/useAuth", () => ({
 
 jest.mock("@/app/components/common/ThemeToggle", () => ({
   ThemeToggle: () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require("react");
     return React.createElement(
       "button",
@@ -62,7 +64,6 @@ jest.mock("@/hooks/use-mobile", () => ({
 
 import Header from "@/app/components/layout/Header";
 import Sidebar from "@/app/components/layout/Sidebar";
-import { AuthGuard } from "@/app/components/AuthGuard";
 
 // ---------------------------------------------------------------------------
 // Mobile Navigation Regression Tests

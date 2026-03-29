@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import LoadingSpinner from './LoadingSpinner';
 
 interface RetryButtonProps {
   onRetry: () => Promise<void>;

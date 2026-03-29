@@ -65,13 +65,7 @@ export function useStellarWallet() {
         return { success: false, error: errorMessage };
       }
     },
-    [
-      wallet.isConnected,
-      wallet.publicKey,
-      wallet.isReady,
-      wallet.readinessError,
-      wallet.clearError,
-    ],
+    [wallet],
   );
 
   const combinedError = wallet.error || anchorError;

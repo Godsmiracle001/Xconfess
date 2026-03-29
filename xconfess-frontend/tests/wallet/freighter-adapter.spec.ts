@@ -8,18 +8,14 @@ import { Networks } from "@stellar/stellar-sdk";
 
 describe("freighterAdapter", () => {
   beforeEach(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).freighter;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (window as any).freighterApi;
   });
 
   it("prefers freighterApi over freighter when both exist", async () => {
     const api = { getPublicKey: jest.fn().mockResolvedValue("GAPI") };
     const legacy = { getPublicKey: jest.fn().mockResolvedValue("GLEGACY") };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).freighter = legacy;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).freighterApi = api;
 
     await expect(freighterGetPublicKey()).resolves.toBe("GAPI");
@@ -37,7 +33,6 @@ describe("freighterAdapter", () => {
           Promise.resolve(`signed:${opts.network}`),
         ),
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).freighter = legacy;
 
     expect(getFreighterClient()).toBe(legacy);
@@ -53,7 +48,6 @@ describe("freighterAdapter", () => {
         Promise.resolve(`ok:${passphrase.slice(0, 8)}`),
       );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).freighter = {
       getPublicKey: jest.fn(),
       getNetwork: jest.fn().mockResolvedValue("TESTNET_SOROBAN"),

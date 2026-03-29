@@ -17,7 +17,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
 
 import AnalyticsPage from '../../(dashboard)/analytics/page';
@@ -139,7 +138,8 @@ const networkErrorResponse = new Error('Network request failed');
 // ─────────────────────────────────────────────────────────────────────────────
 
 jest.mock('next/dynamic', () => {
-  const React = require('react');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const React = require('react');
 
   return (loader: () => Promise<any>, options?: { loading?: () => React.ReactNode }) => {
     return function DynamicComponent(props: Record<string, unknown>) {

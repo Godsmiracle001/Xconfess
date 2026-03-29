@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { AnalyticsData } from "@/app/lib/types/analytics.types";
 import { TrendingConfessionCard } from "./TrendingConfessionCard";
 import { ReactionChart } from "./ReactionChart";
@@ -14,11 +14,7 @@ export const TrendingDashboard = () => {
   const [period, setPeriod] = useState<'7days' | '30days'>('7days');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAnalytics();
-  }, [period]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -33,7 +29,11 @@ export const TrendingDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (

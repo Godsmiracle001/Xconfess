@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState } from 'react';
 
 export interface Toast {
   id: string;
@@ -33,7 +33,7 @@ export const useToast = () => {
 
       return id;
     },
-    []
+    [removeToast]
   );
 
   const removeToast = useCallback((id: string) => {
