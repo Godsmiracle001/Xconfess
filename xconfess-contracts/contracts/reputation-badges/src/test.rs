@@ -280,14 +280,15 @@ fn test_admin_only_functions_require_init() {
     let contract_id = env.register(ReputationBadges, ());
     let client = ReputationBadgesClient::new(&env, &contract_id);
 
-    let admin = Address::generate(&env);
+    let _admin = Address::generate(&env);
     let user = Address::generate(&env);
 
     // Try to call admin functions without initializing - should fail
     let award_result = client.try_award_badge(&user, &BadgeType::ConfessionStarter);
     assert!(award_result.is_err());
 
-    let adjust_result = client.try_adjust_reputation(&user, 100, &String::from_str(&env, "test"));
+    let adjust_result =
+        client.try_adjust_reputation(&user, &100i128, &String::from_str(&env, "test"));
     assert!(adjust_result.is_err());
 }
 
@@ -353,14 +354,14 @@ fn test_adjust_reputation() {
     assert_eq!(client.get_user_reputation(&user), 0);
 
     // Adjust reputation
-    let new_rep = client.adjust_reputation(&user, 100, &String::from_str(&env, "test"));
+    let new_rep = client.adjust_reputation(&user, &100i128, &String::from_str(&env, "test"));
     assert_eq!(new_rep, 100);
 
     // Verify reputation updated
     assert_eq!(client.get_user_reputation(&user), 100);
 
     // Adjust again (negative)
-    let new_rep = client.adjust_reputation(&user, -50, &String::from_str(&env, "penalty"));
+    let new_rep = client.adjust_reputation(&user, &-50i128, &String::from_str(&env, "penalty"));
     assert_eq!(new_rep, 50);
 
     // Verify final reputation
