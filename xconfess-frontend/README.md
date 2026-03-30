@@ -9,7 +9,7 @@
 
 **A privacy-first anonymous confession platform leveraging Stellar blockchain for immutability, transparency, and trustless verification.**
 
-[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Godsmiracle001/Xconfess/issues)
+[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Xconfess/Xconfess/issues)
 
 </div>
 
@@ -173,7 +173,7 @@ contracts/soroban-xconfess/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Godsmiracle001/xconfess.git
+   git clone https://github.com/Xconfess/Xconfess.git
    cd xconfess
    ```
 
@@ -238,7 +238,7 @@ We welcome contributions from the community! xConfess is participating in the **
 
 ### How to Contribute
 
-1. **Find an Issue** — Browse [open issues](https://github.com/Godsmiracle001/Xconfess/issues)
+1. **Find an Issue** — Browse [open issues](https://github.com/Xconfess/Xconfess/issues)
 2. **Fork & Branch** — `git checkout -b feat/your-feature-name`
 3. **Make Your Changes** — Write clean, tested code
 4. **Commit & Push** — `git commit -m "feat: add stellar wallet connection"`

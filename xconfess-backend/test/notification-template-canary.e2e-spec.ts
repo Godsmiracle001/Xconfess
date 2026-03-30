@@ -5,7 +5,7 @@
  * routing, promotion and rollback transitions, and registry lookup
  * behaviour against the pure functions exported from email.config.ts.
  *
- * @see https://github.com/Godsmiracle001/Xconfess/issues/333
+ * @see https://github.com/Xconfess/Xconfess/issues/333
  */
 import {
   recipientBucket,
