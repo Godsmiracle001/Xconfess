@@ -1,26 +1,86 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #000000;
+  --secondary: #1e293b;
+  --primary: #9333ea;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --secondary: #94a3b8;
+  --primary: #a855f7;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+@keyframes reaction-bounce {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-reaction-bounce {
+  animation: reaction-bounce 250ms ease-out;
+}
+
+@keyframes reaction-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(1.1);
+  }
+}
+
+.animate-reaction-float {
+  animation: reaction-float 600ms ease-out forwards;
+}
+
+.reaction-count {
+  transition: transform 200ms ease, color 200ms ease;
+}
+
+.reaction-count--increase {
+  transform: translateY(-4px);
+  color: var(--primary);
+}
+
+/* Active reaction state */
+.reaction-active {
+  background-color: var(--primary);
+  color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-reaction-bounce,
+  .animate-reaction-float,
+  .reaction-count {
+    animation: none;
+    transition: none;
+  }
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }

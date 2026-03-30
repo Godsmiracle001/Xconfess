@@ -1,9 +1,16 @@
-import { IsInt, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsUUID, IsString, MinLength, MaxLength, IsInt } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateMessageDto {
-  @IsInt()
-  confession_id: number;
+  @ApiProperty({ description: 'UUID of the confession to message about' })
+  @IsUUID()
+  confession_id: string;
 
+  @ApiProperty({
+    description: 'Message content',
+    minLength: 1,
+    maxLength: 1000,
+  })
   @IsString()
   @MinLength(1)
   @MaxLength(1000)
@@ -11,11 +18,23 @@ export class CreateMessageDto {
 }
 
 export class ReplyMessageDto {
+  @ApiProperty({ description: 'ID of the message to reply to' })
   @IsInt()
   message_id: number;
 
+  @ApiProperty({ description: 'Reply content', minLength: 1, maxLength: 1000 })
   @IsString()
   @MinLength(1)
   @MaxLength(1000)
   reply: string;
+}
+
+export class GetMessagesQueryDto {
+  @ApiProperty({ description: 'UUID of the confession thread' })
+  @IsUUID()
+  confession_id: string;
+
+  @ApiProperty({ description: 'UUID of the sender anonymous user' })
+  @IsUUID()
+  sender_id: string;
 }

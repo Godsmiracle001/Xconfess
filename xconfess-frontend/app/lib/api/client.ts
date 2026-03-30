@@ -1,28 +1,146 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosResponse } from "axios";
+import { logError } from "@/app/lib/utils/errorHandler";
+import { useAuthStore } from "@/app/lib/store/authStore";
+import { getApiBaseUrl } from "@/app/lib/config";
 
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  headers: { 'Content-Type': 'application/json' },
+	baseURL: getApiBaseUrl(),
+	headers: { "Content-Type": "application/json" },
+	timeout: 30000,
 });
 
+// Request interceptor for adding auth token
 apiClient.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('accessToken');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-    return config;
-  },
-  error => Promise.reject(error)
+	(config) => {
+		// Tokens are now handled via secure session cookies
+		config.withCredentials = true;
+
+		// Generate correlation ID for tracing
+		const correlationId = crypto.randomUUID();
+		config.headers["X-Correlation-ID"] = correlationId;
+		config.correlationId = correlationId;
+
+		return config;
+	},
+	(error) => {
+		logError(error, "API Request Interceptor");
+		return Promise.reject(error);
+	},
 );
 
+// Extend AxiosRequestConfig to support per-request retry tracking and correlation
+declare module "axios" {
+	interface InternalAxiosRequestConfig {
+		__retryCount?: number;
+		correlationId?: string;
+	}
+}
+
+const MAX_RETRIES = 3;
+
+// Response interceptor for error handling and retries
 apiClient.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken');
-      window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
+	(response: AxiosResponse) => response,
+	async (error: AxiosError) => {
+		const config = error.config;
+		if (!config) {
+			return Promise.reject(error);
+		}
+
+		config.__retryCount = config.__retryCount ?? 0;
+
+		// Handle 401 Unauthorized — clear auth state and let AuthGuard handle redirect
+		if (error.response?.status === 401) {
+			// Signal the store: clears localStorage tokens + resets isAuthenticated.
+			// AuthGuard detects isAuthenticated: false and does router.push('/login').
+			useAuthStore.getState().logout();
+
+			logError(error, "API Client - Unauthorized", { url: config.url });
+			return Promise.reject(error);
+		}
+
+		// Handle 403 Forbidden — no retry
+		if (error.response?.status === 403) {
+			logError(error, "API Client - Forbidden", { url: config.url });
+			return Promise.reject(error);
+		}
+
+		// Determine if this error is retryable
+		const isRetryable =
+			error.response?.status === 429 ||
+			(error.response?.status !== undefined &&
+				error.response.status >= 500) ||
+			!error.response; // network error
+
+		if (isRetryable && config.__retryCount < MAX_RETRIES) {
+			config.__retryCount++;
+			const delayMs = Math.pow(2, config.__retryCount) * 1000;
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+			return apiClient(config);
+		}
+
+		const context = !error.response
+			? "API Client - Network Error"
+			: error.response.status === 429
+				? "API Client - Too Many Requests"
+				: error.response.status >= 500
+					? "API Client - Server Error"
+					: "API Client - Request Failed";
+
+		logError(
+			error,
+			config.__retryCount > 0
+				? `${context} (after ${config.__retryCount} retries)`
+				: context,
+			{
+				url: config.url,
+				status: error.response?.status,
+				retries: config.__retryCount,
+				correlationId: config.correlationId,
+			},
+		);
+
+		return Promise.reject(error);
+	},
 );
 
 export default apiClient;
+export { AxiosError };
+
+export type DataExportStatus = "PENDING" | "PROCESSING" | "READY" | "FAILED" | "EXPIRED";
+
+export interface DataExportHistoryItem {
+	id: string;
+	status: DataExportStatus;
+	createdAt: string;
+	expiresAt: number | null;
+	canRedownload: boolean;
+	canRequestNewLink: boolean;
+	downloadUrl: string | null;
+}
+
+export interface DataExportHistoryResponse {
+	latest: DataExportHistoryItem | null;
+	history: DataExportHistoryItem[];
+}
+
+export const dataExportApi = {
+	async getHistory() {
+		const response = await apiClient.get<DataExportHistoryResponse>("/data-export/history");
+		return response.data;
+	},
+
+	async requestExport() {
+		const response = await apiClient.post<{ requestId: string; status: string }>(
+			"/data-export/request",
+		);
+		return response.data;
+	},
+
+	async redownload(requestId: string) {
+		const response = await apiClient.post<{ downloadUrl: string }>(
+			`/data-export/${requestId}/redownload`,
+		);
+		return response.data;
+	},
+};

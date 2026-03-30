@@ -8,5 +8,5 @@
     "strict": true,
     "types": ["jest", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.spec.ts"]
+  "include": ["src/**/*.ts", "src/**/*.spec.ts", "test/**/*.ts"]
 }
