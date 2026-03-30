@@ -31,6 +31,9 @@ export function CommentSection({
 
   const fetchComments = useCallback(
     async (pageToLoad = 1) => {
+      // Guard: ignore if a fetch is already in-flight
+      if (loading && pageToLoad !== 1) return;
+
       setLoading(true);
       setError(null);
       try {
@@ -52,7 +55,7 @@ export function CommentSection({
         setLoading(false);
       }
     },
-    [confessionId],
+    [confessionId, loading]
   );
 
   useEffect(() => {
@@ -95,6 +98,10 @@ export function CommentSection({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Guard: ignore if a submit is already in-flight
+    if (submitting) return;
+
     const trimmed = content.trim();
     if (!trimmed) return;
     if (!isAuthenticated) {
@@ -158,6 +165,20 @@ export function CommentSection({
       behavior: "smooth",
       block: "center",
     });
+  };
+
+  const handleLoadMore = () => {
+    // Guard: ignore if a fetch is already in-flight
+    if (loading) return;
+    const next = page + 1;
+    setPage(next);
+    fetchComments(next);
+  };
+
+  const handleRetry = () => {
+    // Guard: ignore if a fetch is already in-flight
+    if (loading) return;
+    fetchComments(1);
   };
 
   return (
@@ -246,7 +267,8 @@ export function CommentSection({
             variant="outline"
             size="sm"
             className="mt-2"
-            onClick={() => fetchComments()}
+            onClick={handleRetry}
+            disabled={loading}
           >
             Try again
           </Button>
@@ -279,13 +301,10 @@ export function CommentSection({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  const next = page + 1;
-                  setPage(next);
-                  fetchComments(next);
-                }}
+                onClick={handleLoadMore}
+                disabled={loading}
               >
-                Load more comments
+                {loading ? "Loading..." : "Load more comments"}
               </Button>
             </div>
           )}

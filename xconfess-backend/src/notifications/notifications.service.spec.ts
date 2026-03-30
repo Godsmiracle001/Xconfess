@@ -1,20 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bull';
 import { Job, Queue } from 'bull';
-import { NotificationProcessor, NOTIFICATION_DLQ, NotificationJobData } from './notification.processor';
+import {
+  NotificationProcessor,
+  NOTIFICATION_DLQ,
+  NotificationJobData,
+} from './notification.processor';
 import { EmailNotificationService } from '../services/email-notification.service';
 import { NotificationType } from '../entities/notification.entity';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function makeJob(overrides: Partial<Job<NotificationJobData>> = {}): Job<NotificationJobData> {
+function makeJob(
+  overrides: Partial<Job<NotificationJobData>> = {},
+): Job<NotificationJobData> {
   return {
     id: 'job-1',
     timestamp: Date.now(),
     data: {
-      userId:  'user-uuid-123',
-      type:    NotificationType.NEW_MESSAGE,
-      title:   'New message',
+      userId: 'user-uuid-123',
+      type: NotificationType.NEW_MESSAGE,
+      title: 'New message',
       message: 'You have a new confession',
       metadata: { senderId: 'sender-uuid' },
     },
@@ -38,17 +44,17 @@ describe('NotificationProcessor', () => {
       providers: [
         NotificationProcessor,
         {
-          provide:  EmailNotificationService,
+          provide: EmailNotificationService,
           useValue: { sendEmail: jest.fn() },
         },
         {
-          provide:  getQueueToken(NOTIFICATION_DLQ),
+          provide: getQueueToken(NOTIFICATION_DLQ),
           useValue: dlqMock,
         },
       ],
     }).compile();
 
-    processor             = module.get(NotificationProcessor);
+    processor = module.get(NotificationProcessor);
     emailNotificationService = module.get(EmailNotificationService);
   });
 
@@ -61,9 +67,13 @@ describe('NotificationProcessor', () => {
   });
 
   it('propagates email errors so Bull can retry', async () => {
-    emailNotificationService.sendEmail.mockRejectedValueOnce(new Error('SMTP timeout'));
+    emailNotificationService.sendEmail.mockRejectedValueOnce(
+      new Error('SMTP timeout'),
+    );
     const job = makeJob();
-    await expect(processor.handleSendNotification(job)).rejects.toThrow('SMTP timeout');
+    await expect(processor.handleSendNotification(job)).rejects.toThrow(
+      'SMTP timeout',
+    );
   });
 
   // ── onFailed — non-exhausted ───────────────────────────────────────────────
@@ -78,7 +88,11 @@ describe('NotificationProcessor', () => {
 
   it('moves job to DLQ when all attempts are exhausted', async () => {
     const error = new Error('Permanent failure');
-    const job   = makeJob({ id: 'job-99', attemptsMade: 5, opts: { attempts: 5 } });
+    const job = makeJob({
+      id: 'job-99',
+      attemptsMade: 5,
+      opts: { attempts: 5 },
+    });
 
     await processor.onFailed(job, error);
 
@@ -95,13 +109,16 @@ describe('NotificationProcessor', () => {
     // _meta block populated correctly
     expect(dlqPayload._meta).toMatchObject({
       originalJobId: 'job-99',
-      attemptsMade:  5,
-      lastError:     'Permanent failure',
+      attemptsMade: 5,
+      lastError: 'Permanent failure',
     });
     expect(dlqPayload._meta.failedAt).toBeTruthy();
 
     // DLQ jobs must be retained for ops inspection
-    expect(dlqOpts).toMatchObject({ removeOnComplete: false, removeOnFail: false });
+    expect(dlqOpts).toMatchObject({
+      removeOnComplete: false,
+      removeOnFail: false,
+    });
   });
 
   // ── onCompleted ───────────────────────────────────────────────────────────

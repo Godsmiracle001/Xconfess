@@ -36,6 +36,7 @@ import { AnchorConfessionDto } from '../stellar/dto/anchor-confession.dto';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { ConfessionTag } from './entities/confession-tag.entity';
+import { toWindowBoundaries, TrendingWindow } from 'src/types/analytics.types';
 
 @Injectable()
 export class ConfessionService {
@@ -52,7 +53,7 @@ export class ConfessionService {
     private readonly cacheService: CacheService,
     private readonly tagService: TagService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private get aesKey(): string {
     return this.configService.get<string>('app.confessionAesKey', '');
@@ -85,8 +86,8 @@ export class ConfessionService {
       // Step 1.5: Create an AnonymousUser to associate with this confession
       const anonymousUser = manager
         ? await manager
-          .getRepository(AnonymousUser)
-          .save(manager.getRepository(AnonymousUser).create())
+            .getRepository(AnonymousUser)
+            .save(manager.getRepository(AnonymousUser).create())
         : await this.anonymousUserService.create();
 
       // Step 2: Encrypt and save the confession
@@ -208,11 +209,17 @@ export class ConfessionService {
     const skip = (page - 1) * limit;
     const qb = this.confessionRepo
       .createQueryBuilder('confession')
+      .leftJoinAndSelect('confession.anonymousUser', 'anonymousUser')
+      .leftJoinAndSelect('anonymousUser.userLinks', 'userLinks')
+      .leftJoinAndSelect('userLinks.user', 'user')
       .andWhere('confession.isDeleted = false')
       .andWhere('confession.isHidden = false')
       .andWhere('confession.moderationStatus IN (:...statuses)', {
         statuses: [ModerationStatus.APPROVED, ModerationStatus.PENDING],
       })
+      .andWhere(
+        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
+      )
       .leftJoinAndSelect('confession.reactions', 'reactions')
       .leftJoinAndSelect('reactions.anonymousUser', 'reactionUser')
       .select([
@@ -303,7 +310,8 @@ export class ConfessionService {
     }
 
     const updated = await this.confessionRepo.findOne({ where: { id } });
-    if (updated) updated.message = decryptConfession(updated.message, this.aesKey);
+    if (updated)
+      updated.message = decryptConfession(updated.message, this.aesKey);
     return updated;
   }
 
@@ -328,9 +336,7 @@ export class ConfessionService {
       where: { id, isDeleted: true },
     });
     if (!existing)
-      throw new NotFoundException(
-        `Soft-deleted confession ${id} not found`,
-      );
+      throw new NotFoundException(`Soft-deleted confession ${id} not found`);
     await this.confessionRepo.update(id, {
       isDeleted: false,
       deletedAt: null,
@@ -360,16 +366,92 @@ export class ConfessionService {
     };
   }
 
+  /**
+   * Determine whether this query should be sampled for observability.
+   * Uses Math.random() against the configured sample rate so that overhead
+   * stays bounded under high traffic.
+   */
+  private shouldSampleSearch(): boolean {
+    const rate = this.configService.get<number>(
+      'app.searchSampleRate',
+      0.1,
+    );
+    return Math.random() < rate;
+  }
+
+  /**
+   * Emit observability signals after a search call completes.
+   * Always warns on slow queries; emits a sampled info log otherwise.
+   */
+  private emitSearchObservability(opts: {
+    durationMs: number;
+    rawTerm: string;
+    searchType: 'fulltext' | 'hybrid' | 'ilike';
+    page: number;
+    limit: number;
+    resultCount: number;
+    sampled: boolean;
+  }): void {
+    const thresholdMs = this.configService.get<number>(
+      'app.searchSlowQueryThresholdMs',
+      500,
+    );
+
+    this.logger.observeTimer('search.duration_ms', opts.durationMs, {
+      searchType: opts.searchType,
+    });
+
+    if (opts.durationMs >= thresholdMs) {
+      this.logger.logSlowSearch({
+        durationMs: opts.durationMs,
+        rawTerm: opts.rawTerm,
+        searchType: opts.searchType,
+        page: opts.page,
+        limit: opts.limit,
+        resultCount: opts.resultCount,
+        thresholdMs,
+      });
+      return;
+    }
+
+    if (opts.sampled) {
+      this.logger.logSampledSearch({
+        durationMs: opts.durationMs,
+        rawTerm: opts.rawTerm,
+        searchType: opts.searchType,
+        page: opts.page,
+        limit: opts.limit,
+        resultCount: opts.resultCount,
+      });
+    }
+  }
+
   async search(dto: SearchConfessionDto) {
     if (!dto.q.trim())
       throw new BadRequestException('Search term cannot be empty');
     const limit =
       typeof dto.limit === 'number' ? dto.limit : Number(dto.limit) || 10;
+    const sampled = this.shouldSampleSearch();
+    const t0 = Date.now();
     const result = await this.confessionRepo.hybridSearch(
       dto.q.trim(),
       dto.page,
       limit,
+      dto,
     );
+    const durationMs = Date.now() - t0;
+    const resultCount = result?.confessions?.length ?? 0;
+
+    this.emitSearchObservability({
+      durationMs,
+      rawTerm: dto.q,
+      searchType: 'hybrid',
+      page: dto.page ?? 1,
+      limit,
+      resultCount,
+      sampled,
+    });
+
     return {
       data: result?.confessions || [],
       meta: {
@@ -387,11 +469,27 @@ export class ConfessionService {
       throw new BadRequestException('Search term cannot be empty');
     const limit =
       typeof dto.limit === 'number' ? dto.limit : Number(dto.limit) || 10;
+    const sampled = this.shouldSampleSearch();
+    const t0 = Date.now();
     const result = await this.confessionRepo.fullTextSearch(
       dto.q.trim(),
       dto.page,
       limit,
+      dto,
     );
+    const durationMs = Date.now() - t0;
+    const resultCount = result?.confessions?.length ?? 0;
+
+    this.emitSearchObservability({
+      durationMs,
+      rawTerm: dto.q,
+      searchType: 'fulltext',
+      page: dto.page ?? 1,
+      limit,
+      resultCount,
+      sampled,
+    });
+
     return {
       data: result?.confessions || [],
       meta: {
@@ -408,7 +506,13 @@ export class ConfessionService {
   async getConfessionByIdWithViewCount(id: string, req: Request) {
     const conf = await this.confessionRepo.findOne({
       where: { id, isDeleted: false, isHidden: false },
-      relations: ['reactions', 'reactions.anonymousUser'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+        'reactions',
+        'reactions.anonymousUser',
+      ],
       select: {
         id: true,
         message: true,
@@ -428,6 +532,12 @@ export class ConfessionService {
     });
     if (!conf) throw new NotFoundException('Confession not found');
 
+    const authorUser = conf.anonymousUser?.userLinks?.[0]?.user;
+    const hideReactions = authorUser && !authorUser.shouldShowReactions();
+    if (hideReactions) {
+      conf.reactions = [];
+    }
+
     type AuthenticatedRequest = Request & { user?: { id?: string } };
     const authReq = req as AuthenticatedRequest;
     const userId = authReq.user?.id;
@@ -440,12 +550,23 @@ export class ConfessionService {
 
     if (await this.viewCache.checkAndMarkView(id, userOrIp)) {
       await this.confessionRepo.incrementViewCountAtomically(id);
-      // Reload the confession to get updated view_count
       const updated = await this.confessionRepo.findOne({
         where: { id },
-        relations: ['reactions', 'reactions.anonymousUser'],
+        relations: [
+          'anonymousUser',
+          'anonymousUser.userLinks',
+          'anonymousUser.userLinks.user',
+          'reactions',
+          'reactions.anonymousUser',
+        ],
       });
-      if (updated) updated.message = decryptConfession(updated.message, this.aesKey);
+      if (updated) {
+        const updatedAuthor = updated.anonymousUser?.userLinks?.[0]?.user;
+        if (updatedAuthor && !updatedAuthor.shouldShowReactions()) {
+          updated.reactions = [];
+        }
+        updated.message = decryptConfession(updated.message, this.aesKey);
+      }
       return updated;
     }
 
@@ -454,7 +575,10 @@ export class ConfessionService {
   }
 
   async getTrendingConfessions() {
-    const confs = await this.confessionRepo.findTrending(10);
+    // Standardize the trending window to 24 h with UTC-floored boundaries
+    // so edge-of-day records are counted consistently.
+    const { startAt, endAt } = toWindowBoundaries(TrendingWindow.DAY);
+    const confs = await this.confessionRepo.findTrending(10, startAt, endAt);
     return { data: confs };
   }
 
@@ -553,7 +677,7 @@ export class ConfessionService {
     return data;
   }
 
-  private async findByUser(userId: string) {
+  private async findByUser(_userId: string) {
     // Implementation
     return [];
   }

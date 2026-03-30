@@ -1,15 +1,16 @@
 "use client";
 
 import {
-  NotificationFilter,
-  PaginatedNotifications,
+    NotificationFilter,
 } from "@/app/types/notifications";
-import type {Notification} from "@/app/types/notifications"
+import type { Notification } from "@/app/types/notifications";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { AUTH_TOKEN_KEY } from "@/app/lib/api/constants";
+import { notificationApi } from "@/app/lib/api/notification";
+import { useApiError } from "@/app/lib/hooks/useApiError";
+import { getWsUrl } from "@/app/lib/config";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
+const WS_URL = getWsUrl();
 
 interface UseNotificationsReturn {
   notifications: Notification[];
@@ -30,6 +31,7 @@ export function useNotifications(userId: string): UseNotificationsReturn {
   const [loading, setLoading] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { handleError } = useApiError({ context: 'Notifications' });
 
   // Initialize notification sound
   useEffect(() => {
@@ -51,25 +53,7 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     async (filter?: NotificationFilter) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        if (filter?.type) params.append("type", filter.type);
-        if (filter?.isRead !== undefined)
-          params.append("isRead", String(filter.isRead));
-        params.append("page", String(filter?.page || 1));
-        params.append("limit", String(filter?.limit || 20));
-
-        const response = await fetch(
-          `/api/notifications?${params.toString()}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
-            },
-          }
-        );
-
-        if (!response.ok) throw new Error("Failed to fetch notifications");
-
-        const data: PaginatedNotifications = await response.json();
+        const data = await notificationApi.getNotifications(filter);
 
         if (filter?.page && filter.page > 1) {
           setNotifications((prev) => [...prev, ...data.notifications]);
@@ -79,27 +63,17 @@ export function useNotifications(userId: string): UseNotificationsReturn {
 
         setUnreadCount(data.unreadCount);
       } catch (error) {
-        console.error("Error fetching notifications:", error);
+        handleError(error, 'Unable to load notifications. Please try again.');
       } finally {
         setLoading(false);
       }
     },
-    []
+    [handleError]
   );
 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
-      const response = await fetch(
-        `/api/notifications/${notificationId}/read`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
-          },
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to mark notification as read");
+      await notificationApi.markAsRead(notificationId);
 
       setNotifications((prev) =>
         prev.map((notif) =>
@@ -108,58 +82,47 @@ export function useNotifications(userId: string): UseNotificationsReturn {
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
-      console.error("Error marking notification as read:", error);
+      handleError(error, 'Unable to mark notification as read. Please try again.');
     }
-  }, []);
+  }, [handleError]);
 
   const markAllAsRead = useCallback(async () => {
     try {
-      const response = await fetch("/api/notifications/read-all", {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("Failed to mark all as read");
+      await notificationApi.markAllAsRead();
 
       setNotifications((prev) =>
         prev.map((notif) => ({ ...notif, isRead: true }))
       );
       setUnreadCount(0);
     } catch (error) {
-      console.error("Error marking all as read:", error);
+      handleError(error, 'Unable to mark all notifications as read. Please try again.');
     }
-  }, []);
+  }, [handleError]);
 
   const deleteNotification = useCallback(async (notificationId: string) => {
     try {
-      const response = await fetch(`/api/notifications/${notificationId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("Failed to delete notification");
+      await notificationApi.deleteNotification(notificationId);
 
       setNotifications((prev) =>
         prev.filter((notif) => notif.id !== notificationId)
       );
     } catch (error) {
-      console.error("Error deleting notification:", error);
+      handleError(error, 'Unable to delete notification. Please try again.');
     }
-  }, []);
+  }, [handleError]);
 
   // WebSocket connection
   useEffect(() => {
     if (!userId) return;
 
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    // get auth token from our client or cookies - we'll just omit it if the socket relies on cookies
+    // Or we keep AUTH_TOKEN_KEY usage ONLY for websocket
+    const token = localStorage.getItem("auth_token");
 
     const socket = io(WS_URL, {
       auth: { token },
       transports: ["websocket", "polling"],
+      withCredentials: true,
     });
 
     socketRef.current = socket;

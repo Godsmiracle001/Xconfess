@@ -22,7 +22,9 @@ export class AddIdempotencyKeyToReports1700000000000 implements MigrationInterfa
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "idx_reports_idempotency_key_reporter"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "idx_reports_idempotency_key_reporter"`,
+    );
     await queryRunner.query(`
       ALTER TABLE "report"
         DROP COLUMN IF EXISTS "idempotency_key",

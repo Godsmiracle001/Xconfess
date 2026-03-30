@@ -2,7 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as StellarSDK from '@stellar/stellar-sdk';
 import { StellarConfigService } from './stellar-config.service';
 import { TransactionBuilderService } from './transaction-builder.service';
-import { IContractInvocation, ITransactionResult } from './interfaces/stellar-config.interface';
+import {
+  IContractInvocation,
+  ITransactionResult,
+} from './interfaces/stellar-config.interface';
+import { handleStellarError } from './utils/stellar-error.handler';
+import { encodeContractArgs, ContractArg } from './utils/parameter.encoder';
+import { InvokeContractDto } from './dto/invoke-contract.dto';
 
 @Injectable()
 export class ContractService {
@@ -11,46 +17,74 @@ export class ContractService {
   constructor(
     private stellarConfig: StellarConfigService,
     private txBuilder: TransactionBuilderService,
-  ) { }
+  ) {}
 
   /**
-   * Invoke Soroban contract function
+   * Map an allowlisted HTTP DTO to a low-level invocation. Contract id and
+   * function name are never taken from the client — only from this mapping.
+   */
+  invocationFromAllowlistedDto(
+    dto: InvokeContractDto,
+    verifiedSignerPublicKey: string,
+  ): IContractInvocation {
+    switch (dto.operation) {
+      case 'anchor_confession':
+        return {
+          contractId: this.stellarConfig.getContractId('confessionAnchor'),
+          functionName: 'anchor_confession',
+          args: [
+            { type: 'bytes', value: Buffer.from(dto.confessionHash!, 'hex') },
+            { type: 'u64', value: dto.timestamp! },
+          ],
+          sourceAccount: verifiedSignerPublicKey,
+        };
+      default: {
+        const _never: never = dto.operation;
+        throw new Error(`Unhandled allowlisted operation: ${_never}`);
+      }
+    }
+  }
+
+  /**
+   * Invoke a Soroban contract function.
+   * All argument encoding is delegated to parameter.encoder.ts — there is no
+   * duplicate encoding logic in this class.
    */
   async invokeContract(
     invocation: IContractInvocation,
     signerSecret: string,
   ): Promise<ITransactionResult> {
     try {
-      // Create contract instance
       const contract = new StellarSDK.Contract(invocation.contractId);
-      // BUG: Not encoding parameters correctly (to be fixed in later commit)
-      const encodedArgs = this.encodeContractArgs(invocation.args);
-      // Build contract invocation operation
+
+      // Single encoding path — delegates to parameter.encoder.ts
+      const encodedArgs = encodeContractArgs(invocation.args);
+
       const operation = contract.call(invocation.functionName, ...encodedArgs);
-      // Build transaction
+
       const tx = await this.txBuilder.buildTransaction(
         invocation.sourceAccount,
         [operation],
       );
-      // Sign transaction
       const signedTx = this.txBuilder.signTransaction(tx, signerSecret);
-      // Submit transaction
       const result = await this.txBuilder.submitTransaction(signedTx);
-      // Decode result
       const decodedResult = this.decodeContractResult(result);
+
       return {
         hash: result.hash,
         success: result.successful,
         result: decodedResult,
       };
-    } catch (error) {
-      this.logger.error(`Contract invocation failed: ${error.message}`);
-      throw new Error(`Contract call failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Contract invocation failed: ${message}`);
+      throw handleStellarError(error);
     }
   }
 
   /**
-   * Anchor confession hash on-chain
+   * Anchor a confession hash on-chain.
+   * Args are expressed as typed ContractArg objects and encoded by the shared encoder.
    */
   async anchorConfession(
     confessionHash: string,
@@ -59,14 +93,15 @@ export class ContractService {
   ): Promise<ITransactionResult> {
     const contractId = this.stellarConfig.getContractId('confessionAnchor');
     const signerKeypair = StellarSDK.Keypair.fromSecret(signerSecret);
+
     return this.invokeContract(
       {
         contractId,
         functionName: 'anchor_confession',
         args: [
-          StellarSDK.nativeToScVal(confessionHash, { type: 'bytes' }),
-          StellarSDK.nativeToScVal(timestamp, { type: 'u64' }),
-        ],
+          { type: 'bytes', value: Buffer.from(confessionHash, 'hex') },
+          { type: 'u64', value: timestamp },
+        ] satisfies ContractArg[],
         sourceAccount: signerKeypair.publicKey(),
       },
       signerSecret,
@@ -74,18 +109,18 @@ export class ContractService {
   }
 
   /**
-   * Verify confession on-chain
+   * Verify a confession hash on-chain (read-only — no transaction).
    */
   async verifyConfession(confessionHash: string): Promise<number | null> {
     try {
       const contractId = this.stellarConfig.getContractId('confessionAnchor');
       const contract = new StellarSDK.Contract(contractId);
-      // Call view function (read-only, no transaction)
+
       const result = await contract.call(
         'verify_confession',
         StellarSDK.nativeToScVal(confessionHash, { type: 'bytes' }),
       );
-      // Decode timestamp
+
       const timestamp = StellarSDK.scValToNative(result as any);
       return timestamp || null;
     } catch (error) {
@@ -95,27 +130,7 @@ export class ContractService {
   }
 
   /**
-   * Proper ScVal encoding for contract parameters
-   */
-  private encodeContractArgs(args: any[]): any[] {
-    return args.map((arg) => {
-      if (typeof arg === 'string') {
-        return StellarSDK.nativeToScVal(arg, { type: 'string' });
-      } else if (typeof arg === 'number') {
-        return StellarSDK.nativeToScVal(arg, { type: 'u64' });
-      } else if (typeof arg === 'boolean') {
-        return StellarSDK.nativeToScVal(arg, { type: 'bool' });
-      } else if (Buffer.isBuffer(arg)) {
-        return StellarSDK.nativeToScVal(arg, { type: 'bytes' });
-      } else {
-        // Assume it's already an ScVal
-        return arg;
-      }
-    });
-  }
-
-  /**
-   * Decode contract result
+   * Decode a contract result XDR into a native JS value.
    */
   private decodeContractResult(result: any): any {
     try {
@@ -124,11 +139,11 @@ export class ContractService {
         result.result_xdr,
         'base64',
       );
-      // Extract and decode result
       const resultValue = xdr.result().value();
       return StellarSDK.scValToNative(resultValue as any);
-    } catch (error) {
-      this.logger.warn(`Could not decode contract result: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Could not decode contract result: ${message}`);
       return null;
     }
   }

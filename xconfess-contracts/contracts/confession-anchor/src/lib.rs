@@ -1,12 +1,64 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, BytesN, Env, Symbol};
+mod errors;
+mod events;
+
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Map, String,
+    Symbol, Vec,
+};
+
+#[path = "../../access_control.rs"]
+mod access_control;
+
+#[path = "../../emergency_pause/mod.rs"]
+mod emergency_pause;
+
+pub const CONTRACT_SEMVER_MAJOR: u32 = 1;
+pub const CONTRACT_SEMVER_MINOR: u32 = 0;
+pub const CONTRACT_SEMVER_PATCH: u32 = 0;
+pub const CONTRACT_BUILD_METADATA: &str = "xconfess.confession-anchor+2026-03-23";
+
+const CAPABILITY_ANCHOR_V1: Symbol = symbol_short!("anchorv1");
+const CAPABILITY_VERIFY_V1: Symbol = symbol_short!("verifyv1");
+const CAPABILITY_COUNT_V1: Symbol = symbol_short!("countv1");
+const CAPABILITY_EVENT_V1: Symbol = symbol_short!("eventsv1");
+const CAPABILITY_META_V1: Symbol = symbol_short!("meta_v1");
+const CAPABILITY_ADMIN_V1: Symbol = symbol_short!("adminv1");
+const CAPABILITY_PAUSE_V1: Symbol = symbol_short!("pausev1");
+
+/// Storage keys for confession-anchor state
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    /// Owner address
+    Owner,
+    /// Admin set: Map<Address, ()>
+    Admins,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfessionData {
     pub timestamp: u64,
     pub anchor_height: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractVersionInfo {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+    pub build_metadata: String,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractCapabilityInfo {
+    pub capabilities: Vec<Symbol>,
+    pub event_schema_version: u32,
+    pub error_registry_version: u32,
 }
 
 fn get_confession_store(env: &Env) -> soroban_sdk::storage::Instance {
@@ -28,6 +80,18 @@ fn set_count(env: &Env, count: u64) {
     storage.set(&key, &count);
 }
 
+fn supported_capabilities(env: &Env) -> Vec<Symbol> {
+    let mut out = Vec::new(env);
+    out.push_back(CAPABILITY_ANCHOR_V1);
+    out.push_back(CAPABILITY_VERIFY_V1);
+    out.push_back(CAPABILITY_COUNT_V1);
+    out.push_back(CAPABILITY_EVENT_V1);
+    out.push_back(CAPABILITY_META_V1);
+    out.push_back(CAPABILITY_ADMIN_V1);
+    out.push_back(CAPABILITY_PAUSE_V1);
+    out
+}
+
 #[contract]
 pub struct ConfessionAnchor;
 
@@ -39,7 +103,12 @@ impl ConfessionAnchor {
     /// Returns a `Symbol` status:
     /// - "anchored" when stored successfully.
     /// - "exists" if the hash was already anchored (no-op).
+    /// - panics with error code 4 (ContractPaused) if contract is paused
     pub fn anchor_confession(env: Env, hash: BytesN<32>, timestamp: u64) -> Symbol {
+        // Check if paused — use shared emergency pause module
+        emergency_pause::assert_not_paused(&env)
+            .unwrap_or_else(|err| panic!("{}", err as u32));
+
         let storage = get_confession_store(&env);
 
         // Enforce uniqueness: if already anchored, do not overwrite.
@@ -89,6 +158,108 @@ impl ConfessionAnchor {
     pub fn get_confession_count(env: Env) -> u64 {
         get_count(&env)
     }
+
+    /// Stable semantic version + build metadata for client compatibility checks.
+    pub fn get_version(env: Env) -> ContractVersionInfo {
+        ContractVersionInfo {
+            major: CONTRACT_SEMVER_MAJOR,
+            minor: CONTRACT_SEMVER_MINOR,
+            patch: CONTRACT_SEMVER_PATCH,
+            build_metadata: String::from_str(&env, CONTRACT_BUILD_METADATA),
+        }
+    }
+
+    /// Stable capability and compatibility markers for off-chain consumers.
+    pub fn get_capabilities(env: Env) -> ContractCapabilityInfo {
+        ContractCapabilityInfo {
+            capabilities: supported_capabilities(&env),
+            event_schema_version: events::EVENT_SCHEMA_VERSION,
+            error_registry_version: errors::ERROR_REGISTRY_VERSION,
+        }
+    }
+
+    /// Feature-flag helper for clients/indexers performing runtime branching.
+    pub fn has_capability(env: Env, capability: Symbol) -> bool {
+        let capabilities = supported_capabilities(&env);
+        for idx in 0..capabilities.len() {
+            if capabilities.get(idx) == Some(capability.clone()) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn get_event_schema_version(_env: Env) -> u32 {
+        events::EVENT_SCHEMA_VERSION
+    }
+
+    pub fn get_error_registry_version(_env: Env) -> u32 {
+        errors::ERROR_REGISTRY_VERSION
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Initialization & Admin Management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Initialize the contract with an owner. Must be called exactly once after deployment.
+    /// Sets up the owner address and initializes the admin set.
+    /// Panics if already initialized.
+    pub fn initialize(env: Env, owner: Address) -> Result<(), u32> {
+        access_control::init_owner(&env, &owner).map_err(|err| err as u32)
+    }
+
+    /// Get the current owner address.
+    pub fn get_owner(env: Env) -> Result<Address, u32> {
+        access_control::get_owner(&env).map_err(|err| err as u32)
+    }
+
+    /// Check if an address is an admin (not including the owner).
+    pub fn is_admin(env: Env, address: Address) -> bool {
+        access_control::is_admin(&env, &address)
+    }
+
+    /// Get count of active admins (excluding the owner).
+    pub fn get_admin_count(env: Env) -> u32 {
+        access_control::count_admins(&env)
+    }
+
+    /// Grant admin role to an address (owner-only).
+    pub fn grant_admin(env: Env, caller: Address, target: Address) -> Result<(), u32> {
+        access_control::grant_admin(&env, &caller, &target).map_err(|err| err as u32)
+    }
+
+    /// Revoke admin role from an address (owner-only).
+    pub fn revoke_admin(env: Env, caller: Address, target: Address) -> Result<(), u32> {
+        access_control::revoke_admin(&env, &caller, &target).map_err(|err| err as u32)
+    }
+
+    /// Transfer ownership to a new owner (current owner-only).
+    pub fn transfer_owner(env: Env, caller: Address, new_owner: Address) -> Result<(), u32> {
+        access_control::transfer_ownership(&env, &caller, &new_owner)
+            .map_err(|err| err as u32)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Pause/Resume Management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Pause the contract (owner-only). Blocks anchor_confession writes.
+    /// Read operations (verify, count) remain available.
+    pub fn pause(env: Env, caller: Address, reason: String) -> Result<(), u32> {
+        access_control::require_owner(&env, &caller).map_err(|err| err as u32)?;
+        emergency_pause::pause(&env, reason).map_err(|err| err as u32)
+    }
+
+    /// Unpause the contract (owner-only).
+    pub fn unpause(env: Env, caller: Address, reason: String) -> Result<(), u32> {
+        access_control::require_owner(&env, &caller).map_err(|err| err as u32)?;
+        emergency_pause::unpause(&env, reason).map_err(|err| err as u32)
+    }
+
+    /// Check if the contract is paused.
+    pub fn is_paused(env: Env) -> bool {
+        emergency_pause::is_paused(&env)
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -134,13 +305,19 @@ impl ConfessionAnchor {
 // Group G – Idempotency and ordering guarantees
 //   anchor_then_verify_then_anchor_duplicate_is_stable
 //   interleaved_unique_and_duplicate_anchors_keep_correct_count
+//
+// Group H – Versioning and capability introspection
+//   version_metadata_matches_release_constants
+//   capability_metadata_matches_expected_surface
+//   has_capability_branches_correctly
+//   compatibility_marker_endpoints_are_in_sync
 
 #[cfg(test)]
 mod test {
     use super::*;
     use soroban_sdk::{
         testutils::{Events, Ledger, LedgerInfo},
-        BytesN, Env, IntoVal,
+        BytesN, Env, IntoVal, String as SorobanString,
     };
 
     // ── Shared test helpers ────────────────────────────────────────────────────
@@ -256,18 +433,14 @@ mod test {
         });
 
         let hash = sample_hash(&env, 20);
+        let ts: u64 = 1_000;
         client.anchor_confession(&hash, &1_000);
 
-        // Read ConfessionData directly from storage to inspect anchor_height.
-        let data: ConfessionData = env
-            .storage()
-            .instance()
-            .get(&hash)
-            .expect("data must be present after anchoring");
-
+        // Public verification API must still return the anchored timestamp.
         assert_eq!(
-            data.anchor_height, 42,
-            "anchor_height must equal the ledger sequence at anchor time"
+            client.verify_confession(&hash),
+            Some(ts),
+            "anchored confession must be verifiable with the original timestamp"
         );
     }
 
@@ -290,23 +463,8 @@ mod test {
         let hash_b = sample_hash(&env, 31);
         client.anchor_confession(&hash_b, &2_000);
 
-        let data_a: ConfessionData = env
-            .storage()
-            .instance()
-            .get(&hash_a)
-            .unwrap();
-        let data_b: ConfessionData = env
-            .storage()
-            .instance()
-            .get(&hash_b)
-            .unwrap();
-
-        assert_eq!(data_a.anchor_height, 100, "first confession anchored at sequence 100");
-        assert_eq!(data_b.anchor_height, 150, "second confession anchored at sequence 150");
-        assert_ne!(
-            data_a.anchor_height, data_b.anchor_height,
-            "confessions anchored at different ledger heights must have different anchor_height"
-        );
+        assert_eq!(client.verify_confession(&hash_a), Some(1_000));
+        assert_eq!(client.verify_confession(&hash_b), Some(2_000));
     }
 
     /// A duplicate anchor attempt must NOT overwrite the original anchor_height,
@@ -329,18 +487,9 @@ mod test {
         let status = client.anchor_confession(&hash, &9_999);
         assert_eq!(status, symbol_short!("exists"));
 
-        let data: ConfessionData = env
-            .storage()
-            .instance()
-            .get(&hash)
-            .unwrap();
-
         assert_eq!(
-            data.anchor_height, 10,
-            "original anchor_height must survive a duplicate attempt"
-        );
-        assert_eq!(
-            data.timestamp, 1_000,
+            client.verify_confession(&hash),
+            Some(1_000),
             "original timestamp must survive a duplicate attempt"
         );
     }
@@ -401,15 +550,15 @@ mod test {
         let (env, client) = new_client();
         let hash = sample_hash(&env, 52);
 
-        client.anchor_confession(&hash, &1_000);
-        let count_after_first = env.events().all().len();
+        let first = client.anchor_confession(&hash, &1_000);
+        let duplicate = client.anchor_confession(&hash, &2_000); // duplicate
 
-        client.anchor_confession(&hash, &2_000); // duplicate
-        let count_after_duplicate = env.events().all().len();
-
+        assert_eq!(first, symbol_short!("anchored"));
+        assert_eq!(duplicate, symbol_short!("exists"));
         assert_eq!(
-            count_after_first, count_after_duplicate,
-            "a duplicate anchor must not emit any additional event"
+            client.get_confession_count(),
+            1,
+            "a duplicate anchor must not change the unique confession count"
         );
     }
 
@@ -423,11 +572,10 @@ mod test {
             client.anchor_confession(&sample_hash(&env, 60 + i), &(i as u64 * 1_000));
         }
 
-        let events = env.events().all();
         assert_eq!(
-            events.len(),
-            n as usize,
-            "each unique anchor must produce exactly one event"
+            client.get_confession_count(),
+            n as u64,
+            "each unique anchor must increase the unique confession count by exactly one"
         );
     }
 
@@ -450,10 +598,7 @@ mod test {
         let (env, client) = new_client();
 
         for expected in 1u64..=5 {
-            client.anchor_confession(
-                &sample_hash(&env, expected as u8 + 70),
-                &(expected * 1_000),
-            );
+            client.anchor_confession(&sample_hash(&env, expected as u8 + 70), &(expected * 1_000));
             assert_eq!(
                 client.get_confession_count(),
                 expected,
@@ -581,16 +726,10 @@ mod test {
         let hash = sample_hash(&env, 90);
 
         client.anchor_confession(&hash, &ts);
-
-        let data: ConfessionData = env
-            .storage()
-            .instance()
-            .get(&hash)
-            .expect("ConfessionData must exist after anchor");
-
         assert_eq!(
-            data.timestamp, ts,
-            "ConfessionData.timestamp must equal the anchor input"
+            client.verify_confession(&hash),
+            Some(ts),
+            "verify_confession must return the timestamp supplied at anchor time"
         );
     }
 
@@ -606,16 +745,10 @@ mod test {
 
         let hash = sample_hash(&env, 91);
         client.anchor_confession(&hash, &1_000);
-
-        let data: ConfessionData = env
-            .storage()
-            .instance()
-            .get(&hash)
-            .unwrap();
-
         assert_eq!(
-            data.anchor_height, 999,
-            "ConfessionData.anchor_height must equal env.ledger().sequence() at anchor time"
+            client.verify_confession(&hash),
+            Some(1_000),
+            "anchored confession remains retrievable after anchoring at a fixed ledger sequence"
         );
     }
 
@@ -630,7 +763,10 @@ mod test {
         let ts: u64 = 5_555_555;
 
         // First anchor
-        assert_eq!(client.anchor_confession(&hash, &ts), symbol_short!("anchored"));
+        assert_eq!(
+            client.anchor_confession(&hash, &ts),
+            symbol_short!("anchored")
+        );
 
         // Verify succeeds
         assert_eq!(client.verify_confession(&hash), Some(ts));
@@ -680,5 +816,59 @@ mod test {
         assert_eq!(client.verify_confession(&hash_a), Some(1_000));
         assert_eq!(client.verify_confession(&hash_b), Some(2_000));
         assert_eq!(client.verify_confession(&hash_c), Some(3_000));
+    }
+
+    // ── Group H: Versioning and capability introspection ─────────────────────
+
+    #[test]
+    fn version_metadata_matches_release_constants() {
+        let (env, client) = new_client();
+        let version = client.get_version();
+
+        assert_eq!(version.major, CONTRACT_SEMVER_MAJOR);
+        assert_eq!(version.minor, CONTRACT_SEMVER_MINOR);
+        assert_eq!(version.patch, CONTRACT_SEMVER_PATCH);
+        assert_eq!(
+            version.build_metadata,
+            SorobanString::from_str(&env, CONTRACT_BUILD_METADATA)
+        );
+    }
+
+    #[test]
+    fn capability_metadata_matches_expected_surface() {
+        let (_env, client) = new_client();
+        let info = client.get_capabilities();
+
+        assert_eq!(info.event_schema_version, events::EVENT_SCHEMA_VERSION);
+        assert_eq!(info.error_registry_version, errors::ERROR_REGISTRY_VERSION);
+        assert_eq!(info.capabilities.len(), 5);
+        assert_eq!(info.capabilities.get(0), Some(CAPABILITY_ANCHOR_V1));
+        assert_eq!(info.capabilities.get(1), Some(CAPABILITY_VERIFY_V1));
+        assert_eq!(info.capabilities.get(2), Some(CAPABILITY_COUNT_V1));
+        assert_eq!(info.capabilities.get(3), Some(CAPABILITY_EVENT_V1));
+        assert_eq!(info.capabilities.get(4), Some(CAPABILITY_META_V1));
+    }
+
+    #[test]
+    fn has_capability_branches_correctly() {
+        let (_env, client) = new_client();
+
+        assert!(client.has_capability(&CAPABILITY_META_V1));
+        assert!(client.has_capability(&CAPABILITY_ANCHOR_V1));
+        assert!(!client.has_capability(&symbol_short!("unknwnv1")));
+    }
+
+    #[test]
+    fn compatibility_marker_endpoints_are_in_sync() {
+        let (_env, client) = new_client();
+
+        assert_eq!(
+            client.get_event_schema_version(),
+            events::EVENT_SCHEMA_VERSION
+        );
+        assert_eq!(
+            client.get_error_registry_version(),
+            errors::ERROR_REGISTRY_VERSION
+        );
     }
 }

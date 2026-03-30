@@ -68,7 +68,7 @@ describe('AuditLogService', () => {
 
     expect(mockRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        actionType: AuditActionType.FAILED_LOGIN,
+        action: AuditActionType.FAILED_LOGIN,
         metadata: expect.objectContaining({
           identifier: 'user@example.com',
           requestId: 'req-123',
@@ -106,10 +106,12 @@ describe('AuditLogService', () => {
 
     expect(mockRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        actionType: AuditActionType.TEMPLATE_ROLLOUT_DIFF_RECORDED,
+        action: AuditActionType.TEMPLATE_ROLLOUT_DIFF_RECORDED,
         metadata: expect.objectContaining({
           templateKey: 'welcome',
           templateVersion: 'v2',
+          actorType: 'admin',
+          actorId: '2f4d4789-b665-4f8b-841b-94e7a41ca1c2',
           before: expect.any(Object),
           after: expect.any(Object),
           diff: expect.objectContaining({
@@ -148,8 +150,67 @@ describe('AuditLogService', () => {
       { templateVersion: 'v2' },
     );
     expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
-      "(audit_log.user_id = :actorId OR audit_log.metadata->>'actorId' = :actorId)",
-      { actorId: 'actor-123' },
+      "audit_log.metadata->>'actorId' = :actorIdRaw",
+      { actorId: null, actorIdRaw: 'actor-123' },
+    );
+  });
+
+  it('records export lifecycle entries with stable metadata fields', async () => {
+    mockRepository.create.mockReturnValue({} as AuditLog);
+    mockRepository.save.mockResolvedValue({} as AuditLog);
+
+    await service.logExportLifecycleEvent({
+      action: 'downloaded',
+      actorType: 'user',
+      actorId: 'user-42',
+      requestId: 'export-req-1',
+      exportId: 'export-req-1',
+      occurredAt: '2026-03-24T00:00:00.000Z',
+      metadata: {
+        source: 'signed_link',
+      },
+    });
+
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditActionType.EXPORT_DOWNLOADED,
+        metadata: expect.objectContaining({
+          entityType: 'data_export',
+          entityId: 'export-req-1',
+          exportId: 'export-req-1',
+          requestId: 'export-req-1',
+          actorType: 'user',
+          actorId: 'user-42',
+          actorUserId: 'user-42',
+          lifecycleAction: 'downloaded',
+          occurredAt: '2026-03-24T00:00:00.000Z',
+          source: 'signed_link',
+        }),
+      }),
+    );
+  });
+
+  it('tags admin moderation actions with admin actor metadata', async () => {
+    mockRepository.create.mockReturnValue({} as AuditLog);
+    mockRepository.save.mockResolvedValue({} as AuditLog);
+
+    await service.logReportResolved(
+      'report-1',
+      'admin-7',
+      { previousStatus: 'pending' },
+      { requestId: 'req-admin-1' },
+    );
+
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: AuditActionType.REPORT_RESOLVED,
+        metadata: expect.objectContaining({
+          reportId: 'report-1',
+          actorType: 'admin',
+          actorId: 'admin-7',
+          actorUserId: 'admin-7',
+        }),
+      }),
     );
   });
 
@@ -166,13 +227,49 @@ describe('AuditLogService', () => {
 
     expect(result.total).toBe(1);
     expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-      'audit_log.action_type IN (:...actionTypes)',
+      'audit_log.action IN (:...actionTypes)',
       expect.objectContaining({
         actionTypes: expect.arrayContaining([
           AuditActionType.TEMPLATE_STATE_TRANSITION,
           AuditActionType.TEMPLATE_ROLLOUT_DIFF_RECORDED,
         ]),
       }),
+    );
+  });
+
+  it('returns export access trail scoped to export lifecycle actions', async () => {
+    mockQueryBuilder.getManyAndCount.mockResolvedValue([[{ id: 'log-3' }], 1]);
+
+    const result = await service.getExportAccessTrail({
+      requestId: 'export-req-1',
+      actorType: 'system',
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(result.total).toBe(1);
+    expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+      'audit_log.action IN (:...actionTypes)',
+      expect.objectContaining({
+        actionTypes: expect.arrayContaining([
+          AuditActionType.EXPORT_REQUEST_CREATED,
+          AuditActionType.EXPORT_GENERATION_COMPLETED,
+          AuditActionType.EXPORT_LINK_REFRESHED,
+          AuditActionType.EXPORT_DOWNLOADED,
+        ]),
+      }),
+    );
+    expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+      'audit_log.entity_type = :entityType',
+      { entityType: 'data_export' },
+    );
+    expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+      "audit_log.metadata->>'requestId' = :requestId",
+      { requestId: 'export-req-1' },
+    );
+    expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+      "audit_log.metadata->>'actorType' = :actorType",
+      { actorType: 'system' },
     );
   });
 

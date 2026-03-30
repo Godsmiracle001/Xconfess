@@ -7,55 +7,45 @@ import { NotificationPreference } from './entities/notification-preference.entit
 import { NotificationService } from './services/notification.service';
 import { EmailNotificationService } from './services/email-notification.service';
 import { NotificationController } from './notifications.controller';
-import { NotificationProcessor } from './processors/notification.processor';
+import { NotificationProcessor, NOTIFICATION_QUEUE, NOTIFICATION_DLQ } from './processors/notification.processor';
 import { NotificationGateway } from './gateways/notification.gateway';
 import { DlqAdminController } from './dlq-admin.controller';
+import { WebSocketLogger } from '../websocket/websocket.logger';
+import { OutboxDispatcherService } from './services/outbox-dispatcher.service';
+import { RecipientResolver } from './services/recipient-resolver.service';
+import { JobManagementService } from './services/job-management.service';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
+import { User } from '../user/entities/user.entity';
+import { AuditLogModule } from '../audit-log/audit-log.module';
+import { LoggerModule } from '../logger/logger.module';
+import { EmailModule } from '../email/email.module';
 
-/**
- * Retry / backoff strategy
- * ─────────────────────────
- * attempts : 5   (1 initial + 4 retries)
- * backoff  : exponential starting at 2 s
- *
- * Delay schedule (approx.)
- *   attempt 1 →   0 s  (immediate)
- *   attempt 2 →   2 s
- *   attempt 3 →   4 s
- *   attempt 4 →   8 s
- *   attempt 5 →  16 s
- *
- * After attempt 5 the processor moves the job to the dead-letter queue.
- */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, NotificationPreference]),
-
-    // ── Main notification queue ──────────────────────────────────────────────
+    TypeOrmModule.forFeature([Notification, NotificationPreference, OutboxEvent, User]),
     BullModule.registerQueue({
-      name: 'notifications',
+      name: NOTIFICATION_QUEUE,
       defaultJobOptions: {
         attempts: 5,
         backoff: {
           type: 'exponential',
           delay: 2000,
         },
-        removeOnComplete: { count: 500 }, // keep last 500 for observability
-        removeOnFail: false,              // keep failed jobs until DLQ ack
+        removeOnComplete: { count: 500 },
+        removeOnFail: false,
       },
     }),
-
-    // ── Dead-letter queue ────────────────────────────────────────────────────
-    // No processor consumes this queue — it exists for ops inspection and
-    // manual / scheduled reprocessing only.
     BullModule.registerQueue({
-      name: 'notifications-dlq',
+      name: NOTIFICATION_DLQ,
       defaultJobOptions: {
         removeOnComplete: false,
         removeOnFail: false,
       },
     }),
-
     ConfigModule,
+    AuditLogModule,
+    LoggerModule,
+    EmailModule,
   ],
   controllers: [NotificationController, DlqAdminController],
   providers: [
@@ -63,7 +53,11 @@ import { DlqAdminController } from './dlq-admin.controller';
     EmailNotificationService,
     NotificationProcessor,
     NotificationGateway,
+    WebSocketLogger,
+    OutboxDispatcherService,
+    RecipientResolver,
+    JobManagementService,
   ],
-  exports: [NotificationService],
+  exports: [NotificationService, RecipientResolver],
 })
-export class NotificationModule {}
+export class NotificationsModule {}

@@ -64,18 +64,55 @@ export type TemplateRolloutMap = Record<string, TemplateRolloutPolicy>;
 // ── Resolution helpers ────────────────────────────────────────────────────────
 
 /**
+ * Bucket configuration options
+ */
+export interface BucketConfig {
+  /**
+   * Optional salt for hash normalization.
+   * When provided, the salt is prepended to the recipient email
+   * before hashing to ensure additional stability across deployments.
+   * Default: undefined (no salt)
+   */
+  salt?: string;
+}
+
+/**
+ * Normalize recipient input for bucketing.
+ *
+ * Steps:
+ * 1. Trim whitespace
+ * 2. Convert to lowercase
+ * 3. Return stable identifier
+ */
+export function normalizeRecipientForBucketing(recipientEmail: string): string {
+  return recipientEmail.trim().toLowerCase();
+}
+
+/**
  * Deterministically assign a recipient to a bucket 0–99.
  *
  * Uses HMAC-SHA256 keyed on templateKey so the same email produces
  * different buckets for different templates (avoids correlated rollouts).
+ *
+ * @param recipientEmail - The recipient email (will be normalized)
+ * @param templateKey - The template key to use as HMAC key
+ * @param config - Optional bucket configuration (salt, etc.)
+ * @returns Bucket number 0-99
  */
 export function recipientBucket(
   recipientEmail: string,
   templateKey: string,
+  config?: BucketConfig,
 ): number {
+  // Normalize recipient: trim and lowercase
+  const normalized = normalizeRecipientForBucketing(recipientEmail);
+
+  // Apply optional salt if provided
+  const input = config?.salt ? `${config.salt}${normalized}` : normalized;
+
   const hash = crypto
     .createHmac('sha256', templateKey)
-    .update(recipientEmail.toLowerCase().trim())
+    .update(input)
     .digest('hex');
   // Use the first 4 bytes (8 hex chars) for good distribution
   const value = parseInt(hash.slice(0, 8), 16);

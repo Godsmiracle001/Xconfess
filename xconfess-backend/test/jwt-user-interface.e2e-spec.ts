@@ -119,13 +119,9 @@ describe('JWT User Interface Standardization (e2e)', () => {
     });
 
     it('should reject requests without valid token', async () => {
-      await request(app.getHttpServer())
-        .get('/users/profile')
-        .expect(401);
+      await request(app.getHttpServer()).get('/users/profile').expect(401);
 
-      await request(app.getHttpServer())
-        .post('/users/deactivate')
-        .expect(401);
+      await request(app.getHttpServer()).post('/users/deactivate').expect(401);
     });
 
     it('should reject requests with invalid token', async () => {
@@ -152,10 +148,10 @@ describe('JWT User Interface Standardization (e2e)', () => {
 
       // Should have 'id' field
       expect(response.body).toHaveProperty('id');
-      
+
       // Should NOT have 'userId' field (no ambiguity)
       expect(response.body).not.toHaveProperty('userId');
-      
+
       // Should NOT have 'sub' field (JWT payload shouldn't leak through)
       expect(response.body).not.toHaveProperty('sub');
     });

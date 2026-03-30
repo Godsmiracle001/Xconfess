@@ -1,18 +1,25 @@
-import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
 
 /**
- * Payload for POST /auth/login.
+ * Canonical payload for all login routes (POST /auth/login, POST /users/login).
  *
- * Validation is intentionally minimal here: we do not re-enforce password
- * complexity rules because the error message "invalid credentials" is safer
- * than "password must contain uppercase" (which leaks policy information to
- * an attacker enumerating accounts).
+ * The email is normalised to lowercase + trimmed before validation so that
+ * "User@Example.COM" and "user@example.com" are treated identically.
+ *
+ * Password validation is intentionally minimal: we do not re-enforce complexity
+ * rules on login because an error such as "password must contain uppercase"
+ * leaks policy information to an attacker enumerating accounts.
  */
 export class LoginDto {
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail({}, { message: 'email must be a valid e-mail address' })
-  email: string;
+  @IsNotEmpty({ message: 'email must not be empty' })
+  email!: string;
 
   @IsString()
   @IsNotEmpty({ message: 'password must not be empty' })
-  password: string;
+  password!: string;
 }

@@ -17,6 +17,14 @@ await contractService.anchorConfession('hash', Date.now(), 'SC...');
 ## Overview
 This module provides secure, robust, and testable integration with the Stellar blockchain and Soroban smart contracts for the xConfess backend.
 
+## Operations Runbook
+- For production support workflows, use:
+  - [`docs/stellar-anchor-and-tipping-runbook.md`](../../../docs/stellar-anchor-and-tipping-runbook.md)
+- This runbook covers:
+  - Anchor/tip verification and reconciliation flow.
+  - Pending, failed, and replay-safe handling.
+  - Required incident evidence before manual intervention/refund decisions.
+
 ### Features
 - Network switching (testnet/mainnet)
 - Transaction building, signing, and verification

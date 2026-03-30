@@ -3,18 +3,59 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
+import helmet from 'helmet';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
+import { WebSocketAdapter } from './websocket/websocket.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Request-ID middleware — must be first so all downstream code sees it
+  // ── 1. Request-ID must be first so all downstream code sees it ──────────────
   const requestIdMiddleware = new RequestIdMiddleware();
   app.use(requestIdMiddleware.use.bind(requestIdMiddleware));
+
   app.enableShutdownHooks();
+
+  // ── 2. Security headers — single authoritative path for all HTTP responses ──
+  //    SecurityMiddleware is intentionally NOT registered as a Nest middleware
+  //    because it was never wired into the middleware consumer.  Applying Helmet
+  //    here in bootstrap ensures it runs on every request without exception.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          upgradeInsecureRequests: [],
+        },
+      },
+      // helmet v7 removed the xssFilter / noSniff shorthand aliases;
+      // xssProtection and noSniff are enabled by default — no need to re-declare.
+      frameguard: { action: 'deny' },
+    }),
+  );
+
+  // ── 3. CORS — one allowed origin derived from config ────────────────────────
+  //    Both HTTP and the WebSocket adapter read FRONTEND_URL so there is a
+  //    single documented source of truth for allowed origins.
+  const frontendUrl =
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+
+  app.enableCors({
+    origin: frontendUrl,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  });
+
+  // ── 4. WebSocket adapter — reads the same FRONTEND_URL ──────────────────────
+  app.useWebSocketAdapter(new WebSocketAdapter(app, configService));
+
+  // ── 5. Compression ──────────────────────────────────────────────────────────
   app.use(
     compression({
       filter: (req, res) => {
@@ -36,9 +77,11 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalFilters(new ThrottlerExceptionFilter());
+  app.useGlobalFilters(
+    new HttpExceptionFilter(),
+    new ThrottlerExceptionFilter(),
+  );
 
-  // Swagger / OpenAPI setup — available in non-production
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('xConfess API')
@@ -61,30 +104,6 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/api-docs', app, document);
-  }
-
-  // Migration verification check
-  if (process.env.NODE_ENV !== 'test') {
-    const { DataSource } = await import('typeorm');
-    try {
-      const dataSource = app.get(DataSource);
-      const result = await dataSource.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'public'
-        AND table_name = 'anonymous_confessions' 
-        AND column_name IN ('view_count', 'search_vector');
-      `);
-
-      const columns = result.map((r: any) => r.column_name);
-      if (!columns.includes('view_count') || !columns.includes('search_vector')) {
-        console.warn('⚠️  Database schema may be out of sync. Missing view_count or search_vector columns.');
-      } else {
-        console.log('✅ Database schema verified.');
-      }
-    } catch (error) {
-      console.error('❌ Failed to verify database schema during startup:', error.message);
-    }
   }
 
   const port = configService.get<number>('app.port', 3000);

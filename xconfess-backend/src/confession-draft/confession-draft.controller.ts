@@ -22,7 +22,12 @@ export class ConfessionDraftController {
 
   @Post()
   create(@GetUser('id') userId: number, @Body() dto: CreateConfessionDraftDto) {
-    return this.service.createDraft(userId, dto.content, dto.scheduledFor, dto.timezone);
+    return this.service.createDraft(
+      userId,
+      dto.content,
+      dto.scheduledFor,
+      dto.timezone,
+    );
   }
 
   @Get()
@@ -36,8 +41,12 @@ export class ConfessionDraftController {
   }
 
   @Patch(':id')
-  update(@GetUser('id') userId: number, @Param('id') id: string, @Body() dto: UpdateConfessionDraftDto) {
-    return this.service.updateDraft(userId, id, dto.content);
+  update(
+    @GetUser('id') userId: number,
+    @Param('id') id: string,
+    @Body() dto: UpdateConfessionDraftDto,
+  ) {
+    return this.service.updateDraft(userId, id, dto);
   }
 
   @Delete(':id')
@@ -46,8 +55,17 @@ export class ConfessionDraftController {
   }
 
   @Post(':id/schedule')
-  schedule(@GetUser('id') userId: number, @Param('id') id: string, @Body() dto: ScheduleConfessionDraftDto) {
-    return this.service.scheduleDraft(userId, id, dto.scheduledFor, dto.timezone);
+  schedule(
+    @GetUser('id') userId: number,
+    @Param('id') id: string,
+    @Body() dto: ScheduleConfessionDraftDto,
+  ) {
+    return this.service.scheduleDraft(
+      userId,
+      id,
+      dto.scheduledFor,
+      dto.timezone,
+    );
   }
 
   @Post(':id/cancel')

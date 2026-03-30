@@ -5,13 +5,13 @@ import { UserRole } from '../src/user/entities/user.entity';
 
 /**
  * Admin RBAC Integration Tests
- * 
+ *
  * These tests verify that:
  * 1. Admin users can access protected endpoints
  * 2. Regular users are denied access (403 Forbidden)
  * 3. Unauthenticated users are denied access (401 Unauthorized)
  * 4. All admin endpoints require both JWT and admin role
- * 
+ *
  * To run these tests:
  * npm run test:e2e -- admin-rbac.e2e-spec
  */
@@ -21,19 +21,19 @@ describe('Admin RBAC Integration Tests (e2e)', () => {
   /**
    * Note: These tests are designed to work with the full application setup.
    * In a test environment, you would typically:
-   * 
+   *
    * 1. Set up a test database
    * 2. Create test users (admin and regular)
    * 3. Generate JWT tokens for each
    * 4. Test all endpoints
-   * 
+   *
    * Example setup:
-   * 
+   *
    * beforeAll(async () => {
    *   const moduleFixture: TestingModule = await Test.createTestingModule({
    *     imports: [AppModule],
    *   }).compile();
-   * 
+   *
    *   app = moduleFixture.createNestApplication();
    *   await app.init();
    * });
@@ -43,13 +43,13 @@ describe('Admin RBAC Integration Tests (e2e)', () => {
     it('should require authentication for admin endpoints', async () => {
       // This is a placeholder test showing the expected behavior
       // In production, it would test an actual endpoint
-      
+
       /**
        * Expected behavior:
        * GET /admin/moderation/stats (no token)
        * Response: 401 Unauthorized
        */
-      
+
       console.log('✓ Admin endpoints require authentication (JWT token)');
     });
 
@@ -59,7 +59,7 @@ describe('Admin RBAC Integration Tests (e2e)', () => {
        * User with role='user' tries to access /admin/moderation/stats
        * Response: 403 Forbidden - "Only admins can access this endpoint"
        */
-      
+
       console.log('✓ Admin endpoints deny access to non-admin users');
     });
 
@@ -69,7 +69,7 @@ describe('Admin RBAC Integration Tests (e2e)', () => {
        * User with role='admin' accesses /admin/moderation/stats
        * Response: 200 OK (or appropriate response with data)
        */
-      
+
       console.log('✓ Admin endpoints allow access to admin users');
     });
   });
@@ -124,22 +124,22 @@ describe('Admin RBAC Integration Tests (e2e)', () => {
 
   /**
    * Testing Guidelines:
-   * 
+   *
    * 1. Setup:
    *    - Create admin user with role='admin'
    *    - Create regular user with role='user'
    *    - Generate JWT tokens for both
-   * 
+   *
    * 2. Test Pattern:
    *    - Test unauthenticated access (no token) → 401
    *    - Test regular user access (user token) → 403
    *    - Test admin user access (admin token) → 200 (or specific error if invalid data)
-   * 
+   *
    * 3. Assertions:
    *    - Status codes are correct
    *    - Error messages are appropriate
    *    - Admin requests return valid data
-   * 
+   *
    * 4. Endpoints to Test:
    *    - GET /admin/moderation/pending
    *    - POST /admin/moderation/review/:id
@@ -160,4 +160,3 @@ describe('Admin RBAC Integration Tests (e2e)', () => {
     }
   });
 });
-

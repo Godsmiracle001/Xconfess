@@ -10,5 +10,14 @@ export class ReportsEventsListener {
   handleReportCreated(payload: any) {
     this.adminGateway.emitNewReport(payload);
   }
-}
 
+  @OnEvent('report.updated')
+  handleReportUpdated(payload: any) {
+    this.adminGateway.emitReportUpdated(payload);
+  }
+
+  @OnEvent('reports.bulk.updated')
+  handleReportsBulkUpdated(payload: any) {
+    this.adminGateway.emitReportsBulkUpdated(payload);
+  }
+}

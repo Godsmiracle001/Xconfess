@@ -49,7 +49,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (!response.ok) {
-        throw new Error('Invalid token');
+        console.error('Auth refresh failed:', {
+          status: response.status,
+          path: '/auth/me',
+        });
+        localStorage.removeItem('access_token');
+        setUser(null);
+        return;
       }
 
       const userData = await response.json();

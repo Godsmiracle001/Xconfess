@@ -10,8 +10,16 @@ export interface CacheableOptions {
 
 export const Cacheable = (options: CacheableOptions = {}) => {
   return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
-    SetMetadata(CACHE_KEY_METADATA, options.keyPrefix || propertyKey)(target, propertyKey, descriptor);
-    SetMetadata(CACHE_TTL_METADATA, options.ttl || 300)(target, propertyKey, descriptor);
+    SetMetadata(CACHE_KEY_METADATA, options.keyPrefix || propertyKey)(
+      target,
+      propertyKey,
+      descriptor,
+    );
+    SetMetadata(CACHE_TTL_METADATA, options.ttl || 300)(
+      target,
+      propertyKey,
+      descriptor,
+    );
     return descriptor;
   };
 };

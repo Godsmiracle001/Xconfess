@@ -1,13 +1,15 @@
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
+  IsNotEmpty,
   IsString,
-  MinLength,
-  MaxLength,
   Matches,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 
 /**
- * Payload for POST /auth/register.
+ * Canonical payload for all registration routes (POST /auth/register, POST /users/register).
  *
  * All three fields are required (no @IsOptional).
  * Unknown fields are rejected with 400 by the global ValidationPipe.
@@ -15,10 +17,15 @@ import {
 export class RegisterDto {
   /**
    * Must be a valid RFC 5322 e-mail address.
-   * class-validator normalises it to lowercase before storage.
+   * Normalised to lowercase + trimmed before validation so that
+   * "User@Example.COM" resolves to the same identity as "user@example.com".
    */
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail({}, { message: 'email must be a valid e-mail address' })
-  email: string;
+  @IsNotEmpty({ message: 'email must not be empty' })
+  email!: string;
 
   /**
    * Minimum 8 characters.
@@ -29,7 +36,7 @@ export class RegisterDto {
    *   "password is too weak" is clearer than a generic pattern failure.
    */
   @IsString()
-  @MinLength(8,  { message: 'password must be at least 8 characters' })
+  @MinLength(8, { message: 'password must be at least 8 characters' })
   @MaxLength(72, { message: 'password must be at most 72 characters' })
   @Matches(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/,
@@ -38,16 +45,16 @@ export class RegisterDto {
         'password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character',
     },
   )
-  password: string;
+  password!: string;
 
   /**
    * Display name shown in the UI.  3–30 characters, alphanumeric and underscores.
    */
   @IsString()
-  @MinLength(3,  { message: 'username must be at least 3 characters' })
+  @MinLength(3, { message: 'username must be at least 3 characters' })
   @MaxLength(30, { message: 'username must be at most 30 characters' })
   @Matches(/^[a-zA-Z0-9_]+$/, {
     message: 'username may only contain letters, numbers, and underscores',
   })
-  username: string;
+  username!: string;
 }

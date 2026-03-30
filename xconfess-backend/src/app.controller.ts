@@ -8,10 +8,10 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 import { RedisHealthIndicator } from './health/redis.health';
+import { SchemaReadinessHealthIndicator } from './health/schema-readiness.health';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { AdminGuard } from './auth/admin.guard';
-import { NotificationQueue } from './notification/notification.queue';
-// import { RedisHealthIndicator } from './health/redis.health';
+import { JobManagementService } from './notifications/services/job-management.service';
 
 @ApiTags('App')
 @Controller()
@@ -21,10 +21,9 @@ export class AppController {
     private health: HealthCheckService,
     private db: TypeOrmHealthIndicator,
     private redis: RedisHealthIndicator,
-    private readonly notificationQueue: NotificationQueue,
+    private readonly schemaReadiness: SchemaReadinessHealthIndicator,
+    private readonly jobManagementService: JobManagementService,
   ) {}
-    // private redis: RedisHealthIndicator,
-  ) { }
 
   @Get()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
@@ -38,30 +37,43 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  // ✅ NEW HEALTH ENDPOINT
+  // ✅ HEALTH ENDPOINT
   @Get('health')
   @HealthCheck()
-  @ApiOperation({ summary: 'Application health check endpoint' })
+  @ApiOperation({
+    summary: 'Application health check',
+    description:
+      'Liveness-style bundle: process, database ping, Redis, and confession-table schema readiness (required columns and FTS indexes on `anonymous_confessions`). Schema drift or failed verification makes the overall check fail (HTTP 503) with details under the `schema` key.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns application health status',
+    description: 'All checks passed',
+  })
+  @ApiResponse({
+    status: 503,
+    description:
+      'One or more checks failed (e.g. schema drift, DB unreachable, Redis down)',
   })
   check() {
     return this.health.check([
-      async () => ({ app: { status: 'up' } }),
+      () => ({ app: { status: 'up' } }),
       async () => this.db.pingCheck('database'),
-      // async () => this.redis.isHealthy('redis'),
+      async () => this.redis.isHealthy('redis'),
+      async () => this.schemaReadiness.isHealthy('schema'),
     ]);
   }
 
   @Get('diagnostics/notifications')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  @ApiOperation({ summary: 'Notification delivery metrics and queue health diagnostics' })
+  @ApiOperation({
+    summary: 'Notification delivery metrics and queue health diagnostics',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns queue depth, DLQ depth, counters, and timer metrics for notification processing',
+    description:
+      'Returns queue depth, DLQ depth, counters, and timer metrics for notification processing',
   })
   async getNotificationDiagnostics() {
-    return this.notificationQueue.getDiagnostics();
+    return this.jobManagementService.getDiagnostics();
   }
 }

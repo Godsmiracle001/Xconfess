@@ -5,7 +5,7 @@
  * routing, promotion and rollback transitions, and registry lookup
  * behaviour against the pure functions exported from email.config.ts.
  *
- * @see https://github.com/Godsmiracle001/Xconfess/issues/333
+ * @see https://github.com/Xconfess/Xconfess/issues/333
  */
 import {
   recipientBucket,
@@ -422,9 +422,7 @@ describe('Notification Template Canary Routing (e2e)', () => {
     });
 
     it('should throw when requested version does not exist', () => {
-      expect(() =>
-        getTemplateVersion(REGISTRY, TEMPLATE_KEY, 'v99'),
-      ).toThrow(
+      expect(() => getTemplateVersion(REGISTRY, TEMPLATE_KEY, 'v99')).toThrow(
         /Template version 'v99' not found for key 'comment_notification'/,
       );
     });

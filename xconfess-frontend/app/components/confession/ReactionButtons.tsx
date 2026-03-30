@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/app/lib/utils/cn";
-import { Heart, ThumbsUp } from "lucide-react";
 import { useReactions } from "@/app/lib/hooks/useReactions";
 import type { ReactionType } from "@/app/lib/types/reaction";
 
@@ -44,7 +43,7 @@ export const ReactionButton = ({
     setTimeout(() => setIsAnimating(false), 300);
 
     try {
-      const result = await addReaction({ confessionId, type });
+      const result = await addReaction(confessionId, type);
       
       if (!result.ok) {
         // Rollback on error
@@ -58,26 +57,31 @@ export const ReactionButton = ({
       if (result.data.reactions?.[type] !== undefined) {
         setLocalCount(result.data.reactions[type]);
       }
-    } catch (err) {
+    } catch {
       // Rollback on exception
       setActive(wasActive);
       setLocalCount(previousCount);
       setError("An unexpected error occurred");
     }
   };
-  const Icon = type === "like" ? ThumbsUp : Heart;
+  const label = active
+    ? `Remove ${type} reaction, current count ${localCount}`
+    : `React with ${type}, current count ${localCount}`;
+
   return (
     <div className="relative">
       <button
         onClick={react}
         disabled={isPending}
-        aria-label={`React with ${type}`}
+        aria-label={label}
+        aria-pressed={active}
         title={error || undefined}
         className={cn(
           "relative flex items-center gap-2 px-4 py-2 rounded-full",
           "min-w-11 min-h-11 touch-manipulation",
           "transition-all duration-200 ease-out",
           "bg-zinc-800 hover:bg-zinc-700",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500",
           "active:scale-95",
           active && "bg-pink-600 text-white",
           isAnimating && "animate-reaction-bounce",
@@ -92,7 +96,7 @@ export const ReactionButton = ({
       </button>
       
       {error && (
-        <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap">
+        <div role="alert" className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap">
           <div className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
             {error}
           </div>

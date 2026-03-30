@@ -8,9 +8,19 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
-import { CreateMessageDto, GetMessagesQueryDto, ReplyMessageDto } from './dto/message.dto';
+import {
+  CreateMessageDto,
+  GetMessagesQueryDto,
+  ReplyMessageDto,
+} from './dto/message.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { NotificationQueue } from '../notification/notification.queue';
 import { GetUser } from '../auth/get-user.decorator';
@@ -23,7 +33,7 @@ export class MessagesController {
   constructor(
     private readonly messagesService: MessagesService,
     private readonly notificationQueue: NotificationQueue,
-  ) { }
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Post()
@@ -39,9 +49,14 @@ export class MessagesController {
 
   @UseGuards(JwtAuthGuard)
   @Post('reply')
-  @ApiOperation({ summary: 'Reply to an anonymous message (author only, single reply)' })
+  @ApiOperation({
+    summary: 'Reply to an anonymous message (author only, single reply)',
+  })
   @ApiResponse({ status: 200, description: 'Reply sent successfully' })
-  @ApiResponse({ status: 403, description: 'Not the author or already replied' })
+  @ApiResponse({
+    status: 403,
+    description: 'Not the author or already replied',
+  })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
   async replyMessage(@Body() dto: ReplyMessageDto, @GetUser() user: User) {
     await this.messagesService.reply(dto, user);
@@ -50,7 +65,9 @@ export class MessagesController {
 
   @UseGuards(JwtAuthGuard)
   @Get('threads')
-  @ApiOperation({ summary: 'Get all message threads for the authenticated user' })
+  @ApiOperation({
+    summary: 'Get all message threads for the authenticated user',
+  })
   async getThreads(@GetUser() user: User) {
     return this.messagesService.findAllThreadsForUser(user);
   }
@@ -58,8 +75,16 @@ export class MessagesController {
   @UseGuards(JwtAuthGuard)
   @Get()
   @ApiOperation({ summary: 'Get messages for a specific confession thread' })
-  @ApiQuery({ name: 'confession_id', required: true, description: 'Confession UUID' })
-  @ApiQuery({ name: 'sender_id', required: true, description: 'Sender anonymous user ID' })
+  @ApiQuery({
+    name: 'confession_id',
+    required: true,
+    description: 'Confession UUID',
+  })
+  @ApiQuery({
+    name: 'sender_id',
+    required: true,
+    description: 'Sender anonymous user ID',
+  })
   @ApiResponse({ status: 200, description: 'Messages returned successfully' })
   @ApiResponse({ status: 403, description: 'Not part of this conversation' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))

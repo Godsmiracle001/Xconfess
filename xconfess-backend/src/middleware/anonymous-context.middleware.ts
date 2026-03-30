@@ -13,7 +13,7 @@ export class AnonymousContextMiddleware implements NestMiddleware {
   constructor(
     @Inject(AnonymousUserService)
     private readonly anonymousUserService: AnonymousUserService,
-  ) { }
+  ) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
     // Only add anonymous context for authenticated users
@@ -21,7 +21,9 @@ export class AnonymousContextMiddleware implements NestMiddleware {
     if (authReq.user) {
       try {
         // Get or create anonymous context for this user session
-        const anonymousUser = await this.getOrCreateAnonymousContext(authReq.user.id);
+        const anonymousUser = await this.getOrCreateAnonymousContext(
+          authReq.user.id,
+        );
         const anonymousContextId = `${this.ANONYMOUS_CONTEXT_PREFIX}${anonymousUser.id}`;
 
         // Add the header to the response (instead of mutating request headers)
@@ -42,11 +44,14 @@ export class AnonymousContextMiddleware implements NestMiddleware {
   }
 
   private async getOrCreateAnonymousContext(userId: number) {
-    return this.anonymousUserService.getOrCreateForUserSession(userId, this.SESSION_WINDOW_HOURS);
+    return this.anonymousUserService.getOrCreateForUserSession(
+      userId,
+      this.SESSION_WINDOW_HOURS,
+    );
   }
 
   private generateAnonymousContextId(): string {
     // Fallback UUID generation for error scenarios
     return `${this.ANONYMOUS_CONTEXT_PREFIX}${uuidv4()}`;
   }
-} 
+}

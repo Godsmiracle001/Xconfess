@@ -1,4 +1,9 @@
 import { registerAs } from '@nestjs/config';
+import {
+  EmailTemplateActiveVersionMissingError,
+  EmailTemplateNotFoundError,
+  EmailTemplateVersionNotFoundError,
+} from '../email/email-template.errors';
 
 // Template registry structure
 export type TemplateVariablePrimitiveType = 'string' | 'number' | 'boolean';
@@ -30,6 +35,67 @@ export interface EmailTemplateRegistry {
     versions: Record<string, EmailTemplateVersion>;
     rollout?: EmailTemplateRollout;
   };
+}
+
+/** Alias matching the name used in email.service.ts */
+export type TemplateRegistry = EmailTemplateRegistry;
+
+export interface TemplateRolloutPolicy {
+  activeVersion: string;
+  canaryVersion?: string;
+  canaryPercent?: number;
+}
+
+export interface TemplateRolloutMap {
+  [templateKey: string]: TemplateRolloutPolicy;
+}
+
+/**
+ * Resolve which template version to use for a given recipient.
+ * Uses the rolloutMap for explicit per-key overrides, then falls back
+ * to the registry's built-in rollout config.
+ */
+export function resolveTemplate(
+  registry: TemplateRegistry,
+  rolloutMap: TemplateRolloutMap,
+  templateKey: string,
+  _recipientEmail: string,
+): { template: EmailTemplateVersion; isCanary: boolean } {
+  const reg = registry[templateKey];
+  if (!reg) {
+    throw new EmailTemplateNotFoundError(templateKey);
+  }
+
+  // Prefer per-key rollout override from rolloutMap
+  const policy = rolloutMap[templateKey];
+  const canaryKey = policy?.canaryVersion ?? reg.rollout?.canaryVersion;
+  const canaryPct = policy?.canaryPercent ?? reg.rollout?.canaryWeight ?? 0;
+  const activeKey = policy?.activeVersion ?? reg.activeVersion;
+  const killSwitch = reg.rollout?.killSwitchEnabled ?? false;
+
+  const activeVersion = reg.versions[activeKey];
+  const canaryVersion = canaryKey ? reg.versions[canaryKey] : undefined;
+
+  if (
+    !killSwitch &&
+    canaryVersion &&
+    canaryVersion.lifecycleState === 'canary'
+  ) {
+    if (Math.random() * 100 < canaryPct) {
+      return { template: canaryVersion, isCanary: true };
+    }
+  }
+
+  if (!activeVersion) {
+    if (activeKey) {
+      throw new EmailTemplateVersionNotFoundError(templateKey, activeKey);
+    }
+    throw new EmailTemplateActiveVersionMissingError(
+      templateKey,
+      String(reg.activeVersion),
+    );
+  }
+  return { template: activeVersion, isCanary: false };
 }
 
 export interface MailConfig {
@@ -108,7 +174,10 @@ const templateRegistry: EmailTemplateRegistry = {
     },
     rollout: {
       canaryVersion: 'v2',
-      canaryWeight: parseInt(process.env.EMAIL_WELCOME_CANARY_WEIGHT || '0', 10),
+      canaryWeight: parseInt(
+        process.env.EMAIL_WELCOME_CANARY_WEIGHT || '0',
+        10,
+      ),
       killSwitchEnabled: false,
     },
   },
@@ -253,5 +322,8 @@ export const mailConfig = registerAs('mail', () => ({
 export const circuitBreakerConfig = registerAs('circuitBreaker', () => ({
   failureThreshold: parseInt(process.env.CB_FAILURE_THRESHOLD || '3', 10),
   cooldownSeconds: parseInt(process.env.CB_COOLDOWN_SECONDS || '60', 10),
-  probeSuccessThreshold: parseInt(process.env.CB_PROBE_SUCCESS_THRESHOLD || '2', 10),
+  probeSuccessThreshold: parseInt(
+    process.env.CB_PROBE_SUCCESS_THRESHOLD || '2',
+    10,
+  ),
 }));

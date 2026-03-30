@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { X, LogOut, User, MessageSquare, Home, Search } from "lucide-react";
 import { useAuth } from "../../lib/hooks/useAuth";
-import { useEffect } from "react";
+import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { user, logout } = useAuth();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -23,6 +26,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       document.body.style.overflow = "unset";
     };
   }, [isOpen]);
+
+  useFocusTrap({
+    active: isOpen,
+    containerRef: panelRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onClose,
+  });
 
   return (
     <>
@@ -41,11 +51,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Mobile Navigation"
+        id="mobile-navigation"
+        ref={panelRef}
       >
         <div className="flex flex-col h-full">
           <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-slate-800">
             <span className="text-lg font-bold text-primary">xConfess</span>
             <button
+              ref={closeButtonRef}
               onClick={onClose}
               className="p-2 -mr-2 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
               aria-label="Close menu"

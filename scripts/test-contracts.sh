@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# test-contracts.sh
-# Run tests for all Soroban smart contracts in xConfess
-
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -14,19 +11,19 @@ NC='\033[0m' # No Color
 
 # Helper functions
 print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
+    echo -e "${GREEN}[OK] $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}✗ $1${NC}"
+    echo -e "${RED}[ERROR] $1${NC}"
 }
 
 print_info() {
-    echo -e "${BLUE}ℹ $1${NC}"
+    echo -e "${BLUE}[INFO] $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
+    echo -e "${YELLOW}[WARN] $1${NC}"
 }
 
 print_header() {
@@ -101,59 +98,95 @@ echo ""
 # Change to contracts directory
 cd "$CONTRACTS_DIR"
 
-# Check if this is a workspace
-if grep -q "\[workspace\]" Cargo.toml; then
-    print_info "Detected Cargo workspace - running all tests together"
-    echo ""
-    
-    # Build test command arguments
-    TEST_CMD="cargo test"
-    if [ "$VERBOSE" = true ]; then
-        TEST_CMD="$TEST_CMD --verbose"
-    fi
-    if [ "$NOCAPTURE" = true ]; then
-        TEST_CMD="$TEST_CMD -- --nocapture"
-    fi
-    
-    print_header "Running All Contract Tests"
-    echo ""
-    
-    if eval $TEST_CMD; then
-        echo ""
-        print_success "✓ All workspace tests passed!"
-        
-        # Count test results from both contracts
-        echo ""
-        print_info "Workspace contains:"
-        for contract in confession-anchor reputation-badges; do
-            if [ -d "contracts/$contract" ]; then
-                echo "  ✓ $contract"
-            fi
-        done
-    else
-        echo ""
-        print_error "✗ Some tests failed"
-        cd "$PROJECT_ROOT"
-        exit 1
-    fi
-else
-    # Not a workspace, test individually (original logic)
-    print_error "This project is not configured as a Cargo workspace!"
+if ! grep -q "\[workspace\]" Cargo.toml; then
+    print_error "This project is not configured as a Cargo workspace"
     echo "Expected a [workspace] section in xconfess-contracts/Cargo.toml"
-    echo "Individual contract testing is not implemented for non-workspace setups."
     cd "$PROJECT_ROOT"
     exit 1
 fi
 
+mapfile -t WORKSPACE_MEMBERS < <(
+    awk '
+        /^members = \[/ { in_members = 1; next }
+        in_members && /^]/ { in_members = 0; exit }
+        in_members {
+            gsub(/^[[:space:]]*"/, "", $0)
+            gsub(/",?[[:space:]]*$/, "", $0)
+            gsub(/[[:space:]]/, "", $0)
+            if (length($0) > 0) print $0
+        }
+    ' Cargo.toml
+)
+
+if [ ${#WORKSPACE_MEMBERS[@]} -eq 0 ]; then
+    print_error "Could not determine workspace members from Cargo.toml"
+    cd "$PROJECT_ROOT"
+    exit 1
+fi
+
+CONTRACT_CRATES=()
+for member in "${WORKSPACE_MEMBERS[@]}"; do
+    CONTRACT_CRATES+=("$(basename "$member")")
+done
+
+print_info "Workspace contract crates: ${CONTRACT_CRATES[*]}"
+echo ""
+
+run_phase() {
+    local phase="$1"
+    local crate="$2"
+    shift 2
+
+    print_header "$phase :: $crate"
+    if "$@"; then
+        print_success "$phase passed for $crate"
+        echo ""
+        return 0
+    fi
+
+    print_error "$phase failed for $crate"
+    cd "$PROJECT_ROOT"
+    exit 1
+}
+
+TEST_ARGS=()
+if [ "$VERBOSE" = true ]; then
+    TEST_ARGS+=(--verbose)
+fi
+if [ "$NOCAPTURE" = true ]; then
+    TEST_ARGS+=(-- --nocapture)
+fi
+
+for crate in "${CONTRACT_CRATES[@]}"; do
+    run_phase "CHECK" "$crate" cargo check -p "$crate"
+done
+
+print_header "BUILD :: workspace wasm32"
+if cargo build --workspace --target wasm32-unknown-unknown; then
+    print_success "BUILD passed for workspace wasm32"
+    echo ""
+else
+    print_error "BUILD failed for workspace wasm32"
+    cd "$PROJECT_ROOT"
+    exit 1
+fi
+
+for crate in "${CONTRACT_CRATES[@]}"; do
+    run_phase "TEST" "$crate" cargo test -p "$crate" "${TEST_ARGS[@]}"
+done
+
 echo ""
 print_header "Test Summary"
 
-print_success "All contract tests completed successfully! ✓"
+print_success "All contract crates completed check, build, and test phases"
+for crate in "${CONTRACT_CRATES[@]}"; do
+    echo "  - $crate"
+done
 
 echo ""
 print_info "Next steps:"
-echo "  1. Build contracts: ./scripts/build-contracts.sh"
-echo "  2. Deploy to testnet: ./scripts/deploy-contracts.sh"
+echo "  1. Build contracts: ./scripts/contracts-release.sh build"
+echo "  2. Deploy to testnet: ./scripts/contracts-release.sh deploy --network testnet --source deployer"
 echo "  3. Run with coverage: cargo tarpaulin --workspace"
 
 # Return to original directory

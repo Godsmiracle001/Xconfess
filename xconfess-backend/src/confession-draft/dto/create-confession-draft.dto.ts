@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, IsISO8601, IsTimeZone, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsISO8601,
+  IsTimeZone,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateConfessionDraftDto {
   @IsString()

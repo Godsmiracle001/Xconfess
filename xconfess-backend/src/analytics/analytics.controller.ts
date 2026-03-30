@@ -18,6 +18,10 @@ import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
+  private normalizeDays(days: number = 7): number {
+    return [7, 30].includes(days) ? days : 7;
+  }
+
   @Get('trending')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get trending confessions' })
@@ -46,12 +50,7 @@ export class AnalyticsController {
   async getTrending(
     @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
   ) {
-    // Validate days parameter
-    if (![7, 30].includes(days)) {
-      days = 7;
-    }
-
-    return this.analyticsService.getTrendingConfessions(days);
+    return this.analyticsService.getTrendingConfessions(this.normalizeDays(days));
   }
 
   @Get('reactions')
@@ -82,11 +81,25 @@ export class AnalyticsController {
   async getReactions(
     @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
   ) {
-    if (![7, 30].includes(days)) {
-      days = 7;
-    }
+    return this.analyticsService.getReactionDistribution(this.normalizeDays(days));
+  }
 
-    return this.analyticsService.getReactionDistribution(days);
+  @Get('reactions/comparison')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get reaction distribution with prior-window comparison' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: 'Number of days to analyze (7 or 30)',
+    example: 7,
+  })
+  async getReactionComparison(
+    @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
+  ) {
+    return this.analyticsService.getReactionDistributionComparison(
+      this.normalizeDays(days),
+    );
   }
 
   @Get('users')
@@ -116,11 +129,25 @@ export class AnalyticsController {
   async getUsers(
     @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
   ) {
-    if (![7, 30].includes(days)) {
-      days = 7;
-    }
+    return this.analyticsService.getDailyActiveUsers(this.normalizeDays(days));
+  }
 
-    return this.analyticsService.getDailyActiveUsers(days);
+  @Get('users/comparison')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get daily active users with prior-window comparison' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: 'Number of days to analyze (7 or 30)',
+    example: 7,
+  })
+  async getUserComparison(
+    @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
+  ) {
+    return this.analyticsService.getUserActivityComparison(
+      this.normalizeDays(days),
+    );
   }
 
   @Get('stats')
@@ -175,10 +202,24 @@ export class AnalyticsController {
   async getGrowth(
     @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
   ) {
-    if (![7, 30].includes(days)) {
-      days = 7;
-    }
+    return this.analyticsService.getConfessionGrowth(this.normalizeDays(days));
+  }
 
-    return this.analyticsService.getConfessionGrowth(days);
+  @Get('growth/comparison')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get confession growth with prior-window comparison' })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: 'Number of days to analyze (7 or 30)',
+    example: 7,
+  })
+  async getGrowthComparison(
+    @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
+  ) {
+    return this.analyticsService.getConfessionGrowthComparison(
+      this.normalizeDays(days),
+    );
   }
 }

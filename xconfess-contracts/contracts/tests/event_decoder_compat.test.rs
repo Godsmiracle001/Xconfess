@@ -11,10 +11,13 @@ fn event_contains_version() {
         confession_id: 1,
         author: addr,
         content_hash: soroban_sdk::symbol_short!("hash"),
+        nonce: 1,
         timestamp: 0,
+        correlation_id: None,
     };
 
     assert_eq!(event.event_version, 1);
+    assert_eq!(event.nonce, 1);
 }
 
 #[test]

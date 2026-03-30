@@ -40,8 +40,14 @@ describe('ConfessionService', () => {
       providers: [
         ConfessionService,
         { provide: AnonymousConfessionRepository, useValue: repo },
-        { provide: ConfessionViewCacheService, useValue: { checkAndMarkView: jest.fn() } },
-        { provide: AiModerationService, useValue: { moderateContent: jest.fn() } },
+        {
+          provide: ConfessionViewCacheService,
+          useValue: { checkAndMarkView: jest.fn() },
+        },
+        {
+          provide: AiModerationService,
+          useValue: { moderateContent: jest.fn() },
+        },
         {
           provide: ModerationRepositoryService,
           useValue: {
@@ -54,7 +60,9 @@ describe('ConfessionService', () => {
         { provide: AnonymousUserService, useValue: { create: jest.fn() } },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('12345678901234567890123456789012') },
+          useValue: {
+            get: jest.fn().mockReturnValue('12345678901234567890123456789012'),
+          },
         },
       ],
     }).compile();
@@ -64,7 +72,9 @@ describe('ConfessionService', () => {
 
   it('remove() soft‑deletes existing', async () => {
     repo.findOne.mockResolvedValue({ id: '1', isDeleted: false } as any);
-    await expect(service.remove('1')).resolves.toEqual({ message: 'Confession soft‑deleted' });
+    await expect(service.remove('1')).resolves.toEqual({
+      message: 'Confession soft‑deleted',
+    });
     expect(repo.update).toHaveBeenCalledWith('1', { isDeleted: true });
   });
 
@@ -77,13 +87,19 @@ describe('ConfessionService', () => {
     qb.getCount.mockResolvedValue(20);
     qb.getMany.mockResolvedValue([{ id: 'a' }]);
 
-    const res = await service.getConfessions({ page: 2, limit: 5, sort: SortOrder.NEWEST });
+    const res = await service.getConfessions({
+      page: 2,
+      limit: 5,
+      sort: SortOrder.NEWEST,
+    });
     expect(qb.skip).toHaveBeenCalledWith(5);
     expect(qb.take).toHaveBeenCalledWith(5);
     expect(res.meta.total).toBe(20);
   });
 
   it('getConfessions rejects invalid limit', async () => {
-    await expect(service.getConfessions({ page: 1, limit: 0 } as any)).rejects.toThrow(BadRequestException);
+    await expect(
+      service.getConfessions({ page: 1, limit: 0 } as any),
+    ).rejects.toThrow(BadRequestException);
   });
 });

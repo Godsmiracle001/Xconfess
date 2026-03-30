@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { UserService } from '../../user/user.service';
@@ -7,14 +13,22 @@ import { UserService } from '../../user/user.service';
 export class WsJwtGuard implements CanActivate {
   private readonly logger = new Logger(WsJwtGuard.name);
 
-  constructor(private jwtService: JwtService, private userService: UserService) {}
+  constructor(
+    private jwtService: JwtService,
+    private userService: UserService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const client: Socket = context.switchToWs().getClient<Socket>();
 
     const token = this.extractToken(client);
     if (!token) {
-      this.logger.debug('No token found on socket handshake');
+      this.logger.warn({
+        event: 'WS_AUTH_FAILURE',
+        reason: 'NO_TOKEN_PROVIDED',
+        socketId: client.id,
+        msg: 'No authentication token provided on socket handshake',
+      });
       throw new UnauthorizedException('No authentication token provided');
     }
 
@@ -39,13 +53,27 @@ export class WsJwtGuard implements CanActivate {
         }
       } catch (err) {
         // non-fatal: log and continue with minimal payload
-        this.logger.debug(`Failed to fetch user for WS auth: ${err instanceof Error ? err.message : err}`);
+        this.logger.warn({
+          event: 'WS_AUTH_USER_FETCH_ERROR',
+          reason: 'USER_MAPPING_FAILED',
+          socketId: client.id,
+          userId: payload.sub,
+          msg: `Failed to fetch user for WS auth: ${err instanceof Error ? err.message : err}`,
+        });
       }
 
       return true;
     } catch (err) {
-      this.logger.debug(`Invalid or expired WS token: ${err instanceof Error ? err.message : err}`);
-      throw new UnauthorizedException('Invalid or expired authentication token');
+      this.logger.warn({
+        event: 'WS_AUTH_FAILURE',
+        reason: 'INVALID_TOKEN',
+        socketId: client.id,
+        error: err instanceof Error ? err.message : String(err),
+        msg: 'Invalid or expired WS token',
+      });
+      throw new UnauthorizedException(
+        'Invalid or expired authentication token',
+      );
     }
   }
 
@@ -57,15 +85,15 @@ export class WsJwtGuard implements CanActivate {
     }
 
     // 2) Authorization header (Bearer token)
-    const authHeader = client.handshake?.headers?.authorization as string | undefined;
+    const authHeader = client.handshake?.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       return authHeader.slice('Bearer '.length).trim();
     }
 
     // 3) Cookies: look for common cookie names like 'token' or 'jwt' or 'access_token'
-    const cookieHeader = client.handshake?.headers?.cookie as string | undefined;
+    const cookieHeader = client.handshake?.headers?.cookie;
     if (cookieHeader) {
-      const pairs = cookieHeader.split(';').map(p => p.trim());
+      const pairs = cookieHeader.split(';').map((p) => p.trim());
       for (const pair of pairs) {
         const [key, ...rest] = pair.split('=');
         const value = rest.join('=');

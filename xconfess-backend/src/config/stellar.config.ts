@@ -13,4 +13,9 @@ export default registerAs('stellar', () => ({
   reputationBadgesContractId: process.env.REPUTATION_BADGES_CONTRACT_ID,
   tippingSystemContractId: process.env.TIPPING_SYSTEM_CONTRACT_ID,
   serverSecret: process.env.STELLAR_SERVER_SECRET,
+
+  // Fee guard and backoff settings
+  maxFeeBudget: Number(process.env.STELLAR_MAX_FEE_BUDGET) || 100, // in stroops
+  feeBackoffMs: Number(process.env.STELLAR_FEE_BACKOFF_MS) || 5000, // ms
+  maxFeeRetries: Number(process.env.STELLAR_MAX_FEE_RETRIES) || 3,
 }));

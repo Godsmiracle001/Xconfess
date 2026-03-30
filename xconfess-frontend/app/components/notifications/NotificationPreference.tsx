@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Save, Bell, Mail } from "lucide-react";
 import { NotificationPreferences as Preferences } from "@/app/types/notifications";
-import { AUTH_TOKEN_KEY } from "@/app/lib/api/constants";
+import { notificationApi } from "@/app/lib/api/notification";
 
 interface NotificationPreferencesProps {
   onClose: () => void;
@@ -38,16 +38,8 @@ export function NotificationPreferences({
   const fetchPreferences = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/notifications/preferences`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPreferences(data);
-      }
+      const data = await notificationApi.getPreferences();
+      setPreferences(data);
     } catch (error) {
       console.error("Error fetching preferences:", error);
     } finally {
@@ -60,16 +52,7 @@ export function NotificationPreferences({
     setSaved(false);
 
     try {
-      const response = await fetch("/api/notifications/preferences", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem(AUTH_TOKEN_KEY)}`,
-        },
-        body: JSON.stringify(preferences),
-      });
-
-      if (!response.ok) throw new Error("Failed to save preferences");
+      await notificationApi.updatePreferences(preferences);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

@@ -9,7 +9,7 @@
 
 **A privacy-first anonymous confession platform leveraging Stellar blockchain for immutability, transparency, and trustless verification.**
 
-[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Godsmiracle001/Xconfess/issues)
+[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Xconfess/Xconfess/issues)
 
 </div>
 
@@ -78,12 +78,20 @@ logout();
 
 ```env
 # xconfess-frontend/.env.local
+
+# Server-side backend API URL (used by API routes)
+BACKEND_API_URL=http://localhost:5000
+
+# Client-side API URL (used by client-side code)
 NEXT_PUBLIC_API_URL=http://localhost:5000
+
+# WebSocket URL (used by client-side WebSocket connections)
+NEXT_PUBLIC_WS_URL=http://localhost:3001
 ```
 
-### Note on /api/auth/* route
+### Supported frontend auth route surface
 
-The file `app/api/auth/[...nextauth]/route.ts` exists but returns a `501 Not Implemented` response. It is **not** a NextAuth handler. If NextAuth is adopted in the future, replace its contents with the standard NextAuth handler.
+The frontend only exposes `app/api/auth/session/route.ts` for session management tied to the custom JWT flow. No NextAuth compatibility route is shipped.
 
 ---
 
@@ -165,7 +173,7 @@ contracts/soroban-xconfess/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Godsmiracle001/xconfess.git
+   git clone https://github.com/Xconfess/Xconfess.git
    cd xconfess
    ```
 
@@ -230,7 +238,7 @@ We welcome contributions from the community! xConfess is participating in the **
 
 ### How to Contribute
 
-1. **Find an Issue** — Browse [open issues](https://github.com/Godsmiracle001/Xconfess/issues)
+1. **Find an Issue** — Browse [open issues](https://github.com/Xconfess/Xconfess/issues)
 2. **Fork & Branch** — `git checkout -b feat/your-feature-name`
 3. **Make Your Changes** — Write clean, tested code
 4. **Commit & Push** — `git commit -m "feat: add stellar wallet connection"`

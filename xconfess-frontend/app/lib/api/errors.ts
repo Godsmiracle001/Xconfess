@@ -2,37 +2,22 @@
  * Normalized API error for UI consumption.
  * Use normalizeApiError() to turn fetch Response or Error into this shape.
  */
+import {
+    STATUS_ERROR_MESSAGES,
+    STATUS_ERROR_CODES,
+    toAppError,
+} from '@/app/lib/utils/errorHandler';
+
 export interface ApiError {
   message: string;
   code?: string;
   status?: number;
 }
 
-const STATUS_MESSAGES: Record<number, string> = {
-  400: "Invalid request. Please check your input.",
-  401: "Your session has expired. Please log in again.",
-  403: "You do not have permission to perform this action.",
-  404: "The requested resource was not found.",
-  409: "This action conflicts with existing data.",
-  422: "Please check your input and try again.",
-  429: "Too many requests. Please wait a moment and try again.",
-  500: "Server error. Please try again later.",
-  502: "Bad gateway. Please try again later.",
-  503: "Service unavailable. Please try again later.",
-};
+// Keep the local map as a stable override; share default map from errorHandler
+const STATUS_MESSAGES = STATUS_ERROR_MESSAGES;
+const STATUS_CODES = STATUS_ERROR_CODES;
 
-const STATUS_CODES: Record<number, string> = {
-  400: "VALIDATION_ERROR",
-  401: "UNAUTHORIZED",
-  403: "FORBIDDEN",
-  404: "NOT_FOUND",
-  409: "CONFLICT",
-  422: "UNPROCESSABLE_ENTITY",
-  429: "TOO_MANY_REQUESTS",
-  500: "SERVER_ERROR",
-  502: "BAD_GATEWAY",
-  503: "SERVICE_UNAVAILABLE",
-};
 
 /**
  * Normalizes a failed fetch Response or an Error into a consistent ApiError for UI.
@@ -58,13 +43,11 @@ export async function normalizeApiError(
   }
 
   const err = responseOrError as Error;
-  const message =
-    err.name === "AbortError"
-      ? "Request was cancelled."
-      : err.message || "An unexpected error occurred. Please try again.";
+  const appError = toAppError(err);
   return {
-    message,
-    code: err.name === "TypeError" && err.message?.includes("fetch") ? "NETWORK_ERROR" : "UNKNOWN_ERROR",
+    message: appError.message,
+    code: appError.code,
+    status: appError.statusCode,
   };
 }
 

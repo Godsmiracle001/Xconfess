@@ -47,9 +47,9 @@ export class Report {
   @Column({ name: 'resolved_by', nullable: true })
   resolvedById?: number;
 
-  @ManyToOne(() => User, { 
+  @ManyToOne(() => User, {
     nullable: true,
-    onDelete: 'SET NULL' 
+    onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'resolved_by' })
   resolvedBy?: User;
@@ -63,13 +63,12 @@ export class Report {
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
   @Column({ type: 'varchar', length: 255, nullable: true, default: null })
-idempotencyKey: string | null;
+  idempotencyKey: string | null;
 
-/**
- * Serialised response payload captured at first creation.
- * Replayed requests with the same key return this instead of re-inserting.
- */
-@Column({ type: 'jsonb', nullable: true, default: null })
-idempotencyResponse: Record<string, unknown> | null;
+  /**
+   * Serialised response payload captured at first creation.
+   * Replayed requests with the same key return this instead of re-inserting.
+   */
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  idempotencyResponse: Record<string, unknown> | null;
 }
-

@@ -1,5 +1,48 @@
-// Jest setup file for frontend tests
-require("@testing-library/jest-dom");
+// Polyfill fetch globals for msw v2 compatibility with jsdom.
+// jsdom does not expose the Fetch API globals that msw v2 requires.
+import { TextEncoder, TextDecoder } from "node:util";
+import { Blob } from "node:buffer";
+import { ReadableStream, TransformStream, WritableStream } from "node:stream/web";
+import "whatwg-fetch";
+import "@testing-library/jest-dom";
+
+if (typeof globalThis.TextEncoder === "undefined") {
+  Object.defineProperty(globalThis, "TextEncoder", { value: TextEncoder });
+}
+if (typeof globalThis.TextDecoder === "undefined") {
+  Object.defineProperty(globalThis, "TextDecoder", { value: TextDecoder });
+}
+
+const fetchPolyfills: Record<string, unknown> = {
+  Blob,
+  ReadableStream,
+  TransformStream,
+  WritableStream,
+};
+
+for (const [key, value] of Object.entries(fetchPolyfills)) {
+  if (typeof (globalThis as Record<string, unknown>)[key] === "undefined") {
+    Object.defineProperty(globalThis, key, { value, writable: true });
+  }
+}
+
+// BroadcastChannel stub for msw WebSocket support
+if (typeof globalThis.BroadcastChannel === "undefined") {
+  class BroadcastChannelStub {
+    name: string;
+    onmessage: ((ev: MessageEvent) => void) | null = null;
+    constructor(name: string) { this.name = name; }
+    postMessage() {}
+    close() {}
+    addEventListener() {}
+    removeEventListener() {}
+    dispatchEvent() { return true; }
+  }
+  Object.defineProperty(globalThis, "BroadcastChannel", { value: BroadcastChannelStub, writable: true });
+}
+
+// Import msw server only after required globals exist.
+const { server } = require("./tests/mocks/server");
 
 // Mock window.matchMedia
 Object.defineProperty(window, "matchMedia", {
@@ -43,6 +86,7 @@ const localStorageMock: Storage = {
 Object.defineProperty(window, "localStorage", {
   value: localStorageMock,
 });
+
 // Suppress console errors in tests unless explicitly needed
 const originalError = console.error;
 beforeAll(() => {
@@ -61,8 +105,6 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError;
 });
-import { server } from "./tests/mocks/server";
-require("whatwg-fetch");
 
 // Start API mocking before tests
 beforeAll(() => server.listen());

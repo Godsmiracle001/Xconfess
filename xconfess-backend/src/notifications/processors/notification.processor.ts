@@ -1,88 +1,97 @@
-import { Process, Processor } from '@nestjs/bull';
+import {
+  Processor,
+  Process,
+  OnQueueFailed,
+  OnQueueCompleted,
+  InjectQueue,
+} from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bull';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification } from '../entities/notification.entity';
-import { NotificationPreference } from '../entities/notification-preference.entity';
+import { Job, Queue } from 'bull';
 import { EmailNotificationService } from '../services/email-notification.service';
+import { NotificationType } from '../entities/notification.entity';
 
-@Processor('notifications')
+export const NOTIFICATION_QUEUE = 'notifications';
+export const NOTIFICATION_DLQ = 'notifications-dlq';
+
+export interface NotificationJobData {
+  userId: string;
+  type: string; // Unified with NotificationType or string
+  title: string;
+  message: string;
+  metadata?: any;
+  _meta?: {
+    originalJobId: string | undefined;
+    failedAt: string;
+    attemptsMade: number;
+    lastError: string;
+  };
+}
+
+@Processor(NOTIFICATION_QUEUE)
 export class NotificationProcessor {
   private readonly logger = new Logger(NotificationProcessor.name);
 
   constructor(
-    @InjectRepository(Notification)
-    private notificationRepository: Repository<Notification>,
-    @InjectRepository(NotificationPreference)
-    private preferenceRepository: Repository<NotificationPreference>,
-    private emailService: EmailNotificationService,
+    private readonly emailNotificationService: EmailNotificationService,
+    @InjectQueue(NOTIFICATION_DLQ)
+    private readonly dlq: Queue<NotificationJobData>,
   ) {}
 
-  @Process('send-email')
-  async handleSendEmail(job: Job): Promise<void> {
-    const { notificationId, userId } = job.data;
+  // ------------------------------------------------------------------ process
+  @Process('send-notification')
+  async handleSendNotification(job: Job<NotificationJobData>): Promise<void> {
+    this.logger.log(
+      `Processing notification job ${job.id} (attempt ${job.attemptsMade + 1})` +
+        ` → userId: ${job.data.userId}`,
+    );
 
-    try {
-      // Get notification
-      const notification = await this.notificationRepository.findOne({
-        where: { id: notificationId },
-      });
+    await this.emailNotificationService.sendEmail(job.data);
+  }
 
-      if (!notification) {
-        this.logger.warn(`Notification ${notificationId} not found`);
-        return;
-      }
+  // --------------------------------------------------------------- on:failed
+  /**
+   * Called after every failed attempt.
+   * When all attempts are exhausted Bull marks the job "failed" — we then
+   * copy the full payload + error context into the dead-letter queue.
+   */
+  @OnQueueFailed()
+  async onFailed(job: Job<NotificationJobData>, error: Error): Promise<void> {
+    const maxAttempts = job.opts.attempts ?? 1;
 
-      // Check if email was already sent
-      if (notification.isEmailSent) {
-        this.logger.log(`Email already sent for notification ${notificationId}`);
-        return;
-      }
+    this.logger.warn(
+      `Job ${job.id} failed (attempt ${job.attemptsMade}/${maxAttempts}): ${error.message}`,
+    );
 
-      // Get user preferences
-      const preference = await this.preferenceRepository.findOne({
-        where: { userId },
-      });
+    const isExhausted = job.attemptsMade >= maxAttempts;
 
-      if (!preference || !preference.enableEmailNotifications || !preference.emailAddress) {
-        this.logger.log(`Email notifications disabled for user ${userId}`);
-        return;
-      }
-
-      // Send email
-      await this.emailService.sendNotificationEmail(
-        notification,
-        preference.emailAddress,
+    if (isExhausted) {
+      this.logger.error(
+        `Job ${job.id} exhausted all retries — moving to DLQ`,
+        error.stack,
       );
 
-      // Mark as sent
-      notification.isEmailSent = true;
-      notification.emailSentAt = new Date();
-      await this.notificationRepository.save(notification);
-
-      this.logger.log(`Email sent successfully for notification ${notificationId}`);
-    } catch (error) {
-      this.logger.error(`Failed to send email for notification ${notificationId}:`, error);
-      
-      // Retry logic (Bull will handle retries based on configuration)
-      throw error;
+      await this.dlq.add(
+        'dead-letter',
+        {
+          ...job.data,
+          _meta: {
+            originalJobId: String(job.id),
+            failedAt: new Date().toISOString(),
+            attemptsMade: job.attemptsMade,
+            lastError: error.message,
+          },
+        },
+        {
+          removeOnComplete: false,
+          removeOnFail: false,
+        },
+      );
     }
   }
 
-  @Process('batch-check')
-  async handleBatchCheck(job: Job): Promise<void> {
-    const { userId } = job.data;
-
-    try {
-      this.logger.log(`Running batch check for user ${userId}`);
-      
-      // This can be used for scheduled batch checking if needed
-      // Implementation depends on specific batching strategy
-      
-    } catch (error) {
-      this.logger.error(`Batch check failed for user ${userId}:`, error);
-      throw error;
-    }
+  // -------------------------------------------------------------- on:completed
+  @OnQueueCompleted()
+  onCompleted(job: Job<NotificationJobData>): void {
+    this.logger.log(`Job ${job.id} completed successfully`);
   }
 }

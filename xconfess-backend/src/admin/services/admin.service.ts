@@ -10,9 +10,11 @@ import { Report, ReportStatus, ReportType } from '../entities/report.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
 import { User, UserRole } from '../../user/entities/user.entity';
 import { ModerationService } from './moderation.service';
-import { AuditAction } from '../entities/audit-log.entity';
+import { ModerationTemplateService } from '../../comment/moderation-template.service';
+import { AuditActionType } from '../../audit-log/audit-log.entity';
 import { Request } from 'express';
 import { decryptConfession } from '../../utils/confession-encryption';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserAnonymousUser } from '../../user/entities/user-anonymous-link.entity';
 import { ConfigService } from '@nestjs/config';
 
@@ -25,7 +27,8 @@ export class AdminService {
       return decryptConfession(message, this.aesKey);
     } catch (e) {
       this.logger.warn(
-        `Failed to decrypt confession message (returning raw). Reason: ${e instanceof Error ? e.message : 'unknown'
+        `Failed to decrypt confession message (returning raw). Reason: ${
+          e instanceof Error ? e.message : 'unknown'
         }`,
       );
       return message;
@@ -42,8 +45,10 @@ export class AdminService {
     @InjectRepository(UserAnonymousUser)
     private readonly userAnonRepository: Repository<UserAnonymousUser>,
     private readonly moderationService: ModerationService,
+    private readonly moderationTemplateService: ModerationTemplateService,
     private readonly configService: ConfigService,
-  ) { }
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   private get aesKey(): string {
     return this.configService.get<string>('app.confessionAesKey', '');
@@ -86,7 +91,9 @@ export class AdminService {
     const [reports, total] = await query.getManyAndCount();
     const mapped = reports.map((r) => {
       if (r.confession?.message) {
-        r.confession.message = this.safeDecryptConfessionMessage(r.confession.message);
+        r.confession.message = this.safeDecryptConfessionMessage(
+          r.confession.message,
+        );
       }
       return r;
     });
@@ -104,7 +111,9 @@ export class AdminService {
     }
 
     if (report.confession?.message) {
-      report.confession.message = this.safeDecryptConfessionMessage(report.confession.message);
+      report.confession.message = this.safeDecryptConfessionMessage(
+        report.confession.message,
+      );
     }
     return report;
   }
@@ -113,6 +122,7 @@ export class AdminService {
     id: string,
     adminId: number,
     resolutionNotes: string | null,
+    templateId?: number | null,
     request?: Request,
   ): Promise<Report> {
     const report = await this.getReportById(id);
@@ -125,18 +135,32 @@ export class AdminService {
     report.resolvedBy = adminId;
     report.resolvedAt = new Date();
     report.resolutionNotes = resolutionNotes;
+    report.templateId = templateId ?? null;
 
     const saved = await this.reportRepository.save(report);
 
+    const templateUsed = templateId
+      ? await this.moderationTemplateService
+          .findById(templateId)
+          .catch(() => null)
+      : null;
+
     await this.moderationService.logAction(
       adminId,
-      AuditAction.REPORT_RESOLVED,
+      AuditActionType.REPORT_RESOLVED,
       'report',
       id,
-      { reportType: report.type, confessionId: report.confessionId },
+      {
+        reportType: report.type,
+        confessionId: report.confessionId,
+        templateId,
+        templateName: templateUsed?.name ?? null,
+      },
       resolutionNotes,
       request,
     );
+
+    this.eventEmitter.emit('report.updated', saved);
 
     return saved;
   }
@@ -162,13 +186,15 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.REPORT_DISMISSED,
+      AuditActionType.REPORT_DISMISSED,
       'report',
       id,
       { reportType: report.type },
       notes,
       request,
     );
+
+    this.eventEmitter.emit('report.updated', saved);
 
     return saved;
   }
@@ -199,13 +225,15 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.BULK_ACTION,
+      AuditActionType.BULK_ACTION,
       'report',
       null,
       { action: 'bulk_resolve', count: reports.length, reportIds: ids },
       notes,
       request,
     );
+
+    this.eventEmitter.emit('reports.bulk.updated', reports);
 
     return reports.length;
   }
@@ -230,7 +258,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.CONFESSION_DELETED,
+      AuditActionType.CONFESSION_DELETED,
       'confession',
       id,
       { reason },
@@ -258,7 +286,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.CONFESSION_HIDDEN,
+      AuditActionType.CONFESSION_HIDDEN,
       'confession',
       id,
       { reason },
@@ -287,7 +315,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.CONFESSION_UNHIDDEN,
+      AuditActionType.CONFESSION_UNHIDDEN,
       'confession',
       id,
       null,
@@ -320,7 +348,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.USER_BANNED,
+      AuditActionType.USER_BANNED,
       'user',
       userId.toString(),
       { reason },
@@ -351,7 +379,7 @@ export class AdminService {
 
     await this.moderationService.logAction(
       adminId,
-      AuditAction.USER_UNBANNED,
+      AuditActionType.USER_UNBANNED,
       'user',
       userId.toString(),
       null,
@@ -399,7 +427,9 @@ export class AdminService {
     });
     for (const r of reports) {
       if (r.confession?.message) {
-        r.confession.message = this.safeDecryptConfessionMessage(r.confession.message);
+        r.confession.message = this.safeDecryptConfessionMessage(
+          r.confession.message,
+        );
       }
     }
 
@@ -413,12 +443,12 @@ export class AdminService {
     const anonIds = Array.from(new Set(links.map((l) => l.anonymousUserId)));
     const confessions = anonIds.length
       ? await this.confessionRepository
-        .createQueryBuilder('confession')
-        .leftJoin('confession.anonymousUser', 'anon')
-        .where('anon.id IN (:...anonIds)', { anonIds })
-        .orderBy('confession.created_at', 'DESC')
-        .take(200)
-        .getMany()
+          .createQueryBuilder('confession')
+          .leftJoin('confession.anonymousUser', 'anon')
+          .where('anon.id IN (:...anonIds)', { anonIds })
+          .orderBy('confession.created_at', 'DESC')
+          .take(200)
+          .getMany()
       : [];
 
     // Decrypt confession messages for admin visibility

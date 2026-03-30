@@ -40,6 +40,27 @@ For operational details on managing email templates and rollouts, see the [Templ
 
 > NestJS-based backend for the xConfess anonymous confession platform.
 
+## Runtime architecture
+
+HTTP APIs are served only through NestJS: `main.ts` bootstraps `AppModule`, and every route is declared on Nest controllers inside feature modules (global prefix `api`). There is no parallel Express router tree; do not add handlers under orphaned `routes/` or `controllers/` folders.
+
+Shared cross-cutting middleware used at bootstrap lives under `src/middleware/` (for example `RequestIdMiddleware`). Feature code belongs in the module directories listed below.
+
+## Auth Endpoint Split (`/users/*` vs `/auth/*`)
+
+Both route groups are active in this codebase:
+
+- `/api/users/*`: user lifecycle endpoints (`register`, `login`, `profile`, account status, user notification preferences)
+- `/api/auth/*`: auth-centric endpoints (`login`, `me`, `logout`, password reset flow)
+
+Examples:
+
+- `POST /api/users/register`
+- `POST /api/users/login`
+- `POST /api/auth/login`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
 ## Active Modules
 
 | Module        | Path                 | Description                                            |
@@ -62,7 +83,16 @@ For operational details on managing email templates and rollouts, see the [Templ
 | Analytics     | `src/analytics/`     | View counts, trending                                  |
 | Data Export   | `src/data-export/`   | GDPR data export                                       |
 | WebSocket     | `src/websocket/`     | Real-time event gateway                                |
-| Notifications | `src/notifications/` | Notification system (Bull/Redis — disabled by default) |
+| Notifications | `src/notifications/` | Outbox, email, Bull queues, DLQ admin                  |
+
+## Background Job Requirements
+
+Redis-backed Bull queues are required for background-job features. In particular:
+
+- `src/notifications/notifications.module.ts` explicitly owns `notifications` and `notifications-dlq`
+- `src/data-export/data-export.module.ts` explicitly owns `export-queue`
+
+If Redis-backed background jobs are enabled, the backend must be able to bootstrap those queue tokens or the related processors and services will fail to initialize.
 
 ## Project Setup
 
@@ -139,6 +169,8 @@ npm run migration:revert
 ## API Documentation
 
 When running locally, Swagger docs are available at `/api/api-docs`.
+
+For route inventory, DTO examples, and the **`GET /api/health`** contract (including schema readiness for `anonymous_confessions`), see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
 ## 📄 License
 

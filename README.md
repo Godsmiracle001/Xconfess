@@ -9,7 +9,7 @@
 
 **A privacy-first anonymous confession platform leveraging Stellar blockchain for immutability, transparency, and trustless verification.**
 
-[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Godsmiracle001/Xconfess/issues)
+[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Xconfess/Xconfess/issues)
 
 </div>
 
@@ -60,7 +60,7 @@ xConfess is an anonymous confession platform where users can share their thought
 - **Swagger/OpenAPI**: API documentation
 
 ### Frontend (xconfess-frontend)
-- **Next.js 14**: React framework with App Router
+- **Next.js 16**: React framework with App Router
 - **TailwindCSS**: Utility-first styling
 - **Stellar SDK**: Blockchain interactions
 
@@ -81,7 +81,7 @@ xconfess/
 ├── PERFORMANCE_BASELINE.md      # Performance baselines
 ├── PERFORMANCE_GUIDELINES.md    # Performance guidelines
 │
-├── xconfess-backend/            # NestJS backend
+├── xconfess-backend/            # NestJS backend (HTTP API is module/controllers only; no Express router tree)
 │   ├── src/
 │   │   ├── main.ts              # App bootstrap
 │   │   ├── app.module.ts        # Root module
@@ -130,6 +130,19 @@ xconfess/
 
 ---
 
+## 🚀 Release Readiness
+
+Use the shared release checklist at [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) before promoting backend, frontend, or contract changes.
+
+Key supporting references:
+
+- [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for frontend-heavy deployment verification details
+- [docs/SOROBAN_SETUP.md](docs/SOROBAN_SETUP.md) for Soroban environment setup and contract interaction help
+- [docs/contract-release-and-upgrade-runbook.md](docs/contract-release-and-upgrade-runbook.md) for contract release and rollback guidance
+- [maintainer/BACKLOG_INDEX.md](maintainer/BACKLOG_INDEX.md) for maintainer backlog grouping, subsystem ownership, and triage routing
+
+---
+
 ## ⚙️ Installation
 
 ### Prerequisites
@@ -144,7 +157,7 @@ xconfess/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Godsmiracle001/xconfess.git
+   git clone https://github.com/Xconfess/Xconfess.git
    cd xconfess
    ```
 
@@ -173,6 +186,9 @@ xconfess/
    STELLAR_NETWORK=testnet
    STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
    CONFESSION_ANCHOR_CONTRACT=<contract-id>
+
+   # Encryption Configuration (64-char hex)
+   CONFESSION_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
    ```
 
 5. **Set up the database**
@@ -197,6 +213,15 @@ xconfess/
    - Backend API: http://localhost:5000
    - API Docs: http://localhost:5000/api/api-docs
 
+### Auth Route Split
+
+The backend intentionally exposes both route groups:
+
+- `/api/users/*` for user lifecycle operations (`register`, `login`, `profile`, account state)
+- `/api/auth/*` for auth-centric flows (`login`, `me`, `logout`, `forgot-password`, `reset-password`)
+
+Full, controller-accurate route documentation lives in [xconfess-backend/API_DOCUMENTATION.md](xconfess-backend/API_DOCUMENTATION.md).
+
 ---
 
 ## 🔗 Stellar Smart Contracts
@@ -210,15 +235,15 @@ cargo install --locked stellar-cli --features opt
 # 2. Add WebAssembly target
 rustup target add wasm32-unknown-unknown
 
-# 3. Navigate to contracts
-cd xconfess-contracts
+# 3. Build all contract crates reproducibly (from repo root)
+./scripts/contracts-release.sh build
 
-# 4. Build contracts
-cargo build --release --target wasm32-unknown-unknown
-
-# 5. Run tests
-cargo test
+# 4. Run tests
+./scripts/test-contracts.sh
 ```
+
+Versioning policy for contract crates is documented in
+`xconfess-contracts/VERSIONING.md`.
 
 ### Contract Architecture
 
@@ -284,7 +309,7 @@ We welcome contributions from the community! xConfess is participating in the **
 ### How to Contribute
 
 1. **Find an Issue**
-   - Browse [open issues](https://github.com/Godsmiracle001/Xconfess/issues)
+   - Browse [open issues](https://github.com/Xconfess/Xconfess/issues)
    - Look for `good first issue`, `help wanted`, or `Stellar Wave` labels
    - Comment to get assigned
 
@@ -391,8 +416,8 @@ xConfess is proud to participate in the **Stellar Development Foundation's Wave 
 
 - 🚀 **Contributors**: 10+
 - ⭐ **GitHub Stars**: Growing daily
-- 🔧 **Open Issues**: [View Issues](https://github.com/Godsmiracle001/Xconfess/issues)
-- 📦 **Pull Requests**: [View PRs](https://github.com/Godsmiracle001/Xconfess/pulls)
+- 🔧 **Open Issues**: [View Issues](https://github.com/Xconfess/Xconfess/issues)
+- 📦 **Pull Requests**: [View PRs](https://github.com/Xconfess/Xconfess/pulls)
 
 ---
 
@@ -402,11 +427,11 @@ xConfess is proud to participate in the **Stellar Development Foundation's Wave 
 
 - 💬 **Discord**: [xConfess Community](https://discord.gg/5qVnXvzd)
 - 💬 **Telegram**: [xConfess Community](https://t.me/xconfess_Community)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/Godsmiracle001/Xconfess/issues)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/Xconfess/Xconfess/issues)
 
 ### Get Help
 
-- Check existing [issues](https://github.com/Godsmiracle001/Xconfess/issues) and [discussions](https://github.com/Godsmiracle001/Xconfess/discussions)
+- Check existing [issues](https://github.com/Xconfess/Xconfess/issues) and [discussions](https://github.com/Xconfess/Xconfess/discussions)
 - Join our Telegram for real-time support
 
 ---
@@ -429,7 +454,7 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for d
 
 If you find xConfess valuable, please give us a ⭐ on GitHub!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Godsmiracle001/Xconfess&type=Date)](https://star-history.com/#Godsmiracle001/Xconfess&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Xconfess/Xconfess&type=Date)](https://star-history.com/#Xconfess/Xconfess&Date)
 
 ---
 
@@ -437,6 +462,6 @@ If you find xConfess valuable, please give us a ⭐ on GitHub!
 
 **Built with ❤️ for the Stellar ecosystem**
 
-[Community](https://t.me/xconfess_Community) • [Contribute](https://github.com/Godsmiracle001/Xconfess/issues)
+[Community](https://t.me/xconfess_Community) • [Contribute](https://github.com/Xconfess/Xconfess/issues)
 
 </div>

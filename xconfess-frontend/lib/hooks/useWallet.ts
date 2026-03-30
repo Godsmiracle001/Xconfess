@@ -1,11 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import * as WalletService from '../services/wallet.service';
+import { useState, useCallback, useEffect, useRef } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import * as WalletService from "../services/wallet.service";
+import { computeWalletReadiness } from "../wallet/walletReadiness";
 
 export interface WalletState {
   publicKey: string | null;
-  network: 'TESTNET_SOROBAN' | 'PUBLIC_NETWORK' | string;
+  network: "TESTNET_SOROBAN" | "PUBLIC_NETWORK" | string;
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
@@ -13,6 +15,8 @@ export interface WalletState {
 }
 
 export interface UseWalletReturn extends WalletState {
+  isReady: boolean;
+  readinessError: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
   signTransaction: (xdr: string) => Promise<string>;
@@ -21,8 +25,8 @@ export interface UseWalletReturn extends WalletState {
   clearError: () => void;
 }
 
-const WALLET_STORAGE_KEY = 'xconfess_wallet';
-const NETWORK_STORAGE_KEY = 'xconfess_network';
+const WALLET_STORAGE_KEY = "xconfess_wallet_session";
+const NETWORK_STORAGE_KEY = "xconfess_network";
 
 /**
  * Custom hook for managing wallet connection and state
@@ -31,7 +35,7 @@ const NETWORK_STORAGE_KEY = 'xconfess_network';
 export const useWallet = (): UseWalletReturn => {
   const [state, setState] = useState<WalletState>({
     publicKey: null,
-    network: 'TESTNET_SOROBAN',
+    network: "TESTNET_SOROBAN",
     isConnected: false,
     isLoading: false,
     error: null,
@@ -41,6 +45,39 @@ export const useWallet = (): UseWalletReturn => {
   const hasInitialized = useRef(false);
 
   /**
+   * Store session in localStorage
+   */
+  const storeSession = useCallback((publicKey: string, network: string) => {
+    localStorage.setItem(
+      WALLET_STORAGE_KEY,
+      JSON.stringify({ publicKey, network }),
+    );
+    localStorage.setItem(NETWORK_STORAGE_KEY, network);
+  }, []);
+
+  /**
+   * Clear session from localStorage
+   */
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(WALLET_STORAGE_KEY);
+  }, []);
+
+  /**
+   * Get stored session from localStorage
+   */
+  const getStoredSession = useCallback((): {
+    publicKey: string;
+    network: string;
+  } | null => {
+    try {
+      const stored = localStorage.getItem(WALLET_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  /**
    * Initialize wallet on mount
    */
   useEffect(() => {
@@ -48,7 +85,40 @@ export const useWallet = (): UseWalletReturn => {
       hasInitialized.current = true;
       initializeWallet();
     }
-  }, []);
+  }, [initializeWallet]);
+
+  /**
+   * Revalidate wallet connection on route changes
+   */
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (hasInitialized.current && state.publicKey) {
+      const revalidateConnection = async () => {
+        const walletInfo = await WalletService.getWalletInfo();
+        if (!walletInfo) {
+          setState((prev) => ({
+            ...prev,
+            publicKey: null,
+            isConnected: false,
+            error: "Wallet disconnected. Please reconnect.",
+          }));
+          clearSession();
+        } else if (walletInfo.publicKey !== state.publicKey) {
+          setState((prev) => ({
+            ...prev,
+            publicKey: walletInfo.publicKey,
+            network: walletInfo.network,
+            isConnected: true,
+            error: null,
+          }));
+          storeSession(walletInfo.publicKey, walletInfo.network);
+        }
+      };
+      revalidateConnection();
+    }
+  }, [pathname, searchParams, state.publicKey, clearSession, storeSession]);
 
   /**
    * Initialize wallet state from storage and current wallet connection
@@ -64,18 +134,16 @@ export const useWallet = (): UseWalletReturn => {
         setState((prev) => ({
           ...prev,
           isLoading: false,
-          error: 'Freighter wallet is not installed',
+          error: "Freighter wallet is not installed",
         }));
         return;
       }
 
-      // Check if wallet was previously connected
       const storedNetwork = localStorage.getItem(NETWORK_STORAGE_KEY);
       if (storedNetwork) {
         setState((prev) => ({ ...prev, network: storedNetwork }));
       }
 
-      // Try to reconnect to wallet
       const walletInfo = await WalletService.getWalletInfo();
 
       if (walletInfo) {
@@ -87,26 +155,36 @@ export const useWallet = (): UseWalletReturn => {
           isLoading: false,
           error: null,
         }));
-
-        // Store the network
-        localStorage.setItem(NETWORK_STORAGE_KEY, walletInfo.network);
+        storeSession(walletInfo.publicKey, walletInfo.network);
       } else {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: null,
-        }));
+        const stored = getStoredSession();
+        if (stored) {
+          setState((prev) => ({
+            ...prev,
+            publicKey: stored.publicKey,
+            network: stored.network,
+            isConnected: false,
+            isLoading: false,
+            error: "Wallet disconnected. Please reconnect.",
+          }));
+        } else {
+          setState((prev) => ({
+            ...prev,
+            isLoading: false,
+            error: null,
+          }));
+        }
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to initialize wallet';
+        error instanceof Error ? error.message : "Failed to initialize wallet";
       setState((prev) => ({
         ...prev,
         isLoading: false,
         error: errorMessage,
       }));
     }
-  }, []);
+  }, [storeSession, getStoredSession]);
 
   /**
    * Connect to wallet
@@ -126,11 +204,10 @@ export const useWallet = (): UseWalletReturn => {
         error: null,
       }));
 
-      // Store the network
-      localStorage.setItem(NETWORK_STORAGE_KEY, walletInfo.network);
+      storeSession(walletInfo.publicKey, walletInfo.network);
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to connect wallet';
+        error instanceof Error ? error.message : "Failed to connect wallet";
       setState((prev) => ({
         ...prev,
         isLoading: false,
@@ -139,7 +216,7 @@ export const useWallet = (): UseWalletReturn => {
       }));
       throw error;
     }
-  }, []);
+  }, [storeSession]);
 
   /**
    * Disconnect from wallet
@@ -155,17 +232,16 @@ export const useWallet = (): UseWalletReturn => {
         error: null,
       }));
 
-      // Clear stored wallet data
-      localStorage.removeItem(WALLET_STORAGE_KEY);
+      clearSession();
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to disconnect wallet';
+        error instanceof Error ? error.message : "Failed to disconnect wallet";
       setState((prev) => ({
         ...prev,
         error: errorMessage,
       }));
     }
-  }, []);
+  }, [clearSession]);
 
   /**
    * Sign a transaction
@@ -181,7 +257,7 @@ export const useWallet = (): UseWalletReturn => {
       return signedXDR;
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to sign transaction';
+        error instanceof Error ? error.message : "Failed to sign transaction";
       setState((prev) => ({
         ...prev,
         isLoading: false,
@@ -215,7 +291,9 @@ export const useWallet = (): UseWalletReturn => {
       }
     } catch (error) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Failed to check wallet connection';
+        error instanceof Error
+          ? error.message
+          : "Failed to check wallet connection";
       setState((prev) => ({
         ...prev,
         error: errorMessage,
@@ -244,8 +322,16 @@ export const useWallet = (): UseWalletReturn => {
     }));
   }, []);
 
+  const { isReady, readinessError } = computeWalletReadiness({
+    isConnected: state.isConnected,
+    publicKey: state.publicKey,
+    networkLabel: state.network,
+  });
+
   return {
     ...state,
+    isReady,
+    readinessError,
     connect,
     disconnect,
     signTransaction,

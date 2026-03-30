@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -10,7 +11,11 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
-import { OutboxEvent, OutboxStatus } from '../common/entities/outbox-event.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../common/entities/outbox-event.entity';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 @Injectable()
 export class ReactionService {
@@ -26,17 +31,28 @@ export class ReactionService {
     @InjectRepository(OutboxEvent)
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
-  ) { }
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   async createReaction(dto: CreateReactionDto): Promise<Reaction> {
     // 1. Verify confession exists.
     const confession = await this.confessionRepo.findOne({
       where: { id: dto.confessionId },
-      relations: ['anonymousUser', 'anonymousUser.userLinks', 'anonymousUser.userLinks.user'],
+      relations: [
+        'anonymousUser',
+        'anonymousUser.userLinks',
+        'anonymousUser.userLinks.user',
+      ],
     });
 
     if (!confession) {
       throw new NotFoundException('Confession not found');
+    }
+
+    // 1.5: Check privacy settings - prevent reactions if author disabled them
+    const authorUser = confession.anonymousUser?.userLinks?.[0]?.user;
+    if (authorUser && !authorUser.shouldShowReactions()) {
+      throw new ForbiddenException('Reactions are disabled for this user');
     }
 
     // 2. Verify the reacting anonymous user exists.
@@ -48,46 +64,79 @@ export class ReactionService {
       throw new NotFoundException('Anonymous user not found');
     }
 
-    return this.dataSource.transaction(async (manager) => {
-      const reactionRepo = manager.getRepository(Reaction);
-      const outboxRepo = manager.getRepository(OutboxEvent);
+    return this.dataSource
+      .transaction(async (manager) => {
+        const reactionRepo = manager.getRepository(Reaction);
+        const outboxRepo = manager.getRepository(OutboxEvent);
 
-      // 3. Prevent duplicate reactions
-      const existing = await reactionRepo.findOne({
-        where: {
-          confession: { id: dto.confessionId },
-          anonymousUser: { id: dto.anonymousUserId },
-        },
-      });
+        // 3. Prevent duplicate reactions
+        const existing = await reactionRepo.findOne({
+          where: {
+            confession: { id: dto.confessionId },
+            anonymousUser: { id: dto.anonymousUserId },
+          },
+        });
 
-      if (existing) {
-        if (existing.emoji === dto.emoji) {
-          return existing;
+        if (existing) {
+          if (existing.emoji === dto.emoji) {
+            return existing;
+          }
+
+          existing.emoji = dto.emoji;
+          const updated = await reactionRepo.save(existing);
+
+          // Update outbox event for the change?
+          // Usually reactions are high volume, but let's notify the author.
+          await this.createOutboxEvent(
+            outboxRepo,
+            confession,
+            updated,
+            'reaction_update',
+          );
+
+          return updated;
         }
 
-        existing.emoji = dto.emoji;
-        const updated = await reactionRepo.save(existing);
+        // 4. Persist new reaction
+        const reaction = reactionRepo.create({
+          emoji: dto.emoji,
+          confession,
+          anonymousUser,
+        });
 
-        // Update outbox event for the change?
-        // Usually reactions are high volume, but let's notify the author.
-        await this.createOutboxEvent(outboxRepo, confession, updated, 'reaction_update');
+        const savedReaction = await reactionRepo.save(reaction);
 
-        return updated;
-      }
+        await this.createOutboxEvent(
+          outboxRepo,
+          confession,
+          savedReaction,
+          'reaction_notification',
+        );
 
-      // 4. Persist new reaction
-      const reaction = reactionRepo.create({
-        emoji: dto.emoji,
-        confession,
-        anonymousUser,
+        return savedReaction;
+      })
+      .then(async (result) => {
+        // Invalidate analytics segments that are affected by a reaction change.
+        // Done outside the DB transaction so cache churn does not increase
+        // transaction latency. Errors are absorbed by the cache service.
+        this.analyticsService
+          .invalidateTrendingCache('reaction-mutation')
+          .catch((err) =>
+            this.logger.error(
+              'Failed to invalidate trending cache after reaction',
+              err,
+            ),
+          );
+        this.analyticsService
+          .invalidateReactionDistributionCache('reaction-mutation')
+          .catch((err) =>
+            this.logger.error(
+              'Failed to invalidate reaction distribution cache',
+              err,
+            ),
+          );
+        return result;
       });
-
-      const savedReaction = await reactionRepo.save(reaction);
-
-      await this.createOutboxEvent(outboxRepo, confession, savedReaction, 'reaction_notification');
-
-      return savedReaction;
-    });
   }
 
   private async createOutboxEvent(

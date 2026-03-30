@@ -15,6 +15,8 @@ export enum AuditActionType {
   COMMENT_DELETE = 'comment_delete',
   CONFESSION_DELETED = 'confession_deleted',
   COMMENT_DELETED = 'comment_deleted',
+  CONFESSION_HIDDEN = 'confession_hidden',
+  CONFESSION_UNHIDDEN = 'confession_unhidden',
 
   // Report actions
   REPORT_CREATED = 'report_created',
@@ -31,6 +33,14 @@ export enum AuditActionType {
 
   // Moderation
   MODERATION_ESCALATION = 'moderation_escalation',
+  MODERATION_OVERRIDE = 'moderation_override',
+  BULK_ACTION = 'bulk_action',
+
+  // User actions
+  USER_BANNED = 'user_banned',
+  USER_UNBANNED = 'user_unbanned',
+  USER_ADMIN_GRANTED = 'user_admin_granted',
+  USER_ADMIN_REVOKED = 'user_admin_revoked',
 
   // Email template rollout actions
   EMAIL_TEMPLATE_DELIVERED = 'email_template_delivered',
@@ -43,34 +53,51 @@ export enum AuditActionType {
   TEMPLATE_ROLLOUT_KILLSWITCH = 'template_rollout_killswitch',
   TEMPLATE_FALLBACK_ACTIVATED = 'template_fallback_activated',
   TEMPLATE_ROLLOUT_DIFF_RECORDED = 'template_rollout_diff_recorded',
+
+  // Data export lifecycle
+  EXPORT_REQUEST_CREATED = 'export_request_created',
+  EXPORT_GENERATION_COMPLETED = 'export_generation_completed',
+  EXPORT_LINK_REFRESHED = 'export_link_refreshed',
+  EXPORT_DOWNLOADED = 'export_downloaded',
+
+  /** Privileged Stellar server-signed contract invocation */
+  STELLAR_CONTRACT_INVOCATION = 'stellar_contract_invocation',
 }
 
 @Entity('audit_logs')
-@Index(['userId', 'timestamp'])
-@Index(['actionType', 'timestamp'])
+@Index(['adminId'])
+@Index(['action'])
+@Index(['createdAt'])
+@Index(['entityType', 'entityId'])
 export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'user_id', type: 'uuid', nullable: true })
-  userId: string | null;
+  @Column({ name: 'admin_id', type: 'int', nullable: true })
+  adminId: number | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @JoinColumn({ name: 'admin_id' })
+  admin: User | null;
 
   @Column({
     type: 'enum',
     enum: AuditActionType,
-    name: 'action_type',
+    name: 'action',
   })
-  actionType: AuditActionType;
+  action: AuditActionType;
 
-  @Column({ type: 'jsonb', default: {} })
-  metadata: Record<string, any>;
+  @Column({ name: 'entity_type', nullable: true })
+  entityType: string | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
-  timestamp: Date;
+  @Column({ name: 'entity_id', nullable: true })
+  entityId: string | null;
+
+  @Column({ type: 'jsonb', nullable: true, default: {} })
+  metadata: Record<string, any> | null;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
 
   @Column({ name: 'ip_address', type: 'varchar', length: 45, nullable: true })
   ipAddress: string | null;
@@ -78,12 +105,45 @@ export class AuditLog {
   @Column({ name: 'user_agent', type: 'text', nullable: true })
   userAgent: string | null;
 
-  // Optional helpers
-  get entityId(): string | undefined {
-    return this.metadata?.entityId || this.metadata?.reportId;
+  @CreateDateColumn({ name: 'createdAt', type: 'timestamp with time zone' })
+  createdAt: Date;
+
+  get userId(): number | null {
+    return this.adminId;
   }
 
-  get entityType(): string | undefined {
-    return this.metadata?.entityType;
+  set userId(value: number | string | null) {
+    if (value === null || value === undefined || value === '') {
+      this.adminId = null;
+      return;
+    }
+
+    const normalized =
+      typeof value === 'number' ? value : Number.parseInt(value, 10);
+    this.adminId = Number.isInteger(normalized) ? normalized : null;
+  }
+
+  get user(): User | null {
+    return this.admin;
+  }
+
+  set user(value: User | null) {
+    this.admin = value;
+  }
+
+  get actionType(): AuditActionType {
+    return this.action;
+  }
+
+  set actionType(value: AuditActionType) {
+    this.action = value;
+  }
+
+  get timestamp(): Date {
+    return this.createdAt;
+  }
+
+  set timestamp(value: Date) {
+    this.createdAt = value;
   }
 }

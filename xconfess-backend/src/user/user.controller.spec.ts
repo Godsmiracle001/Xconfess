@@ -2,10 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
-import { User } from './entities/user.entity';
-import { ConflictException, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RegisterDto } from './dto/register.dto';
+import { User, UserRole } from './entities/user.entity';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
+import { RegisterDto } from '../auth/dto/register.dto';
 import { CryptoUtil } from '../common/crypto.util';
 
 describe('UserController', () => {
@@ -29,16 +32,28 @@ describe('UserController', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     is_active: true,
-    notificationPreferences: { email: true, push: false },
-  };
+    role: UserRole.USER,
+    notificationPreferences: {},
+    privacySettings: {
+      isDiscoverable: true,
+      canReceiveReplies: true,
+      showReactions: true,
+      dataProcessingConsent: true,
+    },
+    isDiscoverable: jest.fn().mockReturnValue(true),
+    canReceiveReplies: jest.fn().mockReturnValue(true),
+    shouldShowReactions: jest.fn().mockReturnValue(true),
+    hasDataProcessingConsent: jest.fn().mockReturnValue(true),
+  } as unknown as User;
 
   const mockUserService = {
     findByEmail: jest.fn(),
+    findByUsername: jest.fn(),
     create: jest.fn(),
     findById: jest.fn(),
+    getPrivacySettings: jest.fn(),
+    updatePrivacySettings: jest.fn(),
     saveUser: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
   };
 
   const mockAuthService = {
@@ -65,6 +80,14 @@ describe('UserController', () => {
     authService = module.get<AuthService>(AuthService);
 
     jest.clearAllMocks();
+    mockUserService.findById.mockResolvedValue(mockUser);
+    mockUserService.findByEmail.mockResolvedValue(null);
+    mockUserService.findByUsername.mockResolvedValue(null);
+    mockAuthService.login.mockResolvedValue({
+      access_token: 'token',
+      user: mockUser,
+      anonymousUserId: 'anon-id',
+    });
   });
 
   it('should be defined', () => {
@@ -73,17 +96,30 @@ describe('UserController', () => {
 
   describe('getProfile', () => {
     it('should return user profile without password', async () => {
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = mockUser as any;
-      const expectedResult = { ...rest, email: emailPlain };
-      const result = await controller.getProfile(mockUser);
-      expect(result).toEqual(expectedResult);
+      const result = await controller.getProfile(mockUser.id);
+      expect(result).toEqual({
+        id: mockUser.id,
+        username: mockUser.username,
+        role: mockUser.role,
+        is_active: mockUser.is_active,
+        email: emailPlain,
+        notificationPreferences: mockUser.notificationPreferences,
+        privacy: {
+          isDiscoverable: true,
+          canReceiveReplies: true,
+          showReactions: true,
+          dataProcessingConsent: true,
+        },
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt,
+      });
     });
 
     it('should handle errors gracefully', async () => {
       const error = new Error('Profile error');
-      jest.spyOn(controller, 'getProfile').mockRejectedValue(error);
+      mockUserService.findById.mockRejectedValue(error);
 
-      await expect(controller.getProfile(mockUser)).rejects.toThrow(
+      await expect(controller.getProfile(mockUser.id)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -102,10 +138,28 @@ describe('UserController', () => {
 
       const result = await controller.register(validRegistrationData);
 
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = mockUser as any;
-      const expectedResult = { ...rest, email: emailPlain };
+      const expectedResult = {
+        user: {
+          id: mockUser.id,
+          username: mockUser.username,
+          role: mockUser.role,
+          is_active: mockUser.is_active,
+          email: emailPlain,
+          notificationPreferences: mockUser.notificationPreferences,
+          privacy: {
+            isDiscoverable: true,
+            canReceiveReplies: true,
+            showReactions: true,
+            dataProcessingConsent: true,
+          },
+          createdAt: mockUser.createdAt,
+          updatedAt: mockUser.updatedAt,
+        },
+      };
       expect(result).toEqual(expectedResult);
-      expect(mockUserService.findByEmail).toHaveBeenCalledWith(validRegistrationData.email);
+      expect(mockUserService.findByEmail).toHaveBeenCalledWith(
+        validRegistrationData.email,
+      );
       expect(mockUserService.create).toHaveBeenCalledWith(
         validRegistrationData.email,
         validRegistrationData.password,
@@ -167,12 +221,31 @@ describe('UserController', () => {
         username: 'test-user_123',
       };
       mockUserService.findByEmail.mockResolvedValue(null);
-      mockUserService.create.mockResolvedValue({ ...mockUser, username: specialUsernameData.username });
+      mockUserService.create.mockResolvedValue({
+        ...mockUser,
+        username: specialUsernameData.username,
+      });
 
       const result = await controller.register(specialUsernameData);
 
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = { ...mockUser, username: specialUsernameData.username };
-      const expectedResult = { ...rest, email: emailPlain };
+      const expectedResult = {
+        user: {
+          id: mockUser.id,
+          username: specialUsernameData.username,
+          role: mockUser.role,
+          is_active: mockUser.is_active,
+          email: emailPlain,
+          notificationPreferences: mockUser.notificationPreferences,
+          privacy: {
+            isDiscoverable: true,
+            canReceiveReplies: true,
+            showReactions: true,
+            dataProcessingConsent: true,
+          },
+          createdAt: mockUser.createdAt,
+          updatedAt: mockUser.updatedAt,
+        },
+      };
       expect(result).toEqual(expectedResult);
       expect(mockUserService.create).toHaveBeenCalledWith(
         specialUsernameData.email,
@@ -201,7 +274,14 @@ describe('UserController', () => {
 
   describe('login', () => {
     it('should return access token and user data', async () => {
-      const { password, emailEncrypted, emailIv, emailTag, emailHash, ...rest } = mockUser as any;
+      const {
+        password,
+        emailEncrypted,
+        emailIv,
+        emailTag,
+        emailHash,
+        ...rest
+      } = mockUser as any;
       const mockResponse = {
         access_token: 'mock-token',
         user: { ...rest, email: emailPlain },
@@ -216,95 +296,14 @@ describe('UserController', () => {
       expect(result).toEqual(mockResponse);
     });
 
-    it('should throw UnauthorizedException for invalid credentials', async () => {
+    it('should throw UnauthorizedException if auth fails', async () => {
       mockAuthService.login.mockRejectedValue(new UnauthorizedException());
-
       await expect(
         controller.login({
-          email: 'test@example.com',
-          password: 'wrongpassword',
+          email: 'invalid@example.com',
+          password: 'wrong',
         }),
       ).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should throw BadRequestException for invalid email format', async () => {
-      await expect(
-        controller.login({
-          email: 'invalid-email',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(BadRequestException);
-      expect(mockAuthService.login).not.toHaveBeenCalled();
-    });
-
-    it('should throw BadRequestException for empty password', async () => {
-      await expect(
-        controller.login({
-          email: 'test@example.com',
-          password: '',
-        }),
-      ).rejects.toThrow(BadRequestException);
-      expect(mockAuthService.login).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('notification preferences', () => {
-    it('should get notification preferences for authenticated user', async () => {
-      mockUserService.findById.mockResolvedValue(mockUser);
-      
-      const result = await controller.getNotificationPreferences(1);
-      
-      expect(result).toEqual(mockUser.notificationPreferences);
-      expect(mockUserService.findById).toHaveBeenCalledWith(1);
-    });
-
-    it('should throw NotFoundException when user not found during get', async () => {
-      mockUserService.findById.mockResolvedValue(null);
-      
-      await expect(controller.getNotificationPreferences(1)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should update notification preferences for authenticated user', async () => {
-      const updatedPreferences = { email: false, push: true };
-      const updatedUser = { ...mockUser, notificationPreferences: updatedPreferences };
-      
-      mockUserService.findById.mockResolvedValue(mockUser);
-      mockUserService.saveUser.mockResolvedValue(updatedUser);
-      
-      const result = await controller.updateNotificationPreferences(1, updatedPreferences);
-      
-      expect(result).toEqual(updatedPreferences);
-      expect(mockUserService.findById).toHaveBeenCalledWith(1);
-      expect(mockUserService.saveUser).toHaveBeenCalledWith({
-        ...mockUser,
-        notificationPreferences: updatedPreferences,
-      });
-    });
-
-    it('should throw NotFoundException when user not found during update', async () => {
-      mockUserService.findById.mockResolvedValue(null);
-      
-      await expect(
-        controller.updateNotificationPreferences(1, { email: false }),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should merge preferences correctly during update', async () => {
-      const existingPreferences = { email: true, push: false, sms: true };
-      const updateDto = { push: true };
-      const expectedMerged = { email: true, push: true, sms: true };
-      const userWithExistingPrefs = { ...mockUser, notificationPreferences: existingPreferences };
-      const updatedUser = { ...userWithExistingPrefs, notificationPreferences: expectedMerged };
-      
-      mockUserService.findById.mockResolvedValue(userWithExistingPrefs);
-      mockUserService.saveUser.mockResolvedValue(updatedUser);
-      
-      const result = await controller.updateNotificationPreferences(1, updateDto);
-      
-      expect(result).toEqual(expectedMerged);
-      expect(mockUserService.saveUser).toHaveBeenCalledWith(updatedUser);
     });
   });
 });

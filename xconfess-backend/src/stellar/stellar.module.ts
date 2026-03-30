@@ -5,14 +5,17 @@ import { TransactionBuilderService } from './transaction-builder.service';
 import { StellarService } from './stellar.service';
 import { ContractService } from './contract.service';
 import { StellarController } from './stellar.controller';
+import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.guard';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, AuditLogModule],
   providers: [
     StellarConfigService,
     TransactionBuilderService,
     StellarService,
     ContractService,
+    StellarInvokeContractGuard,
   ],
   controllers: [StellarController],
   exports: [
@@ -22,4 +25,4 @@ import { StellarController } from './stellar.controller';
     ContractService,
   ],
 })
-export class StellarModule { }
+export class StellarModule {}

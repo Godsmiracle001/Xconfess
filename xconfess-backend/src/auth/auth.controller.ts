@@ -15,7 +15,7 @@ import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { LoginDto } from '../user/dto/login.dto';
+import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
@@ -24,7 +24,6 @@ import { RateLimit } from './guard/rate-limit.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
-
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
@@ -35,7 +34,10 @@ export class AuthController {
     @Body() loginDto: LoginDto,
   ): Promise<{ access_token: string; user: any }> {
     try {
-      const result = await this.authService.login(loginDto.email, loginDto.password);
+      const result = await this.authService.login(
+        loginDto.email,
+        loginDto.password,
+      );
 
       if (!result) {
         throw new UnauthorizedException('Invalid credentials');
@@ -46,7 +48,8 @@ export class AuthController {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException('Login failed: ' + errorMessage);
     }
   }
@@ -65,7 +68,8 @@ export class AuthController {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException('Failed to get profile: ' + errorMessage);
     }
   }
@@ -87,7 +91,8 @@ export class AuthController {
     @Req() request: Request,
   ): Promise<{ message: string }> {
     try {
-      const ipAddress = request.ip ||
+      const ipAddress =
+        request.ip ||
         (request.headers['x-forwarded-for'] as string)?.split(',')[0] ||
         request.connection.remoteAddress;
       const userAgent = request.headers['user-agent'];
@@ -102,7 +107,9 @@ export class AuthController {
         throw error;
       }
       // Handle generic errors gracefully - don't expose internal details
-      return { message: 'If the user exists, a password reset email has been sent.' };
+      return {
+        message: 'If the user exists, a password reset email has been sent.',
+      };
     }
   }
 
@@ -123,7 +130,9 @@ export class AuthController {
       // Handle generic errors
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      throw new BadRequestException('Failed to reset password: ' + errorMessage);
+      throw new BadRequestException(
+        'Failed to reset password: ' + errorMessage,
+      );
     }
   }
-} 
+}
