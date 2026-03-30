@@ -9,10 +9,19 @@ import { AUTH_TOKEN_KEY, USER_DATA_KEY } from "@/app/lib/api/constants";
 import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 import { getApiBaseUrl } from "@/app/lib/config";
 
+/**
+ * Returns true only when running in a local development environment AND the
+ * NEXT_PUBLIC_ADMIN_MOCK env var is explicitly set to "true".
+ *
+ * The localStorage "adminMock" toggle has been removed: it allowed any user
+ * to grant themselves admin navigation by setting a key in the browser, which
+ * creates an ambiguous privilege boundary even when backend guards are in
+ * place. The env-var path is kept exclusively for development convenience
+ * and is impossible to enable in production builds.
+ */
 function isMockAdminEnabled(): boolean {
-  if (process.env.NEXT_PUBLIC_ADMIN_MOCK === "true") return true;
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem("adminMock") === "true";
+  if (process.env.NODE_ENV !== "development") return false;
+  return process.env.NEXT_PUBLIC_ADMIN_MOCK === "true";
 }
 
 export default function AdminLayout({
@@ -41,24 +50,12 @@ export default function AdminLayout({
   );
 
   useEffect(() => {
-    const mockEnabled = isMockAdminEnabled();
+    // In development mock mode, skip real auth so local UI work is unblocked.
+    // This path is compiled away in production builds (NODE_ENV check is
+    // evaluated at build time by Next.js / webpack dead-code elimination).
+    if (isMockAdminEnabled()) return;
 
-    // In mock mode, auto-seed a demo admin user for convenience
-    if (mockEnabled && !localStorage.getItem(USER_DATA_KEY)) {
-      localStorage.setItem(
-        USER_DATA_KEY,
-        JSON.stringify({
-          id: 1,
-          username: "demo-admin",
-          isAdmin: true,
-          is_active: true,
-        }),
-      );
-      localStorage.setItem(AUTH_TOKEN_KEY, "mock");
-      return;
-    }
-
-    // Check if user is admin
+    // Require a real authenticated admin session.
     const userStr = localStorage.getItem(USER_DATA_KEY);
     if (!userStr) {
       router.replace("/login");
