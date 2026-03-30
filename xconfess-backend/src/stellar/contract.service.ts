@@ -40,12 +40,13 @@ export class ContractService {
         [operation],
       );
       const signedTx = this.txBuilder.signTransaction(tx, signerSecret);
-      const result = await this.txBuilder.submitTransaction(signedTx);
+      const result: ITransactionResult =
+        await this.txBuilder.submitTransaction(signedTx);
       const decodedResult = this.decodeContractResult(result);
 
       return {
         hash: result.hash,
-        success: result.successful,
+        success: result.success,
         result: decodedResult,
       };
     } catch (error: unknown) {
