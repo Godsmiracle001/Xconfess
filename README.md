@@ -9,7 +9,7 @@
 
 **A privacy-first anonymous confession platform leveraging Stellar blockchain for immutability, transparency, and trustless verification.**
 
-[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Godsmiracle001/Xconfess/issues)
+[💬 Community](https://t.me/xconfess_Community) • [🐛 Report Bug](https://github.com/Xconfess/Xconfess/issues)
 
 </div>
 
@@ -138,7 +138,7 @@ Key supporting references:
 
 - [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md) for frontend-heavy deployment verification details
 - [docs/SOROBAN_SETUP.md](docs/SOROBAN_SETUP.md) for Soroban environment setup and contract interaction help
-- [maintainer/issues/125-docs-contract-release-and-upgrade-runbook.md](maintainer/issues/125-docs-contract-release-and-upgrade-runbook.md) for contract release and rollback guidance
+- [docs/contract-release-and-upgrade-runbook.md](docs/contract-release-and-upgrade-runbook.md) for contract release and rollback guidance
 - [maintainer/BACKLOG_INDEX.md](maintainer/BACKLOG_INDEX.md) for maintainer backlog grouping, subsystem ownership, and triage routing
 
 ---
@@ -157,7 +157,7 @@ Key supporting references:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Godsmiracle001/xconfess.git
+   git clone https://github.com/Xconfess/Xconfess.git
    cd xconfess
    ```
 
@@ -309,7 +309,7 @@ We welcome contributions from the community! xConfess is participating in the **
 ### How to Contribute
 
 1. **Find an Issue**
-   - Browse [open issues](https://github.com/Godsmiracle001/Xconfess/issues)
+   - Browse [open issues](https://github.com/Xconfess/Xconfess/issues)
    - Look for `good first issue`, `help wanted`, or `Stellar Wave` labels
    - Comment to get assigned
 
@@ -416,8 +416,8 @@ xConfess is proud to participate in the **Stellar Development Foundation's Wave 
 
 - 🚀 **Contributors**: 10+
 - ⭐ **GitHub Stars**: Growing daily
-- 🔧 **Open Issues**: [View Issues](https://github.com/Godsmiracle001/Xconfess/issues)
-- 📦 **Pull Requests**: [View PRs](https://github.com/Godsmiracle001/Xconfess/pulls)
+- 🔧 **Open Issues**: [View Issues](https://github.com/Xconfess/Xconfess/issues)
+- 📦 **Pull Requests**: [View PRs](https://github.com/Xconfess/Xconfess/pulls)
 
 ---
 
@@ -427,11 +427,11 @@ xConfess is proud to participate in the **Stellar Development Foundation's Wave 
 
 - 💬 **Discord**: [xConfess Community](https://discord.gg/5qVnXvzd)
 - 💬 **Telegram**: [xConfess Community](https://t.me/xconfess_Community)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/Godsmiracle001/Xconfess/issues)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/Xconfess/Xconfess/issues)
 
 ### Get Help
 
-- Check existing [issues](https://github.com/Godsmiracle001/Xconfess/issues) and [discussions](https://github.com/Godsmiracle001/Xconfess/discussions)
+- Check existing [issues](https://github.com/Xconfess/Xconfess/issues) and [discussions](https://github.com/Xconfess/Xconfess/discussions)
 - Join our Telegram for real-time support
 
 ---
@@ -454,7 +454,7 @@ This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for d
 
 If you find xConfess valuable, please give us a ⭐ on GitHub!
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Godsmiracle001/Xconfess&type=Date)](https://star-history.com/#Godsmiracle001/Xconfess&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Xconfess/Xconfess&type=Date)](https://star-history.com/#Xconfess/Xconfess&Date)
 
 ---
 
@@ -462,6 +462,6 @@ If you find xConfess valuable, please give us a ⭐ on GitHub!
 
 **Built with ❤️ for the Stellar ecosystem**
 
-[Community](https://t.me/xconfess_Community) • [Contribute](https://github.com/Godsmiracle001/Xconfess/issues)
+[Community](https://t.me/xconfess_Community) • [Contribute](https://github.com/Xconfess/Xconfess/issues)
 
 </div>

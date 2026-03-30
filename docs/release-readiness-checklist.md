@@ -41,7 +41,7 @@ Use this checklist before any staging or production release that affects the bac
 ### Contract Readiness
 
 - [ ] Confirm all automated contract gates passed in CI (check, build, test for wasm32 target).
-- [ ] Review `maintainer/issues/125-docs-contract-release-and-upgrade-runbook.md` before any contract release or upgrade.
+- [ ] Review `docs/contract-release-and-upgrade-runbook.md` before any contract release or upgrade.
 - [ ] Optionally run local contract tests for deep validation: `./scripts/test-contracts.sh --verbose`
 - [ ] Build the contract artifacts locally to verify: `./scripts/contracts-release.sh build`
 - [ ] Verify the generated artifact manifest exists at `deployments/contract-wasm-manifest.json`.
@@ -108,4 +108,4 @@ Use this checklist before any staging or production release that affects the bac
 - `README.md`
 - `DEPLOYMENT_CHECKLIST.md`
 - `docs/SOROBAN_SETUP.md`
-- `maintainer/issues/125-docs-contract-release-and-upgrade-runbook.md`
+- `docs/contract-release-and-upgrade-runbook.md`
