@@ -89,9 +89,9 @@ NEXT_PUBLIC_API_URL=http://localhost:5000
 NEXT_PUBLIC_WS_URL=http://localhost:3001
 ```
 
-### Note on /api/auth/* route
+### Supported frontend auth route surface
 
-The file `app/api/auth/[...nextauth]/route.ts` exists but returns a `501 Not Implemented` response. It is **not** a NextAuth handler. If NextAuth is adopted in the future, replace its contents with the standard NextAuth handler.
+The frontend only exposes `app/api/auth/session/route.ts` for session management tied to the custom JWT flow. No NextAuth compatibility route is shipped.
 
 ---
 
