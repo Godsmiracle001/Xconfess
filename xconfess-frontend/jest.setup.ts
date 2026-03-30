@@ -5,7 +5,6 @@ import { Blob } from "node:buffer";
 import { ReadableStream, TransformStream, WritableStream } from "node:stream/web";
 import "whatwg-fetch";
 import "@testing-library/jest-dom";
-import { server } from "./tests/mocks/server";
 
 if (typeof globalThis.TextEncoder === "undefined") {
   Object.defineProperty(globalThis, "TextEncoder", { value: TextEncoder });
@@ -41,6 +40,9 @@ if (typeof globalThis.BroadcastChannel === "undefined") {
   }
   Object.defineProperty(globalThis, "BroadcastChannel", { value: BroadcastChannelStub, writable: true });
 }
+
+// Import msw server only after required globals exist.
+const { server } = require("./tests/mocks/server");
 
 // Mock window.matchMedia
 Object.defineProperty(window, "matchMedia", {
