@@ -12,6 +12,7 @@ env:
 
 jobs:
   lint:
+    name: Lint (backend + frontend)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,26 +29,86 @@ jobs:
       - name: Lint frontend
         run: npm run lint --workspace=xconfess-frontend
 
-  contracts:
+  backend-test:
+    name: Backend tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build backend
+        run: npm run build --workspace=xconfess-backend
+      - name: Run backend unit tests
+        run: npm run test --workspace=xconfess-backend
+      - name: Upload test coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: xconfess-backend/coverage
+          retention-days: 7
+
+  frontend-test:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run frontend tests
+        run: npm run test --workspace=xconfess-frontend
+
+  frontend-build:
+    name: Frontend production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:5000
+        run: npm run build --workspace=xconfess-frontend
+
+  contracts:
+    name: Smart contracts (check + test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      
+
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
         with:
           workspaces: xconfess-contracts
           cache-targets: true
-      
+
       - name: Check contracts
         run: ./scripts/test-contracts.sh
-      
+
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@v4
