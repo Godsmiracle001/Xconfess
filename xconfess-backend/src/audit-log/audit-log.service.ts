@@ -131,7 +131,10 @@ export class AuditLogService {
   async log(dto: CreateAuditLogDto): Promise<void> {
     try {
       const actor = this.resolveActor(dto);
-      const templateKey = this.extractMetadataString(dto.metadata, 'templateKey');
+      const templateKey = this.extractMetadataString(
+        dto.metadata,
+        'templateKey',
+      );
       const templateVersion = this.extractMetadataString(
         dto.metadata,
         'templateVersion',
@@ -612,7 +615,9 @@ export class AuditLogService {
         templateKey,
         templateVersion: failedVersion,
         changeType: 'fallback_activation',
-        actorId: String(context?.actor?.id || context?.userId || 'template-fallback'),
+        actorId: String(
+          context?.actor?.id || context?.userId || 'template-fallback',
+        ),
         actorType:
           context?.actor?.type || (context?.userId ? 'admin' : 'system'),
         before: { activeVersion: failedVersion },

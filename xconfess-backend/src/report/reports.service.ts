@@ -55,7 +55,11 @@ export class ReportsService {
     confessionId: string,
     reporterId: number | null,
     dto: CreateReportDto,
-    context?: { ipAddress?: string; userAgent?: string; anonymousUserId?: string },
+    context?: {
+      ipAddress?: string;
+      userAgent?: string;
+      anonymousUserId?: string;
+    },
     idempotencyKey?: string,
   ): Promise<Report> {
     // ── Idempotency replay ────────────────────────────────────────────────────
@@ -124,7 +128,8 @@ export class ReportsService {
       const report = manager.getRepository(Report).create({
         confessionId,
         reporterId: reporterId ?? undefined,
-        anonymousReporterId: reporterId === null ? context?.anonymousUserId : undefined,
+        anonymousReporterId:
+          reporterId === null ? context?.anonymousUserId : undefined,
         type: dto.type ?? ReportType.OTHER,
         reason: dto.reason ?? null,
         status: ReportStatus.PENDING,

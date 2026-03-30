@@ -28,4 +28,3 @@ import { WebSocketHealthController } from '../websocket/websocket-health.control
   exports: [ReactionService, ReactionsGateway],
 })
 export class ReactionModule {}
-

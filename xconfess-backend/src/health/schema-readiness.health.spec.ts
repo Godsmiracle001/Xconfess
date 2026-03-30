@@ -51,7 +51,9 @@ describe('SchemaReadinessHealthIndicator', () => {
       missingIndexes: [],
     });
 
-    await expect(indicator.isHealthy('schema')).rejects.toThrow(HealthCheckError);
+    await expect(indicator.isHealthy('schema')).rejects.toThrow(
+      HealthCheckError,
+    );
   });
 
   it('throws HealthCheckError when verification query fails', async () => {
@@ -62,6 +64,8 @@ describe('SchemaReadinessHealthIndicator', () => {
       queryError: 'timeout',
     });
 
-    await expect(indicator.isHealthy('schema')).rejects.toThrow(HealthCheckError);
+    await expect(indicator.isHealthy('schema')).rejects.toThrow(
+      HealthCheckError,
+    );
   });
 });

@@ -347,10 +347,10 @@ export class AnalyticsService {
     const secondHalf = data.slice(Math.floor(data.length / 2));
 
     const firstAvg =
-      firstHalf.reduce((sum, item) => sum + parseInt(item.count), 0) /
+      firstHalf.reduce((sum, item) => sum + Number(item.count), 0) /
       firstHalf.length;
     const secondAvg =
-      secondHalf.reduce((sum, item) => sum + parseInt(item.count), 0) /
+      secondHalf.reduce((sum, item) => sum + Number(item.count), 0) /
       secondHalf.length;
 
     const change = ((secondAvg - firstAvg) / firstAvg) * 100;
@@ -433,8 +433,9 @@ export class AnalyticsService {
     range: AnalyticsWindowRange,
     days: number,
   ): Promise<UserActivityMetrics> {
-    const rawActivityRows: unknown = await this.confessionRepository.manager.query(
-      `
+    const rawActivityRows: unknown =
+      await this.confessionRepository.manager.query(
+        `
         SELECT activity.date::text AS date,
                COUNT(DISTINCT activity.anonymous_user_id)::int AS "activeUsers"
         FROM (
@@ -451,8 +452,8 @@ export class AnalyticsService {
         GROUP BY activity.date
         ORDER BY activity.date ASC
       `,
-      [range.startAt, range.endAt],
-    );
+        [range.startAt, range.endAt],
+      );
     const activityRows = this.toBucketRows(rawActivityRows, 'activeUsers');
 
     const dailyActivity = this.getDateBuckets(range).map((date) => ({

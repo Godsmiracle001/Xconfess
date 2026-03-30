@@ -26,7 +26,7 @@ export class TippingController {
 
   @Post('verify')
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  verifyTip(
+  async verifyTip(
     @Param('id') confessionId: string,
     @Body() dto: VerifyTipDto,
   ): Promise<TipVerificationResult> {

@@ -145,11 +145,13 @@ describe('UserService', () => {
     });
   });
 
-// findByResetToken was removed from service, so removing tests or skipping them
+  // findByResetToken was removed from service, so removing tests or skipping them
 
   describe('updatePassword', () => {
     it('should successfully update password and clear reset token fields', async () => {
-      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed-password' as never);
+      (bcrypt.hash as jest.Mock).mockResolvedValue(
+        'new-hashed-password' as never,
+      );
       mockRepository.update.mockResolvedValue({ affected: 1 });
 
       await service.updatePassword(1, 'newpassword123');
@@ -159,7 +161,9 @@ describe('UserService', () => {
     });
 
     it('should throw InternalServerErrorException on database error', async () => {
-      (bcrypt.hash as jest.Mock).mockResolvedValue('new-hashed-password' as never);
+      (bcrypt.hash as jest.Mock).mockResolvedValue(
+        'new-hashed-password' as never,
+      );
       mockRepository.save.mockRejectedValue(new Error('Database error'));
 
       await expect(service.updatePassword(1, 'newpassword123')).rejects.toThrow(
@@ -286,7 +290,9 @@ describe('UserService', () => {
 
     it('should throw InternalServerErrorException on password hashing error', async () => {
       mockRepository.findOne.mockResolvedValue(null);
-      (bcrypt.hash as jest.Mock).mockRejectedValue(new Error('Hashing error') as never);
+      (bcrypt.hash as jest.Mock).mockRejectedValue(
+        new Error('Hashing error') as never,
+      );
 
       await expect(
         service.create(

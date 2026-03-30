@@ -34,7 +34,9 @@ export class ReportsController {
     // Idempotency keys are only honoured for authenticated users.
     // Anonymous callers use their anonymous user ID for deduplication.
     if (reporterId === null && !anonymousUserId) {
-      throw new BadRequestException('Anonymous reports require x-anonymous-user-id header');
+      throw new BadRequestException(
+        'Anonymous reports require x-anonymous-user-id header',
+      );
     }
 
     const idempotencyKey =

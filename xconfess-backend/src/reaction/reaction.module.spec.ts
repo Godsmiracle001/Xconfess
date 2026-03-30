@@ -65,7 +65,7 @@ describe('ReactionModule', () => {
     it('should export ReactionsGateway for use in other modules', () => {
       const gateway = module.get<ReactionsGateway>(ReactionsGateway);
       expect(gateway).toBeDefined();
-      
+
       // Verify gateway has required methods
       expect(typeof gateway.broadcastReactionAdded).toBe('function');
       expect(typeof gateway.broadcastReactionRemoved).toBe('function');
@@ -77,7 +77,7 @@ describe('ReactionModule', () => {
   describe('Gateway Lifecycle', () => {
     it('should initialize gateway with proper namespace configuration', () => {
       const gateway = module.get<ReactionsGateway>(ReactionsGateway);
-      
+
       // Verify gateway metadata (namespace is set via decorator)
       const metadata = Reflect.getMetadata('namespace', gateway.constructor);
       expect(metadata).toBe('/reactions');
@@ -85,7 +85,7 @@ describe('ReactionModule', () => {
 
     it('should have WebSocket server instance after initialization', async () => {
       const gateway = module.get<ReactionsGateway>(ReactionsGateway);
-      
+
       // The server property should be defined (will be set by NestJS when gateway initializes)
       expect(gateway).toHaveProperty('server');
     });

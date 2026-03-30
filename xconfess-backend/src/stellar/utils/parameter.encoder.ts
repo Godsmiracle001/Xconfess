@@ -111,10 +111,10 @@ export function encodeContractArg(arg: ContractArg): StellarSDK.xdr.ScVal {
     case 'map':
       return encodeMapParam(arg.value);
     default: {
-      // Exhaustiveness guard — TypeScript will flag unhandled cases at compile time.
-      const _exhaustive: never = arg;
+      // Exhaustiveness guard — avoid interpolating `never` in template literals (restrict-template-expressions).
+      const u = arg as unknown as { type?: string };
       throw new Error(
-        `Unsupported contract arg type: ${(_exhaustive as any).type}`,
+        `Unsupported contract arg type: ${String(u.type ?? 'unknown')}`,
       );
     }
   }

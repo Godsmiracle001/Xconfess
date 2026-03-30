@@ -67,17 +67,18 @@ export class ContractService {
         [operation],
       );
       const signedTx = this.txBuilder.signTransaction(tx, signerSecret);
-      const result = await this.txBuilder.submitTransaction(signedTx);
+      const result: ITransactionResult =
+        await this.txBuilder.submitTransaction(signedTx);
       const decodedResult = this.decodeContractResult(result);
 
       return {
         hash: result.hash,
-        success: result.successful,
+        success: result.success,
         result: decodedResult,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Contract invocation failed: ${message}`);
+      this.logger.error('Contract invocation failed: ' + String(message));
       throw handleStellarError(error);
     }
   }
@@ -123,8 +124,10 @@ export class ContractService {
 
       const timestamp = StellarSDK.scValToNative(result as any);
       return timestamp || null;
-    } catch (error) {
-      this.logger.warn(`Confession not found on-chain: ${confessionHash}`);
+    } catch (_error) {
+      this.logger.warn(
+        'Confession not found on-chain: ' + String(confessionHash),
+      );
       return null;
     }
   }
@@ -143,7 +146,7 @@ export class ContractService {
       return StellarSDK.scValToNative(resultValue as any);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Could not decode contract result: ${message}`);
+      this.logger.warn('Could not decode contract result: ' + String(message));
       return null;
     }
   }

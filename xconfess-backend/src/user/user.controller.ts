@@ -106,7 +106,9 @@ export class UserController {
         throw new BadRequestException('Username is required');
       }
 
-      const existingEmail = await this.userService.findByEmail(registerDto.email);
+      const existingEmail = await this.userService.findByEmail(
+        registerDto.email,
+      );
       if (existingEmail) {
         throw new ConflictException('Email already in use');
       }
@@ -126,7 +128,10 @@ export class UserController {
 
       return { user: this.formatUserResponse(user) };
     } catch (error) {
-      if (error instanceof ConflictException || error instanceof BadRequestException)
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      )
         throw error;
       const message = error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException('Registration failed: ' + message);
@@ -245,7 +250,9 @@ export class UserController {
   }
 
   @Get(':id/public-profile')
-  async getPublicProfile(@Param('id') id: string): Promise<UserProfileResponse> {
+  async getPublicProfile(
+    @Param('id') id: string,
+  ): Promise<UserProfileResponse> {
     // Mock implementation
     return {
       id: parseInt(id),
